@@ -1,6 +1,6 @@
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import type { ModelLoader } from './types'
-import type * as THREE from 'three'
+import * as THREE from 'three'
 
 export class GlbLoader implements ModelLoader {
   format = 'glb'
