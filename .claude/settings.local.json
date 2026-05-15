@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(superpowers:brainstorming)",
+      "Bash(bash *)",
+      "Skill(superpowers:writing-plans)",
+      "WebSearch",
+      "Skill(superpowers:subagent-driven-development)",
+      "Bash(npm create *)",
+      "Bash(npm -v)",
+      "Bash(where node *)",
+      "Bash(nvm list *)",
+      "Bash(fnm list *)",
+      "Bash(nvm)",
+      "Bash(cmd //c \"nvm list\")",
+      "Read(//e/nvm/v22.12.0/**)",
+      "Bash(/e/nvm/v22.12.0/node.exe -v)",
+      "Bash(cmd //c \"nvm use 22.12.0\")",
+      "Bash(echo \"exit: $?\")",
+      "Bash(rm -rf temp_init)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
+    ]
+  }
+}
