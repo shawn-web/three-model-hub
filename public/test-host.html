@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>3D Viewer Test Host</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; background: #f0f0f0; }
+    .controls { padding: 16px; background: #fff; border-bottom: 1px solid #ddd; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    button { margin: 2px; padding: 8px 16px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: #fff; }
+    button:hover { background: #e8e8e8; }
+    #viewer-frame { width: 100%; height: calc(100vh - 60px); border: none; }
+    #status { margin-left: 16px; color: #666; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <button onclick="loadModel()">Load GLB Model</button>
+    <span style="color:#999">|</span>
+    <button onclick="setEnv('city')">晴天</button>
+    <button onclick="setEnv('sunset')">黄昏</button>
+    <button onclick="setEnv('night')">夜晚</button>
+    <span style="color:#999">|</span>
+    <button onclick="activateTool('navigation')">导航</button>
+    <button onclick="activateTool('picking')">拾取</button>
+    <button onclick="activateTool('measurement')">测量</button>
+    <button onclick="activateTool('section')">剖面</button>
+    <button onclick="activateTool('floor')">楼层</button>
+    <span id="status">Waiting...</span>
+  </div>
+  <iframe id="viewer-frame" src="/?toolbar=true"></iframe>
+
+  <script>
+    const frame = document.getElementById('viewer-frame')
+    const status = document.getElementById('status')
+
+    window.addEventListener('message', (event) => {
+      const msg = event.data
+      if (!msg || !msg.type) return
+
+      switch (msg.type) {
+        case 'viewer-ready':
+          status.textContent = '✅ Viewer Ready'
+          status.style.color = '#2d8'
+          break
+        case 'model-loaded':
+          status.textContent = '📦 Model Loaded: ' + msg.payload.metadata.name
+          status.style.color = '#28d'
+          break
+        case 'model-error':
+          status.textContent = '❌ Error: ' + msg.payload.error
+          status.style.color = '#d22'
+          break
+        case 'pick-result':
+          status.textContent = '👆 Picked: ' + (msg.payload.objectId || 'nothing')
+          status.style.color = '#28d'
+          break
+        case 'progress':
+          status.textContent = '⏳ Loading: ' + msg.payload.percent + '%'
+          status.style.color = '#88a'
+          break
+        case 'tool-activated':
+          status.textContent = '🔧 Tool: ' + msg.payload.toolId
+          status.style.color = '#28d'
+          break
+      }
+    })
+
+    function loadModel() {
+      const url = prompt('Enter GLB model URL:')
+      if (url) {
+        frame.contentWindow.postMessage({ type: 'load-model', payload: { url } }, '*')
+      }
+    }
+
+    function setEnv(preset) {
+      frame.contentWindow.postMessage({ type: 'set-environment', payload: { preset } }, '*')
+    }
+
+    function activateTool(toolId) {
+      frame.contentWindow.postMessage({ type: 'tool-activate', payload: { toolId } }, '*')
+    }
+  </script>
+</body>
+</html>
