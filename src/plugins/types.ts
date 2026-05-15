@@ -1,11 +1,8 @@
-import type * as THREE from 'three'
 import type { FC } from 'react'
-
-// Placeholder types for modules not yet created
-// These will be replaced with actual imports once those modules exist
-type ViewerStoreApi = unknown
-type MessageBus = unknown
-type PluginManager = unknown
+import type * as THREE from 'three'
+import type { MessageBus } from '../communication/message-bus'
+import type { PluginManager } from '../core/plugin-manager'
+import type { ViewerStoreApi } from '../store/viewer-store'
 
 export interface ViewerContext {
   scene: THREE.Scene
