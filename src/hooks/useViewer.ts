@@ -8,6 +8,8 @@ import { GlbLoader } from '../loaders/glb-loader'
 import { getMessageBus } from './useMessageBus'
 import { useViewerStore } from '../store/viewer-store'
 import { MESSAGE_TYPES } from '../communication/protocol'
+import { parseUrlParams } from '../communication/url-params'
+import { applyEditData } from '../utils/edit-apply'
 
 export function useViewer() {
   const pluginManagerRef = useRef(new PluginManager())
@@ -65,6 +67,18 @@ export function useViewer() {
             },
           },
         })
+
+        // After model loading success, check for editData
+        const params = parseUrlParams(window.location.search)
+        if (params.editDataUrl) {
+          try {
+            const response = await fetch(params.editDataUrl)
+            const editData = await response.json()
+            applyEditData(model, editData)
+          } catch (err) {
+            console.error('[Viewer] Failed to apply edit data:', err)
+          }
+        }
       } catch (err: any) {
         console.error('[Viewer] Model load error:', err)
         store.setModelError(err.message)
