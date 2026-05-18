@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { ViewerCanvas } from './components/ViewerCanvas'
 import { Toolbar } from './components/Toolbar'
-import { EnvironmentSelector } from './components/EnvironmentSelector'
 import { useMessageBus } from './hooks/useMessageBus'
 import { parseUrlParams } from './communication/url-params'
 import { MESSAGE_TYPES } from './communication/protocol'
@@ -40,13 +39,18 @@ export function App() {
     }
   }, [])
 
+  const handleFitView = useCallback(() => {
+    if (!pluginManager) return
+    const navPlugin = pluginManager.getPlugin('navigation') as any
+    if (navPlugin?.fitToView) {
+      navPlugin.fitToView()
+    }
+  }, [pluginManager])
+
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden' }}>
-      <ViewerCanvas
-        onPluginManagerReady={setPluginManager}
-      />
-      <EnvironmentSelector />
-      {pluginManager && <Toolbar pluginManager={pluginManager} />}
+      <ViewerCanvas onPluginManagerReady={setPluginManager} />
+      {pluginManager && <Toolbar pluginManager={pluginManager} onFitView={handleFitView} />}
       {modelLoading && (
         <div style={{
           position: 'absolute',

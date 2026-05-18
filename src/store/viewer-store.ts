@@ -12,6 +12,7 @@ export interface ViewerState {
   hiddenTools: string[]
   environmentPreset: string
   toolbarVisible: boolean
+  rotationMode: boolean
 }
 
 export interface ViewerActions {
@@ -25,6 +26,7 @@ export interface ViewerActions {
   setHiddenTools: (tools: string[]) => void
   setEnvironmentPreset: (preset: string) => void
   setToolbarVisible: (visible: boolean) => void
+  setRotationMode: (enabled: boolean) => void
   resetViewer: () => void
 }
 
@@ -37,8 +39,9 @@ const initialState: ViewerState = {
   installedPlugins: [],
   visibleTools: [],
   hiddenTools: [],
-  environmentPreset: 'day',
+  environmentPreset: 'city',
   toolbarVisible: true,
+  rotationMode: false,
 }
 
 export const useViewerStore = create<ViewerState & ViewerActions>()((set) => ({
@@ -54,6 +57,7 @@ export const useViewerStore = create<ViewerState & ViewerActions>()((set) => ({
   setHiddenTools: (tools) => set({ hiddenTools: tools }),
   setEnvironmentPreset: (preset) => set({ environmentPreset: preset }),
   setToolbarVisible: (visible) => set({ toolbarVisible: visible }),
+  setRotationMode: (enabled) => set({ rotationMode: enabled }),
   resetViewer: () => set(initialState),
 }))
 

@@ -4,7 +4,7 @@ import type { ViewerPlugin, ViewerContext } from '../types'
 export class PickingPlugin implements ViewerPlugin {
   id = 'picking'
   name = '构件拾取'
-  icon = '👆'
+  icon = 'pointer'
   group = 'picking' as const
 
   private context: ViewerContext | null = null

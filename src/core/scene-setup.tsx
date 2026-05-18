@@ -4,8 +4,14 @@ import { Environment, OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import { useViewerStore } from '../store/viewer-store'
 import { fitToView } from '../utils/fit-to-view'
+import { PluginScene } from '../components/PluginScene'
+import type { PluginManager } from '../core/plugin-manager'
 
-export function SceneSetup() {
+interface SceneSetupProps {
+  pluginManager: PluginManager | null
+}
+
+export function SceneSetup({ pluginManager }: SceneSetupProps) {
   const controlsRef = useRef<any>(null)
   const { camera, scene, gl } = useThree()
   const modelObject = useViewerStore((s) => s.modelObject)
@@ -20,17 +26,30 @@ export function SceneSetup() {
   }, [scene, gl])
 
   useEffect(() => {
+    if (controlsRef.current && pluginManager) {
+      const navPlugin = pluginManager.getPlugin('navigation') as any
+      if (navPlugin?.setControlsRef) {
+        navPlugin.setControlsRef(controlsRef.current)
+      }
+    }
+  }, [pluginManager])
+
+  useEffect(() => {
     if (modelObject && controlsRef.current) {
-      scene.add(modelObject)
       const cam = camera as THREE.PerspectiveCamera
       fitToView(cam, controlsRef.current, modelObject)
     }
-    return () => {
-      if (modelObject) {
-        scene.remove(modelObject)
-      }
+  }, [modelObject, camera])
+
+  // Set OrbitControls target to model center
+  useEffect(() => {
+    if (modelObject && controlsRef.current) {
+      const box = new THREE.Box3().setFromObject(modelObject)
+      const center = box.getCenter(new THREE.Vector3())
+      controlsRef.current.target.copy(center)
+      controlsRef.current.update()
     }
-  }, [modelObject, scene, camera])
+  }, [modelObject])
 
   return (
     <>
@@ -50,7 +69,7 @@ export function SceneSetup() {
       <OrbitControls
         ref={controlsRef}
         enableDamping
-        dampingFactor={0.1}
+        dampingFactor={0.15}
         makeDefault
       />
       {environmentPreset !== 'none' && (
@@ -65,6 +84,8 @@ export function SceneSetup() {
         <shadowMaterial opacity={0.15} />
       </mesh>
       <gridHelper args={[100, 100, 0x444444, 0x222222]} />
+      {modelObject && <primitive object={modelObject} />}
+      {pluginManager && <PluginScene pluginManager={pluginManager} />}
     </>
   )
 }
