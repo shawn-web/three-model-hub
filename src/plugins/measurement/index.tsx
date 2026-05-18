@@ -1,132 +1,113 @@
 import * as THREE from 'three'
 import type { ViewerPlugin, ViewerContext } from '../types'
 
-interface Measurement {
+export interface MeasurementData {
+  id: string
   start: THREE.Vector3
   end: THREE.Vector3
   distance: number
-  line: THREE.Line
-  label: THREE.Sprite
 }
 
 export class MeasurementPlugin implements ViewerPlugin {
   id = 'measurement'
   name = '测量'
-  icon = '📏'
+  icon = 'ruler'
   group = 'measurement' as const
 
-  private context: ViewerContext | null = null
   private active = false
-  private raycaster = new THREE.Raycaster()
-  private mouse = new THREE.Vector2()
-  private measurements: Measurement[] = []
+  private measurements: MeasurementData[] = []
   private pendingStart: THREE.Vector3 | null = null
-  private measurementGroup = new THREE.Group()
+  private nextId = 0
 
-  install(context: ViewerContext): void {
-    this.context = context
-    context.scene.add(this.measurementGroup)
+  // Listener for state changes from scene components
+  private stateListener: ((measurements: MeasurementData[], pendingStart: THREE.Vector3 | null) => void) | null = null
+
+  install(_context: ViewerContext): void {
+    // Context is not needed; scene interactions handled by PluginScene component
   }
 
   uninstall(): void {
     this.clearAll()
-    this.context?.scene.remove(this.measurementGroup)
-    this.context = null
+    this.stateListener = null
   }
 
   activate(): void {
     this.active = true
-    if (this.context) {
-      this.context.renderer.domElement.addEventListener('click', this.handleClick)
-      this.context.renderer.domElement.style.cursor = 'crosshair'
-    }
   }
 
   deactivate(): void {
     this.active = false
     this.pendingStart = null
-    if (this.context) {
-      this.context.renderer.domElement.removeEventListener('click', this.handleClick)
-      this.context.renderer.domElement.style.cursor = 'default'
-    }
+    this.notifyListener()
   }
 
   isActive(): boolean {
     return this.active
   }
 
-  private handleClick = (event: MouseEvent): void => {
-    if (!this.context) return
-    const rect = this.context.renderer.domElement.getBoundingClientRect()
-    this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
-    this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+  /** Set a listener that will be called whenever measurements change */
+  onStateChange(listener: (measurements: MeasurementData[], pendingStart: THREE.Vector3 | null) => void): void {
+    this.stateListener = listener
+  }
 
-    this.raycaster.setFromCamera(this.mouse, this.context.camera)
-    const model = this.context.store.getState().modelObject
-    if (!model) return
+  getMeasurements(): MeasurementData[] {
+    return this.measurements
+  }
 
-    const intersects = this.raycaster.intersectObjects(model.children, true)
-    if (intersects.length === 0) return
+  getPendingStart(): THREE.Vector3 | null {
+    return this.pendingStart
+  }
 
-    const point = intersects[0].point
-
+  /**
+   * Add a measurement point. If no pending start, stores it.
+   * If there is a pending start, creates a complete measurement.
+   * Returns true if a measurement was completed.
+   */
+  addPoint(point: THREE.Vector3): boolean {
     if (!this.pendingStart) {
       this.pendingStart = point.clone()
-      this.addMarker(point)
+      this.notifyListener()
+      return false
     } else {
-      this.addMeasurement(this.pendingStart, point)
-      this.pendingStart = null
-    }
-  }
-
-  private addMarker(position: THREE.Vector3): void {
-    const geometry = new THREE.SphereGeometry(0.1, 8, 8)
-    const material = new THREE.MeshBasicMaterial({ color: 0x4a9eff })
-    const sphere = new THREE.Mesh(geometry, material)
-    sphere.position.copy(position)
-    this.measurementGroup.add(sphere)
-  }
-
-  private addMeasurement(start: THREE.Vector3, end: THREE.Vector3): void {
-    const distance = start.distanceTo(end)
-    const geometry = new THREE.BufferGeometry().setFromPoints([start, end])
-    const material = new THREE.LineBasicMaterial({ color: 0x4a9eff, linewidth: 2 })
-    const line = new THREE.Line(geometry, material)
-    this.measurementGroup.add(line)
-
-    const midPoint = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5)
-    const canvas = document.createElement('canvas')
-    canvas.width = 256
-    canvas.height = 64
-    const ctx = canvas.getContext('2d')!
-    ctx.fillStyle = 'rgba(0,0,0,0.7)'
-    ctx.fillRect(0, 0, 256, 64)
-    ctx.fillStyle = '#fff'
-    ctx.font = 'bold 32px Arial'
-    ctx.textAlign = 'center'
-    ctx.fillText(`${distance.toFixed(2)}m`, 128, 42)
-
-    const texture = new THREE.CanvasTexture(canvas)
-    const spriteMaterial = new THREE.SpriteMaterial({ map: texture })
-    const sprite = new THREE.Sprite(spriteMaterial)
-    sprite.position.copy(midPoint)
-    sprite.scale.set(2, 0.5, 1)
-    this.measurementGroup.add(sprite)
-
-    this.measurements.push({ start, end, distance, line, label: sprite })
-  }
-
-  clearAll(): void {
-    while (this.measurementGroup.children.length > 0) {
-      const child = this.measurementGroup.children[0]
-      this.measurementGroup.remove(child)
-      if (child instanceof THREE.Mesh || child instanceof THREE.Line) {
-        child.geometry?.dispose()
-        ;(child as any).material?.dispose()
+      const distance = this.pendingStart.distanceTo(point)
+      const measurement: MeasurementData = {
+        id: `measurement-${this.nextId++}`,
+        start: this.pendingStart.clone(),
+        end: point.clone(),
+        distance,
       }
+      this.measurements.push(measurement)
+      this.pendingStart = null
+      this.notifyListener()
+      return true
     }
+  }
+
+  /** Cancel pending measurement (e.g. right-click) */
+  cancelPending(): void {
+    this.pendingStart = null
+    this.notifyListener()
+  }
+
+  /** Clear all measurements */
+  clearAll(): void {
     this.measurements = []
     this.pendingStart = null
+    this.notifyListener()
+  }
+
+  /** Format distance with proper units */
+  formatDistance(distance: number): string {
+    if (distance < 0.01) {
+      return `${(distance * 1000).toFixed(1)}mm`
+    }
+    return `${distance.toFixed(3)}m`
+  }
+
+  private notifyListener(): void {
+    if (this.stateListener) {
+      this.stateListener(this.measurements, this.pendingStart)
+    }
   }
 }
 

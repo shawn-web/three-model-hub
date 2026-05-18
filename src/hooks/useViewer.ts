@@ -31,6 +31,7 @@ export function useViewer() {
     // Handler: load-model
     messageBus.on(MESSAGE_TYPES.LOAD_MODEL, async (payload: unknown) => {
       const p = payload as { url: string; format?: string }
+      console.log('[Viewer] Loading model:', p.url)
       const format = p.format || loaderRegistry.detectFormat(p.url) || 'glb'
       const loader = loaderRegistry.get(format)
 
@@ -46,6 +47,7 @@ export function useViewer() {
         const model = await loader.load(p.url, (percent) => {
           messageBus.send(MESSAGE_TYPES.PROGRESS, { loaded: percent, total: 100, percent })
         })
+        console.log('[Viewer] Model loaded:', model.name, 'children:', model.children.length)
         store.setModelObject(model)
         store.setModelUrl(p.url)
         store.setModelLoading(false)
@@ -64,6 +66,7 @@ export function useViewer() {
           },
         })
       } catch (err: any) {
+        console.error('[Viewer] Model load error:', err)
         store.setModelError(err.message)
         store.setModelLoading(false)
         messageBus.send(MESSAGE_TYPES.MODEL_ERROR, { url: p.url, error: err.message })

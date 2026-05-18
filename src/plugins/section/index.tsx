@@ -1,63 +1,154 @@
 import * as THREE from 'three'
 import type { ViewerPlugin, ViewerContext } from '../types'
 
-type SectionMode = 'box' | 'axis' | 'face'
+export interface SectionState {
+  axis: 'x' | 'y' | 'z'
+  position: number
+  enabled: boolean
+  bounds: { min: number; max: number }
+}
 
 export class SectionPlugin implements ViewerPlugin {
   id = 'section'
   name = '剖面'
-  icon = '✂️'
+  icon = 'cut'
   group = 'section' as const
 
   private context: ViewerContext | null = null
   private active = false
-  private clippingPlanes: THREE.Plane[] = []
   private sectionAxis: 'x' | 'y' | 'z' = 'y'
   private sectionPosition = 0
-  private enabled = false
+  private sectionEnabled = false
+  private modelMin = 0
+  private modelMax = 0
+
+  // Listener for state changes from scene components
+  private stateListener: ((state: SectionState) => void) | null = null
 
   install(context: ViewerContext): void {
     this.context = context
-    context.messageBus.on('set-section', (payload: unknown) => {
-      const p = payload as {
-        mode: SectionMode
-        axis?: string
-        position?: number
-        enabled: boolean
-        normal?: number[]
-      }
-      if (p.axis) this.sectionAxis = p.axis as 'x' | 'y' | 'z'
-      if (p.position !== undefined) this.sectionPosition = p.position
-      this.enabled = p.enabled
-      if (this.enabled) {
-        this.applyClipping()
-      } else {
-        this.removeClipping()
-      }
-    })
   }
 
   uninstall(): void {
     this.removeClipping()
     this.context = null
+    this.stateListener = null
   }
 
   activate(): void {
     this.active = true
+    this.updateModelBounds()
+    this.sectionPosition = this.modelMin + (this.modelMax - this.modelMin) / 2
+    this.notifyListener()
   }
 
   deactivate(): void {
     this.active = false
+    this.sectionEnabled = false
     this.removeClipping()
+    this.notifyListener()
   }
 
   isActive(): boolean {
     return this.active
   }
 
-  private applyClipping(): void {
+  /** Set a listener that will be called whenever section state changes */
+  onStateChange(listener: (state: SectionState) => void): void {
+    this.stateListener = listener
+  }
+
+  getAxis(): 'x' | 'y' | 'z' {
+    return this.sectionAxis
+  }
+
+  setAxis(axis: 'x' | 'y' | 'z'): void {
+    this.sectionAxis = axis
+    this.updateModelBounds()
+    this.sectionPosition = (this.modelMin + this.modelMax) / 2
+    if (this.sectionEnabled) {
+      this.applyClipping()
+    }
+    this.notifyListener()
+  }
+
+  getPosition(): number {
+    return this.sectionPosition
+  }
+
+  setPosition(pos: number): void {
+    this.sectionPosition = pos
+    if (this.sectionEnabled) {
+      this.applyClipping()
+    }
+    this.notifyListener()
+  }
+
+  isEnabled(): boolean {
+    return this.sectionEnabled
+  }
+
+  /** Enable/disable section clipping. Called by the in-scene component. */
+  toggle(enabled?: boolean): void {
+    this.sectionEnabled = enabled ?? !this.sectionEnabled
+    if (this.sectionEnabled) {
+      this.applyClipping()
+    } else {
+      this.removeClipping()
+    }
+    this.notifyListener()
+  }
+
+  getBounds(): { min: number; max: number } {
+    return { min: this.modelMin, max: this.modelMax }
+  }
+
+  getState(): SectionState {
+    return {
+      axis: this.sectionAxis,
+      position: this.sectionPosition,
+      enabled: this.sectionEnabled,
+      bounds: { min: this.modelMin, max: this.modelMax },
+    }
+  }
+
+  getModelCenter(): THREE.Vector3 {
+    if (!this.context) return new THREE.Vector3()
+    const model = this.context.store.getState().modelObject
+    if (!model) return new THREE.Vector3()
+    const box = new THREE.Box3().setFromObject(model)
+    return box.getCenter(new THREE.Vector3())
+  }
+
+  private notifyListener(): void {
+    if (this.stateListener) {
+      this.stateListener(this.getState())
+    }
+  }
+
+  private updateModelBounds(): void {
+    if (!this.context) return
+    const model = this.context.store.getState().modelObject
+    if (!model) {
+      this.modelMin = -5
+      this.modelMax = 5
+      return
+    }
+    const box = new THREE.Box3().setFromObject(model)
+    switch (this.sectionAxis) {
+      case 'x': this.modelMin = box.min.x; this.modelMax = box.max.x; break
+      case 'y': this.modelMin = box.min.y; this.modelMax = box.max.y; break
+      case 'z': this.modelMin = box.min.z; this.modelMax = box.max.z; break
+    }
+    if (this.sectionPosition < this.modelMin || this.sectionPosition > this.modelMax) {
+      this.sectionPosition = (this.modelMin + this.modelMax) / 2
+    }
+  }
+
+  applyClipping(): void {
     if (!this.context) return
     this.removeClipping()
+    this.updateModelBounds()
 
     const normal = new THREE.Vector3()
     switch (this.sectionAxis) {
@@ -67,23 +158,18 @@ export class SectionPlugin implements ViewerPlugin {
     }
 
     const plane = new THREE.Plane(normal, -this.sectionPosition)
-    this.clippingPlanes = [plane]
 
     const model = this.context.store.getState().modelObject
     if (model) {
       model.traverse((child) => {
         if (child instanceof THREE.Mesh) {
-          if (Array.isArray(child.material)) {
-            child.material.forEach((m) => {
-              m.clippingPlanes = this.clippingPlanes
-              m.clipShadows = true
-              m.needsUpdate = true
-            })
-          } else {
-            child.material.clippingPlanes = this.clippingPlanes
-            child.material.clipShadows = true
-            child.material.needsUpdate = true
-          }
+          const materials = Array.isArray(child.material) ? child.material : [child.material]
+          materials.forEach((m) => {
+            m.clippingPlanes = [plane]
+            m.clipShadows = true
+            m.side = THREE.DoubleSide
+            m.needsUpdate = true
+          })
         }
       })
     }
@@ -96,17 +182,15 @@ export class SectionPlugin implements ViewerPlugin {
       if (model) {
         model.traverse((child) => {
           if (child instanceof THREE.Mesh) {
-            if (Array.isArray(child.material)) {
-              child.material.forEach((m) => { m.clippingPlanes = []; m.needsUpdate = true })
-            } else {
-              child.material.clippingPlanes = []
-              child.material.needsUpdate = true
-            }
+            const materials = Array.isArray(child.material) ? child.material : [child.material]
+            materials.forEach((m) => {
+              m.clippingPlanes = []
+              m.needsUpdate = true
+            })
           }
         })
       }
     }
-    this.clippingPlanes = []
   }
 }
 

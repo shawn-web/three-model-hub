@@ -5,11 +5,12 @@ import { fitToView } from '../../utils/fit-to-view'
 export class NavigationPlugin implements ViewerPlugin {
   id = 'navigation'
   name = '导航'
-  icon = '🏠'
+  icon = 'home'
   group = 'navigation' as const
 
   private context: ViewerContext | null = null
   private active = true
+  private controlsRef: any = null
 
   install(context: ViewerContext): void {
     this.context = context
@@ -32,22 +33,20 @@ export class NavigationPlugin implements ViewerPlugin {
     return this.active
   }
 
+  setControlsRef(ref: any): void {
+    this.controlsRef = ref
+  }
+
   fitToView(): void {
     if (!this.context) return
     const camera = this.context.camera as THREE.PerspectiveCamera
     const modelObject = this.context.store.getState().modelObject
     if (!modelObject) return
-    const controls = (this.context.renderer as any).__r3f_orbitControls
+
+    const controls = this.controlsRef
     if (controls) {
       fitToView(camera, controls, modelObject)
     }
-  }
-
-  setCamera(position: THREE.Vector3, target: THREE.Vector3): void {
-    if (!this.context) return
-    const camera = this.context.camera as THREE.PerspectiveCamera
-    camera.position.copy(position)
-    camera.lookAt(target)
   }
 }
 
