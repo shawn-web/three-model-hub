@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
-import { useThree } from '@react-three/fiber'
+import { useThree, useFrame } from '@react-three/fiber'
 import { Line, Html, TransformControls } from '@react-three/drei'
 import * as THREE from 'three'
 import { useViewerStore } from '../store/viewer-store'
@@ -13,17 +13,24 @@ import type { MeasurementPlugin, MeasurementData } from '../plugins/measurement'
 
 interface PluginSceneProps {
   pluginManager: PluginManager
+  modelGroupRef: React.RefObject<THREE.Group>
+  orbitRef: React.RefObject<any>
 }
 
-export function PluginScene({ pluginManager }: PluginSceneProps) {
+export function PluginScene({ pluginManager, modelGroupRef, orbitRef }: PluginSceneProps) {
   const activePluginId = useViewerStore((s) => s.activePluginId)
   const rotationMode = useViewerStore((s) => s.rotationMode)
 
   return (
     <>
-      {activePluginId === 'section' && <SectionScene pluginManager={pluginManager} />}
+      {activePluginId === 'section' && <SectionScene pluginManager={pluginManager} orbitRef={orbitRef} />}
       {activePluginId === 'measurement' && <MeasurementScene pluginManager={pluginManager} />}
-      {rotationMode && <RotationControls pluginManager={pluginManager} />}
+      {rotationMode && modelGroupRef.current && (
+        <RotationControls
+          target={modelGroupRef.current}
+          orbitRef={orbitRef}
+        />
+      )}
     </>
   )
 }
@@ -39,7 +46,12 @@ const AXIS_CONFIG = [
   { axis: 'z' as const, color: '#4488ff', direction: new THREE.Vector3(0, 0, 1) },
 ]
 
-function SectionScene({ pluginManager }: { pluginManager: PluginManager }) {
+interface DragState {
+  axis: 'x' | 'y' | 'z'
+  plane: THREE.Plane
+}
+
+function SectionScene({ pluginManager, orbitRef }: { pluginManager: PluginManager; orbitRef: React.RefObject<any> }) {
   const modelObject = useViewerStore((s) => s.modelObject)
   const { camera, gl } = useThree()
 
@@ -57,9 +69,7 @@ function SectionScene({ pluginManager }: { pluginManager: PluginManager }) {
     bounds: { min: -5, max: 5 },
   })
 
-  const [dragging, setDragging] = useState<'x' | 'y' | 'z' | null>(null)
-  const dragPlaneRef = useRef<THREE.Plane | null>(null)
-  const dragAxisRef = useRef<'x' | 'y' | 'z' | null>(null)
+  const dragStateRef = useRef<DragState | null>(null)
 
   // Subscribe to plugin state changes
   useEffect(() => {
@@ -75,9 +85,6 @@ function SectionScene({ pluginManager }: { pluginManager: PluginManager }) {
   useEffect(() => {
     if (plugin && plugin.isEnabled()) {
       gl.localClippingEnabled = true
-    }
-    return () => {
-      // Cleanup happens in plugin deactivate
     }
   }, [plugin, gl, sectionState.enabled])
 
@@ -97,11 +104,35 @@ function SectionScene({ pluginManager }: { pluginManager: PluginManager }) {
     return Math.max(modelSize.x, modelSize.y, modelSize.z) * 0.6
   }, [modelSize])
 
-  // Handle pointer down on an axis handle
-  const handlePointerDown = useCallback((axis: 'x' | 'y' | 'z', e: THREE.Event) => {
-    // Stop the event from propagating to orbit controls
-    ;(e as any).stopPropagation?.()
+  // Track the current mouse/pointer position for useFrame
+  const pointerRef = useRef({ x: 0, y: 0 })
 
+  // useFrame-based drag tracking
+  useFrame(() => {
+    const ds = dragStateRef.current
+    if (!ds || !plugin) return
+
+    const raycaster = new THREE.Raycaster()
+    const mouse = new THREE.Vector2(pointerRef.current.x, pointerRef.current.y)
+    raycaster.setFromCamera(mouse, camera)
+
+    const intersection = new THREE.Vector3()
+    if (raycaster.ray.intersectPlane(ds.plane, intersection)) {
+      let value: number
+      switch (ds.axis) {
+        case 'x': value = intersection.x; break
+        case 'y': value = intersection.y; break
+        case 'z': value = intersection.z; break
+      }
+      const bounds = plugin.getBounds()
+      value = Math.max(bounds.min, Math.min(bounds.max, value))
+      plugin.setPosition(value)
+    }
+  })
+
+  // Handle pointer down on an axis handle
+  const handlePointerDown = useCallback((axis: 'x' | 'y' | 'z', e: any) => {
+    e.stopPropagation()
     if (!plugin) return
 
     // Select this axis
@@ -112,69 +143,40 @@ function SectionScene({ pluginManager }: { pluginManager: PluginManager }) {
       plugin.toggle(true)
     }
 
-    // Set up drag plane perpendicular to camera
-    const handlePos = new THREE.Vector3()
-    handlePos.copy(modelCenter)
+    // Set up drag plane perpendicular to camera through the handle position
+    const handlePos = modelCenter.clone()
     const dir = AXIS_CONFIG.find((a) => a.axis === axis)!.direction
     handlePos.addScaledVector(dir, arrowLength)
 
     const camDir = new THREE.Vector3()
     camera.getWorldDirection(camDir)
     const dragPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(camDir.negate(), handlePos)
-    dragPlaneRef.current = dragPlane
-    dragAxisRef.current = axis
-    setDragging(axis)
+    dragStateRef.current = { axis, plane: dragPlane }
 
-    // Capture pointer on the canvas
+    // Disable orbit controls during drag
+    if (orbitRef.current) orbitRef.current.enabled = false
+
+    // Track pointer position for useFrame drag
     const canvas = gl.domElement
-    canvas.setPointerCapture?.((e as any).nativeEvent?.pointerId)
-  }, [plugin, modelCenter, arrowLength, camera, gl])
-
-  // Handle pointer move during drag
-  useEffect(() => {
-    if (!dragging || !plugin || !dragPlaneRef.current) return
-
-    const canvas = gl.domElement
-    const raycaster = new THREE.Raycaster()
-    const mouse = new THREE.Vector2()
-    const intersection = new THREE.Vector3()
+    const rect = canvas.getBoundingClientRect()
+    pointerRef.current.x = ((e.nativeEvent.clientX - rect.left) / rect.width) * 2 - 1
+    pointerRef.current.y = -((e.nativeEvent.clientY - rect.top) / rect.height) * 2 + 1
 
     const onPointerMove = (event: PointerEvent) => {
-      const rect = canvas.getBoundingClientRect()
-      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
-      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
-
-      raycaster.setFromCamera(mouse, camera)
-
-      if (raycaster.ray.intersectPlane(dragPlaneRef.current!, intersection)) {
-        const axis = dragAxisRef.current!
-        let value: number
-        switch (axis) {
-          case 'x': value = intersection.x; break
-          case 'y': value = intersection.y; break
-          case 'z': value = intersection.z; break
-        }
-        // Clamp to model bounds
-        const bounds = plugin.getBounds()
-        value = Math.max(bounds.min, Math.min(bounds.max, value))
-        plugin.setPosition(value)
-      }
+      pointerRef.current.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+      pointerRef.current.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
     }
 
     const onPointerUp = () => {
-      setDragging(null)
-      dragPlaneRef.current = null
-      dragAxisRef.current = null
+      dragStateRef.current = null
+      if (orbitRef.current) orbitRef.current.enabled = true
+      canvas.removeEventListener('pointermove', onPointerMove)
+      canvas.removeEventListener('pointerup', onPointerUp)
     }
 
     canvas.addEventListener('pointermove', onPointerMove)
     canvas.addEventListener('pointerup', onPointerUp)
-
-    return () => {
-      canvas.removeEventListener('pointermove', onPointerMove)
-      canvas.removeEventListener('pointerup', onPointerUp)
-    }
-  }, [dragging, plugin, camera, gl])
+  }, [plugin, modelCenter, arrowLength, camera, gl, orbitRef])
 
   if (!modelObject || !plugin) return null
 
@@ -200,7 +202,7 @@ function SectionScene({ pluginManager }: { pluginManager: PluginManager }) {
             {/* Draggable handle (cone) */}
             <mesh
               position={endPos}
-              onPointerDown={(e) => handlePointerDown(axis, e as any)}
+              onPointerDown={(e) => handlePointerDown(axis, e)}
             >
               <coneGeometry args={[handleScale, handleScale * 3, 12]} />
               <meshBasicMaterial
@@ -209,20 +211,12 @@ function SectionScene({ pluginManager }: { pluginManager: PluginManager }) {
                 opacity={isSelected ? 0.9 : 0.5}
                 depthTest={false}
               />
-              {isSelected && (
-                <meshBasicMaterial
-                  color={color}
-                  transparent
-                  opacity={0.9}
-                  depthTest={false}
-                />
-              )}
             </mesh>
 
             {/* Larger invisible hit area for easier grabbing */}
             <mesh
               position={endPos}
-              onPointerDown={(e) => handlePointerDown(axis, e as any)}
+              onPointerDown={(e) => handlePointerDown(axis, e)}
             >
               <sphereGeometry args={[handleScale * 2.5, 8, 8]} />
               <meshBasicMaterial
@@ -320,7 +314,7 @@ function SectionPositionHandle({
   position: number
   modelCenter: THREE.Vector3
   arrowLength: number
-  handlePointerDown: (axis: 'x' | 'y' | 'z', e: THREE.Event) => void
+  handlePointerDown: (axis: 'x' | 'y' | 'z', e: any) => void
 }) {
   const handlePos = useMemo(() => {
     const pos = modelCenter.clone()
@@ -339,7 +333,7 @@ function SectionPositionHandle({
       {/* Position sphere handle */}
       <mesh
         position={handlePos}
-        onPointerDown={(e) => handlePointerDown(axis, e as any)}
+        onPointerDown={(e) => handlePointerDown(axis, e)}
       >
         <sphereGeometry args={[handleScale * 1.5, 16, 16]} />
         <meshBasicMaterial
@@ -353,7 +347,7 @@ function SectionPositionHandle({
       {/* Larger invisible hit area */}
       <mesh
         position={handlePos}
-        onPointerDown={(e) => handlePointerDown(axis, e as any)}
+        onPointerDown={(e) => handlePointerDown(axis, e)}
       >
         <sphereGeometry args={[handleScale * 3, 8, 8]} />
         <meshBasicMaterial visible={false} transparent opacity={0} />
@@ -501,13 +495,6 @@ function MeasurementVisualization({ measurement, modelExtent, plugin }: {
     [start, end]
   )
 
-  // Scale label to ~15-20% of measurement distance, clamped
-  const labelScale = useMemo(() => {
-    const minLabelSize = modelExtent * 0.02
-    const proportional = distance * 0.15
-    return Math.max(minLabelSize, Math.min(proportional, modelExtent * 0.1))
-  }, [distance, modelExtent])
-
   const radius = Math.max(modelExtent * 0.004, 0.003)
   const formatted = plugin.formatDistance(distance)
 
@@ -532,11 +519,10 @@ function MeasurementVisualization({ measurement, modelExtent, plugin }: {
         lineWidth={2}
       />
 
-      {/* Distance label */}
+      {/* Distance label — fixed pixel size, always readable */}
       <Html
         position={midPoint}
         center
-        distanceFactor={labelScale * 10}
         style={{
           pointerEvents: 'none',
           userSelect: 'none',
@@ -547,7 +533,7 @@ function MeasurementVisualization({ measurement, modelExtent, plugin }: {
           color: '#fff',
           padding: '2px 6px',
           borderRadius: 3,
-          fontSize: 12,
+          fontSize: 11,
           fontFamily: 'monospace',
           whiteSpace: 'nowrap',
           border: '1px solid rgba(74, 158, 255, 0.5)',
@@ -563,14 +549,27 @@ function MeasurementVisualization({ measurement, modelExtent, plugin }: {
 // Uses drei TransformControls in rotate mode around the model.
 // Disables OrbitControls while dragging.
 
-function RotationControls(_props: { pluginManager: PluginManager }) {
-  const modelObject = useViewerStore((s) => s.modelObject)
+function RotationControls({ target, orbitRef }: { target: THREE.Object3D; orbitRef: React.RefObject<any> }) {
+  const transformRef = useRef<any>(null)
 
-  if (!modelObject) return null
+  useEffect(() => {
+    const controls = transformRef.current
+    if (!controls) return
+
+    const onDraggingChanged = (event: { value: boolean }) => {
+      if (orbitRef.current) orbitRef.current.enabled = !event.value
+    }
+
+    controls.addEventListener('dragging-changed', onDraggingChanged)
+    return () => {
+      controls.removeEventListener('dragging-changed', onDraggingChanged)
+    }
+  }, [orbitRef])
 
   return (
     <TransformControls
-      object={modelObject}
+      ref={transformRef}
+      object={target}
       mode="rotate"
       size={0.7}
     />

@@ -10,7 +10,7 @@ describe('ViewerStore', () => {
       activePluginId: null,
       visibleTools: [],
       hiddenTools: [],
-      environmentPreset: 'day',
+      environmentPreset: 'city',
       toolbarVisible: true,
     })
   })

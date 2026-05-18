@@ -22,7 +22,22 @@
       "Bash(npm run *)",
       "Bash(git init *)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(npx tsc *)",
+      "Bash(npx vitest *)",
+      "Bash(node --max-old-space-size=4096 node_modules/.bin/vite build)",
+      "Bash(npx --yes vite build)",
+      "Bash(echo \"EXIT CODE: $?\")",
+      "Bash(NODE_OPTIONS=\"--max-old-space-size=4096\" npm run build)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(mv \"D:/other/threeMode/public/外立面.glb\" \"D:/other/threeMode/外立面.glb.tmp\")",
+      "Bash(mv \"D:/other/threeMode/外立面.glb.tmp\" \"D:/other/threeMode/public/外立面.glb\")",
+      "Bash(rm -f \"D:/other/threeMode/dist/外立面.glb\")",
+      "Bash(echo \"===EXIT: $?===\")",
+      "Bash(npx vite *)",
+      "Bash(node ./node_modules/vite/bin/vite.js build)",
+      "Bash(git stash *)",
+      "Read(//tmp/**)"
     ]
   }
 }

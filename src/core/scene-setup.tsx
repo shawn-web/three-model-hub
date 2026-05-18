@@ -13,6 +13,7 @@ interface SceneSetupProps {
 
 export function SceneSetup({ pluginManager }: SceneSetupProps) {
   const controlsRef = useRef<any>(null)
+  const modelGroupRef = useRef<THREE.Group>(null!)
   const { camera, scene, gl } = useThree()
   const modelObject = useViewerStore((s) => s.modelObject)
   const environmentPreset = useViewerStore((s) => s.environmentPreset)
@@ -84,8 +85,18 @@ export function SceneSetup({ pluginManager }: SceneSetupProps) {
         <shadowMaterial opacity={0.15} />
       </mesh>
       <gridHelper args={[100, 100, 0x444444, 0x222222]} />
-      {modelObject && <primitive object={modelObject} />}
-      {pluginManager && <PluginScene pluginManager={pluginManager} />}
+      {modelObject && (
+        <group ref={modelGroupRef}>
+          <primitive object={modelObject} />
+        </group>
+      )}
+      {pluginManager && (
+        <PluginScene
+          pluginManager={pluginManager}
+          modelGroupRef={modelGroupRef}
+          orbitRef={controlsRef}
+        />
+      )}
     </>
   )
 }

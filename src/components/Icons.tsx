@@ -61,3 +61,37 @@ export function IconRotate({ size = 18, color = 'currentColor' }: IconProps) {
     </svg>
   )
 }
+
+export function IconMove({ size = 18, color = 'currentColor' }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="5 9 2 12 5 15" />
+      <polyline points="9 5 12 2 15 5" />
+      <polyline points="15 19 12 22 9 19" />
+      <polyline points="19 9 22 12 19 15" />
+      <line x1="2" y1="12" x2="22" y2="12" />
+      <line x1="12" y1="2" x2="12" y2="22" />
+    </svg>
+  )
+}
+
+export function IconScale({ size = 18, color = 'currentColor' }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="15 3 21 3 21 9" />
+      <polyline points="9 21 3 21 3 15" />
+      <line x1="21" y1="3" x2="14" y2="10" />
+      <line x1="3" y1="21" x2="10" y2="14" />
+    </svg>
+  )
+}
+
+export function IconSave({ size = 18, color = 'currentColor' }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
+      <polyline points="17 21 17 13 7 13 7 21" />
+      <polyline points="7 3 7 8 15 8" />
+    </svg>
+  )
+}
