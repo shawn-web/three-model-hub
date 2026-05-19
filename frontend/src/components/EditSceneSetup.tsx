@@ -132,6 +132,29 @@ export function EditSceneSetup() {
     return () => { gl.domElement.style.cursor = 'default' }
   }, [addingMarker, gl])
 
+  /** 快捷键处理：W=移动, E=旋转, R=缩放 */
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+
+      const store = useEditStore.getState()
+      switch (e.key.toLowerCase()) {
+        case 'w':
+          store.setTransformMode('translate')
+          break
+        case 'e':
+          store.setTransformMode('rotate')
+          break
+        case 'r':
+          store.setTransformMode('scale')
+          break
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
   return (
     <>
       <SceneBackground config={backgroundConfig} />
