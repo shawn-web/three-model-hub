@@ -13,6 +13,7 @@ import {
 } from 'antd'
 import { Icon } from '@iconify/react'
 import { Save20, Eye20, Building20, ArrowLeft20, Add20 } from '../components/FluentIcon'
+import { captureAsThumbnail, downloadScreenshot } from '../utils/screenshot'
 import { EditCanvas } from '../components/EditCanvas'
 import { SceneTree } from '../components/SceneTree'
 import { SceneSettings } from '../components/SceneSettings'
@@ -57,6 +58,13 @@ export function SceneEditorPage() {
         setSceneName(scene.name)
         setSceneConfig(scene.scene_config)
 
+        // 恢复背景配置
+        if (scene.scene_config?.background) {
+          useEditStore.getState().setBackgroundConfig(scene.scene_config.background)
+        } else {
+          useEditStore.getState().setBackgroundConfig({ type: 'color', color: '#1a1a2e' })
+        }
+
         /* 加载场景中的所有模型 */
         const sceneData = await getSceneData(id)
         if (sceneData.models && sceneData.models.length > 0) {
@@ -97,10 +105,8 @@ export function SceneEditorPage() {
 
   /** 适配到视图 */
   const handleFitView = useCallback(() => {
-    const modelObject = useEditStore.getState().modelObject
-    if (!modelObject) return
-    // Simple approach: dispatch a custom event that EditSceneSetup listens to
-    window.dispatchEvent(new CustomEvent('editor:fit-view'))
+    const fn = useEditStore.getState().fitToViewFn
+    if (fn) fn()
   }, [])
 
   /** 保存所有更改 */
@@ -297,7 +303,7 @@ export function SceneEditorPage() {
 
           {/* 场景中的模型列表 */}
           <div style={{ padding: '4px 8px' }}>
-            <div style={{ padding: '8px 4px 6px', fontSize: 12, fontWeight: 600, color: '#666', borderBottom: '1px solid #f0f0f0' }}>
+            <div style={{ padding: '8px 4px 6px', fontSize: 12, fontWeight: 600, color: 'var(--ant-color-text-secondary)', borderBottom: '1px solid var(--ant-color-border-secondary)' }}>
               场景模型 ({sceneModels.length})
             </div>
             {sceneModels.map((sm, i) => (
@@ -316,6 +322,27 @@ export function SceneEditorPage() {
 
         {/* 底部操作 */}
         <div className="py-3 px-4 border-t border-[--ant-color-border-secondary]">
+          <div className="flex gap-2 mb-2">
+            <Button
+              icon={<Icon icon="lucide:camera" width={14} />}
+              size="small"
+              className="flex-1"
+              onClick={() => downloadScreenshot()}
+            >
+              截图
+            </Button>
+            <Button
+              icon={<Icon icon="lucide:image" width={14} />}
+              size="small"
+              className="flex-1"
+              onClick={() => {
+                const dataUrl = captureAsThumbnail()
+                if (dataUrl) handleSetThumbnail(dataUrl)
+              }}
+            >
+              设为封面
+            </Button>
+          </div>
           <Button type="primary" icon={<Save20 />} block onClick={handleSaveAll} loading={saving}>
             保存场景
           </Button>
@@ -330,9 +357,6 @@ export function SceneEditorPage() {
         <EditCanvas />
         <EditToolbar
           onFitView={handleFitView}
-          onSave={handleSaveAll}
-          onSetThumbnail={handleSetThumbnail}
-          saving={saving}
         />
         {modelLoading && (
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">

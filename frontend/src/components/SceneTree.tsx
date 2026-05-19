@@ -1,5 +1,5 @@
-import { useMemo, useCallback, useState } from 'react'
-import { Tree } from 'antd'
+import { useMemo, useCallback, useState, useEffect } from 'react'
+import { Tree, theme } from 'antd'
 import type { TreeProps, TreeDataNode } from 'antd'
 import * as THREE from 'three'
 import { useEditStore } from '../store/edit-store'
@@ -41,6 +41,7 @@ export function SceneTree() {
   const selectedComponentId = useEditStore((s) => s.selectedComponentId)
   const setSelectedComponentId = useEditStore((s) => s.setSelectedComponentId)
   const [checkedKeys, setCheckedKeys] = useState<React.Key[]>([])
+  const { token } = theme.useToken()
 
   const treeData = useMemo<TreeDataNode[]>(() => {
     if (!modelObject) return []
@@ -53,11 +54,11 @@ export function SceneTree() {
   }, [modelObject])
 
   // 首次加载时全选
-  useMemo(() => {
+  useEffect(() => {
     if (allKeys.length > 0 && checkedKeys.length === 0) {
       setCheckedKeys(allKeys)
     }
-  }, [allKeys])
+  }, [allKeys, checkedKeys.length])
 
   const handleSelect: TreeProps['onSelect'] = useCallback((keys) => {
     const key = keys[0] as string | undefined
@@ -83,8 +84,8 @@ export function SceneTree() {
         padding: '8px 4px 6px',
         fontSize: 12,
         fontWeight: 600,
-        color: '#666',
-        borderBottom: '1px solid #f0f0f0',
+        color: token.colorTextSecondary,
+        borderBottom: `1px solid ${token.colorBorderSecondary}`,
       }}>
         模型结构
       </div>

@@ -46,6 +46,15 @@ export function EditSceneSetup() {
     }
   }, [modelObject, camera])
 
+  // Register fitToView callback in store
+  useEffect(() => {
+    useEditStore.getState().setFitToViewFn(() => {
+      if (!modelObject || !orbitRef.current || !camera) return
+      fitToView(camera as THREE.PerspectiveCamera, orbitRef.current, modelObject)
+    })
+    return () => useEditStore.getState().setFitToViewFn(null)
+  }, [modelObject, camera])
+
   // Sync selectedComponentId to actual Three.js object
   useEffect(() => {
     if (!modelObject || !selectedComponentId) {
