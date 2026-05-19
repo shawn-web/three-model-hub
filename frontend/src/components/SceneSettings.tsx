@@ -39,7 +39,7 @@ export function SceneSettings() {
     }
   }, [setBackgroundConfig])
 
-  const handleColorChange = useCallback((_: any, color: any) => {
+  const handleColorChange = useCallback((color: any) => {
     const hex = typeof color === 'string' ? color : color?.toHexString?.() ?? '#1a1a2e'
     setBackgroundConfig({ type: 'color', color: hex })
   }, [setBackgroundConfig])

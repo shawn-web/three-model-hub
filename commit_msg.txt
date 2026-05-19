@@ -1,0 +1,3 @@
+fix: 加大测量点球体、加粗测量连线
+
+Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>

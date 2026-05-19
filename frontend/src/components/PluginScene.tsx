@@ -22,20 +22,15 @@ export function PluginScene({ pluginManager, modelGroupRef, orbitRef }: PluginSc
   const modelObject = useViewerStore((s) => s.modelObject)
   const annotations = useViewerStore((s) => s.annotations)
   const addingAnnotation = useViewerStore((s) => s.addingAnnotation)
-  // 批注点击回调通过 useViewerStore.getState() 在事件处理中使用
 
-  // 监听显示模式变化，应用到模型对象
   useEffect(() => {
     if (!modelObject) return
     applyDisplayMode(modelObject, displayMode)
-
-    // 模型卸载时清理材质缓存
     return () => {
       clearDisplayModeCache(modelObject)
     }
   }, [displayMode, modelObject])
 
-  // 添加批注模式下，监听模型点击事件
   const { camera, gl } = useThree()
   useEffect(() => {
     if (!addingAnnotation || !modelObject) return
@@ -46,17 +41,13 @@ export function PluginScene({ pluginManager, modelGroupRef, orbitRef }: PluginSc
 
     const onClick = (event: MouseEvent) => {
       if (event.button !== 0) return
-
       const rect = canvas.getBoundingClientRect()
       mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
       mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
-
       raycaster.setFromCamera(mouse, camera)
       const intersects = raycaster.intersectObjects(modelObject.children, true)
       if (intersects.length === 0) return
-
       const point = intersects[0].point
-      // 通知外部回调，传递点击位置
       const cb = useViewerStore.getState().onAnnotationClick
       if (cb) {
         cb({ x: point.x, y: point.y, z: point.z })
@@ -64,16 +55,13 @@ export function PluginScene({ pluginManager, modelGroupRef, orbitRef }: PluginSc
     }
 
     canvas.addEventListener('click', onClick)
-    // 添加模式下使用十字光标
     canvas.style.cursor = 'crosshair'
-
     return () => {
       canvas.removeEventListener('click', onClick)
       canvas.style.cursor = 'default'
     }
   }, [addingAnnotation, modelObject, camera, gl])
 
-  // 计算模型包围盒尺寸，用于批注精灵缩放
   const modelExtent = useMemo(() => {
     if (!modelObject) return 1
     const box = new THREE.Box3().setFromObject(modelObject)
@@ -87,7 +75,6 @@ export function PluginScene({ pluginManager, modelGroupRef, orbitRef }: PluginSc
       {rotationMode && modelGroupRef.current && (
         <RotationControls target={modelGroupRef.current} orbitRef={orbitRef} />
       )}
-      {/* 渲染所有批注标记 */}
       {annotations.map((annotation, index) => (
         <AnnotationSprite
           key={annotation.id}
@@ -160,11 +147,12 @@ function SectionScene({ pluginManager, orbitRef }: { pluginManager: PluginManage
   }, [modelObject])
 
   const arrowLength = useMemo(() => {
-    return Math.max(modelSize.x, modelSize.y, modelSize.z) * 0.6
+    return Math.max(modelSize.x, modelSize.y, modelSize.z) * 0.5
   }, [modelSize])
 
   const pointerRef = useRef({ x: 0, y: 0 })
 
+  // 拖拽时逐帧更新剖切位置
   useFrame(() => {
     const ds = dragStateRef.current
     if (!ds || !plugin) return
@@ -192,11 +180,11 @@ function SectionScene({ pluginManager, orbitRef }: { pluginManager: PluginManage
     if (!plugin) return
 
     plugin.setAxis(axis)
-
     if (!plugin.isEnabled()) {
       plugin.toggle(true)
     }
 
+    // 计算拖拽平面：面向相机的平面，过箭头尖端
     const handlePos = modelCenter.clone()
     const dir = AXIS_CONFIG.find((a) => a.axis === axis)!.direction
     handlePos.addScaledVector(dir, arrowLength)
@@ -231,34 +219,30 @@ function SectionScene({ pluginManager, orbitRef }: { pluginManager: PluginManage
 
   if (!modelObject || !plugin) return null
 
-  // coneGeometry 默认朝 +Y，需根据轴方向旋转
-  const coneRotation = useCallback((axis: 'x' | 'y' | 'z'): [number, number, number] => {
-    switch (axis) {
-      case 'x': return [0, 0, -Math.PI / 2]
-      case 'y': return [0, 0, 0]
-      case 'z': return [Math.PI / 2, 0, 0]
-    }
-  }, [])
-
   return (
     <group>
       {AXIS_CONFIG.map(({ axis, color, direction }) => {
         const startPos = modelCenter.clone()
         const endPos = modelCenter.clone().addScaledVector(direction, arrowLength)
         const isSelected = sectionState.axis === axis && sectionState.enabled
-        const handleScale = arrowLength * 0.06
+        const handleScale = arrowLength * 0.05
 
         return (
           <group key={axis}>
             <Line
               points={[startPos.toArray(), endPos.toArray()]}
               color={color}
-              lineWidth={isSelected ? 3 : 1.5}
+              lineWidth={isSelected ? 3 : 2}
               opacity={isSelected ? 1.0 : 0.6}
               transparent
             />
 
-            <mesh position={endPos} rotation={coneRotation(axis)} onPointerDown={(e) => handlePointerDown(axis, e)}>
+            {/* 箭头锥体 */}
+            <mesh
+              position={endPos}
+              rotation={getConeRotation(axis)}
+              onPointerDown={(e) => handlePointerDown(axis, e)}
+            >
               <coneGeometry args={[handleScale, handleScale * 3, 12]} />
               <meshBasicMaterial
                 color={color}
@@ -268,11 +252,35 @@ function SectionScene({ pluginManager, orbitRef }: { pluginManager: PluginManage
               />
             </mesh>
 
+            {/* 扩大点击区域的隐形球 */}
             <mesh position={endPos} onPointerDown={(e) => handlePointerDown(axis, e)}>
-              <sphereGeometry args={[handleScale * 2.5, 8, 8]} />
-              <meshBasicMaterial visible={false} transparent opacity={0} />
+              <sphereGeometry args={[handleScale * 2.5, 12, 12]} />
+              <meshBasicMaterial visible={false} />
             </mesh>
 
+            {/* 位置标签 */}
+            <Html
+              position={endPos.clone().addScaledVector(direction, handleScale * 2).toArray()}
+              center
+              style={{ pointerEvents: 'none', userSelect: 'none' }}
+            >
+              <div style={{
+                background: 'rgba(0,0,0,0.85)',
+                color: color,
+                padding: '2px 6px',
+                borderRadius: '3px',
+                fontSize: '11px',
+                fontFamily: 'monospace',
+                whiteSpace: 'nowrap',
+                border: `1px solid ${isSelected ? color : 'transparent'}`,
+                opacity: isSelected ? 1 : 0.7,
+              }}>
+                {axis.toUpperCase()}
+                {isSelected && sectionState.enabled ? `: ${sectionState.position.toFixed(2)}` : ''}
+              </div>
+            </Html>
+
+            {/* 剖切平面可视化 */}
             {isSelected && sectionState.enabled && (
               <SectionPlane
                 axis={axis}
@@ -285,27 +293,18 @@ function SectionScene({ pluginManager, orbitRef }: { pluginManager: PluginManage
           </group>
         )
       })}
-
-      {sectionState.enabled && (
-        <SectionPositionHandle
-          axis={sectionState.axis}
-          position={sectionState.position}
-          modelCenter={modelCenter}
-          arrowLength={arrowLength}
-          handlePointerDown={handlePointerDown}
-        />
-      )}
     </group>
   )
 }
 
-// Semi-transparent section plane
-// The plane visual rotation must match the clipping normal direction in SectionPlugin.
-// SectionPlugin uses positive normals: X=(+1,0,0), Y=(0,+1,0), Z=(0,0,+1)
-// Plane geometry default normal is +Z, so:
-//   X axis: rotate Y by +90° → normal becomes +X
-//   Y axis: rotate X by -90° → normal becomes +Y
-//   Z axis: no rotation → normal stays +Z
+function getConeRotation(axis: 'x' | 'y' | 'z'): [number, number, number] {
+  switch (axis) {
+    case 'x': return [0, 0, -Math.PI / 2]
+    case 'y': return [0, 0, 0]
+    case 'z': return [Math.PI / 2, 0, 0]
+  }
+}
+
 function SectionPlane({
   axis, position, modelCenter, modelSize, color,
 }: {
@@ -336,7 +335,7 @@ function SectionPlane({
   }, [axis])
 
   return (
-    <mesh position={positionVec} rotation={rotation}>
+    <mesh position={positionVec} rotation={rotation} renderOrder={1}>
       <planeGeometry args={[planeSize, planeSize]} />
       <meshBasicMaterial
         color={color}
@@ -344,43 +343,9 @@ function SectionPlane({
         opacity={0.15}
         side={THREE.DoubleSide}
         depthWrite={false}
+        depthTest={false}
       />
     </mesh>
-  )
-}
-
-function SectionPositionHandle({
-  axis, position, modelCenter, arrowLength, handlePointerDown,
-}: {
-  axis: 'x' | 'y' | 'z'
-  position: number
-  modelCenter: THREE.Vector3
-  arrowLength: number
-  handlePointerDown: (axis: 'x' | 'y' | 'z', e: any) => void
-}) {
-  const handlePos = useMemo(() => {
-    const pos = modelCenter.clone()
-    switch (axis) {
-      case 'x': pos.x = position; break
-      case 'y': pos.y = position; break
-      case 'z': pos.z = position; break
-    }
-    return pos
-  }, [axis, position, modelCenter])
-
-  const handleScale = arrowLength * 0.04
-
-  return (
-    <group>
-      <mesh position={handlePos} onPointerDown={(e) => handlePointerDown(axis, e)}>
-        <sphereGeometry args={[handleScale * 1.5, 16, 16]} />
-        <meshBasicMaterial color="#ffffff" transparent opacity={0.8} depthTest={false} />
-      </mesh>
-      <mesh position={handlePos} onPointerDown={(e) => handlePointerDown(axis, e)}>
-        <sphereGeometry args={[handleScale * 3, 8, 8]} />
-        <meshBasicMaterial visible={false} transparent opacity={0} />
-      </mesh>
-    </group>
   )
 }
 
@@ -412,15 +377,12 @@ function MeasurementScene({ pluginManager }: { pluginManager: PluginManager }) {
 
     const onClick = (event: MouseEvent) => {
       if (event.button !== 0) return
-
       const rect = canvas.getBoundingClientRect()
       mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
       mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
-
       raycaster.setFromCamera(mouse, camera)
       const intersects = raycaster.intersectObjects(modelObject.children, true)
       if (intersects.length === 0) return
-
       const point = intersects[0].point
       plugin.addPoint(point.clone())
     }
@@ -434,7 +396,6 @@ function MeasurementScene({ pluginManager }: { pluginManager: PluginManager }) {
 
     canvas.addEventListener('click', onClick)
     canvas.addEventListener('contextmenu', onContextMenu)
-
     return () => {
       canvas.removeEventListener('click', onClick)
       canvas.removeEventListener('contextmenu', onContextMenu)
@@ -443,7 +404,6 @@ function MeasurementScene({ pluginManager }: { pluginManager: PluginManager }) {
 
   useEffect(() => {
     if (!plugin) return
-
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         if (plugin.getPendingStart()) {
@@ -453,7 +413,6 @@ function MeasurementScene({ pluginManager }: { pluginManager: PluginManager }) {
         }
       }
     }
-
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [plugin])
@@ -481,7 +440,6 @@ function MeasurementScene({ pluginManager }: { pluginManager: PluginManager }) {
   )
 }
 
-// Measurement point that scales with camera distance
 function MeasurementPoint({ position, scale, isPending, camera }: {
   position: THREE.Vector3
   scale: number
@@ -489,12 +447,12 @@ function MeasurementPoint({ position, scale, isPending, camera }: {
   camera: THREE.Camera
 }) {
   const meshRef = useRef<THREE.Mesh>(null)
-  const baseRadius = Math.max(scale * 0.005, 0.008)
+  const baseRadius = Math.max(scale * 0.012, 0.015)
 
   useFrame(() => {
     if (!meshRef.current) return
     const dist = camera.position.distanceTo(position)
-    const screenRadius = baseRadius * dist * 0.15
+    const screenRadius = baseRadius * dist * 0.25
     meshRef.current.scale.setScalar(screenRadius / baseRadius)
   })
 
@@ -520,7 +478,6 @@ function MeasurementVisualization({ measurement, modelExtent, plugin, camera }: 
     () => new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5),
     [start, end]
   )
-
   const formatted = plugin.formatDistance(distance)
 
   return (
@@ -545,11 +502,9 @@ function RotationControls({ target, orbitRef }: { target: THREE.Object3D; orbitR
   useEffect(() => {
     const controls = transformRef.current
     if (!controls) return
-
     const onDraggingChanged = (event: { value: boolean }) => {
       if (orbitRef.current) orbitRef.current.enabled = !event.value
     }
-
     controls.addEventListener('dragging-changed', onDraggingChanged)
     return () => { controls.removeEventListener('dragging-changed', onDraggingChanged) }
   }, [orbitRef])
