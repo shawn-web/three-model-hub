@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "modelUrl": "https://playground.babylonjs.com/scenes/BoomBox.glb",
+  "components": {
+    "9925940e-c0ba-4ea7-bc8f-bb9aacda524a": {
+      "transform": {
+        "position": [
+          0,
+          0,
+          -0.005160710183607451
+        ],
+        "rotation": [
+          -3.020609745674291,
+          -0.06715936632284333,
+          -3.0975677973035984
+        ],
+        "scale": [
+          2.001509359419098,
+          0.7660120004366705,
+          0.5720941552117423
+        ]
+      },
+      "material": {
+        "color": null,
+        "opacity": 1
+      },
+      "visible": true
+    }
+  }
+}

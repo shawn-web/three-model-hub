@@ -1,11 +1,13 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
-import { Spin, Result, ConfigProvider, theme as antdTheme } from 'antd'
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
+import { Spin, Result, ConfigProvider, theme as antdTheme, Button } from 'antd'
+import * as THREE from 'three'
 import { Warning20 } from '../components/FluentIcon'
 import { ViewerCanvas } from '../components/ViewerCanvas'
 import { ViewerTree } from '../components/ViewerTree'
 import { Toolbar } from '../components/Toolbar'
 import { CameraInfo } from '../components/CameraInfo'
+import { ViewCube } from '../components/ViewCube'
 import { useMessageBus } from '../hooks/useMessageBus'
 import { MESSAGE_TYPES } from '../communication/protocol'
 import { useViewerStore } from '../store/viewer-store'
@@ -22,10 +24,12 @@ import type { PluginManager } from '../core/plugin-manager'
  */
 export function ViewerPage() {
   const { sceneId } = useParams<{ sceneId: string }>()
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const typeHint = searchParams.get('type') // 'model' | 'scene' | null
   const messageBus = useMessageBus()
   const modelLoading = useViewerStore((s) => s.modelLoading)
+  const modelLoadingProgress = useViewerStore((s) => s.modelLoadingProgress)
   const [pluginManager, setPluginManager] = useState<PluginManager | null>(null)
   const [error, setError] = useState<string | null>(null)
   const loadedRef = useRef(false)
@@ -94,6 +98,8 @@ export function ViewerPage() {
       getModelUrl,
       (loaded, total, name) => {
         console.log(`[ViewerPage] 模型加载进度: ${loaded}/${total} - ${name}`)
+        const progress = Math.round((loaded / total) * 100)
+        useViewerStore.getState().setModelLoadingProgress(progress)
       },
     )
 
@@ -115,7 +121,9 @@ export function ViewerPage() {
     store.setModelLoading(true)
     try {
       const loader = new GlbLoader()
-      const modelObj = await loader.load(model.file_url)
+      const modelObj = await loader.load(model.file_url, (percent) => {
+        store.setModelLoadingProgress(percent)
+      })
       store.setModelObject(modelObj)
       store.setModelUrl(model.file_url)
       store.setModelLoading(false)
@@ -129,20 +137,53 @@ export function ViewerPage() {
   }
 
   const handleFitView = useCallback(() => {
-    if (!pluginManager) return
-    const navPlugin = pluginManager.getPlugin('navigation') as any
-    if (navPlugin?.fitToView) navPlugin.fitToView()
-  }, [pluginManager])
+    const store = useViewerStore.getState()
+    const modelObject = store.modelObject
+    const getCameraState = store.getCameraState
+    const setCameraState = store.setCameraState
+    if (!modelObject || !getCameraState || !setCameraState) return
+
+    const cam = getCameraState()
+    const box = new THREE.Box3().setFromObject(modelObject)
+    const center = box.getCenter(new THREE.Vector3())
+    const size = box.getSize(new THREE.Vector3())
+    const maxDim = Math.max(size.x, size.y, size.z)
+    const fov = cam.fov * (Math.PI / 180)
+    let cameraZ = Math.abs(maxDim / (2 * Math.tan(fov / 2))) * 1.2
+
+    const direction = new THREE.Vector3()
+      .subVectors(
+        new THREE.Vector3(cam.position.x, cam.position.y, cam.position.z),
+        new THREE.Vector3(cam.target.x, cam.target.y, cam.target.z)
+      )
+      .normalize()
+
+    const newPos = new THREE.Vector3().copy(center).add(direction.multiplyScalar(cameraZ))
+    setCameraState({
+      position: { x: newPos.x, y: newPos.y, z: newPos.z },
+      target: { x: center.x, y: center.y, z: center.z },
+    })
+  }, [])
 
   if (error) {
     return (
-      <div className="w-screen h-screen flex items-center justify-center bg-[#141414]">
-        <Result
-          status="error"
-          icon={<Warning20 />}
-          title={error}
-        />
-      </div>
+      <ConfigProvider theme={{ algorithm: antdTheme.darkAlgorithm }}>
+        <div className="w-screen h-screen flex items-center justify-center bg-[#141414]">
+          <div className="max-w-md w-full mx-4">
+            <div className="bg-[rgba(30,30,45,0.95)] backdrop-blur-xl rounded-2xl p-8 text-center shadow-2xl border border-[rgba(255,255,255,0.06)]">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[rgba(255,77,79,0.15)] flex items-center justify-center">
+                <Warning20 size={32} color="#ff4d4f" />
+              </div>
+              <h2 className="text-lg font-semibold text-white mb-2">加载失败</h2>
+              <p className="text-sm text-[#aaa] mb-6">{error}</p>
+              <div className="flex gap-3 justify-center">
+                <Button onClick={() => window.location.reload()}>重新加载</Button>
+                <Button type="primary" onClick={() => navigate('/')}>返回首页</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </ConfigProvider>
     )
   }
 
@@ -151,12 +192,22 @@ export function ViewerPage() {
     <div className="w-screen h-screen relative overflow-hidden bg-[#141414]">
       <ViewerTree />
       <ViewerCanvas onPluginManagerReady={setPluginManager} />
+      <ViewCube />
       <CameraInfo />
       {pluginManager && <Toolbar pluginManager={pluginManager} onFitView={handleFitView} />}
       {modelLoading && (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-2">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-3">
           <Spin size="large" />
-          <span className="text-white/60 text-xs">加载中...</span>
+          <div className="flex flex-col items-center gap-1">
+            <span className="text-white/60 text-xs">
+              {modelLoadingProgress > 0 ? `加载中 ${modelLoadingProgress}%` : '加载中...'}
+            </span>
+            {modelLoadingProgress > 0 && (
+              <div style={{ width: 160, height: 3, background: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{ width: `${modelLoadingProgress}%`, height: '100%', background: '#4a9eff', borderRadius: 2, transition: 'width 0.3s' }} />
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

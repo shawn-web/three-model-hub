@@ -12,6 +12,7 @@ export interface ViewerState {
   modelUrl: string | null
   modelObject: THREE.Group | null
   modelLoading: boolean
+  modelLoadingProgress: number
   modelError: string | null
   activePluginId: string | null
   installedPlugins: string[]
@@ -60,6 +61,7 @@ export interface ViewerActions {
   setModelUrl: (url: string | null) => void
   setModelObject: (obj: THREE.Group | null) => void
   setModelLoading: (loading: boolean) => void
+  setModelLoadingProgress: (percent: number) => void
   setModelError: (error: string | null) => void
   setActivePluginId: (id: string | null) => void
   setInstalledPlugins: (ids: string[]) => void
@@ -106,6 +108,7 @@ const initialState: ViewerState = {
   modelUrl: null,
   modelObject: null,
   modelLoading: false,
+  modelLoadingProgress: 0,
   modelError: null,
   activePluginId: null,
   installedPlugins: [],
@@ -134,7 +137,8 @@ export const useViewerStore = create<ViewerState & ViewerActions>()((set, get) =
 
   setModelUrl: (url) => set({ modelUrl: url }),
   setModelObject: (obj) => set({ modelObject: obj }),
-  setModelLoading: (loading) => set({ modelLoading: loading }),
+  setModelLoading: (loading) => set({ modelLoading: loading, modelLoadingProgress: loading ? 0 : 0 }),
+  setModelLoadingProgress: (percent) => set({ modelLoadingProgress: percent }),
   setModelError: (error) => set({ modelError: error }),
   setActivePluginId: (id) => set({ activePluginId: id }),
   setInstalledPlugins: (ids) => set({ installedPlugins: ids }),

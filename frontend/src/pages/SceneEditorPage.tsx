@@ -1,3 +1,21 @@
+/**
+ * 场景编辑页面
+ *
+ * 提供场景的完整编辑功能：
+ * - 左侧面板：模型结构、构件属性、图片配置（Tab 切换）
+ * - 左侧底部：场景设置、场景模型管理、标点管理（可折叠）
+ * - 中央：3D 编辑画布
+ * - 底部：变换工具栏（移动/旋转/缩放/适配视图）
+ * - 右下角：相机信息面板
+ *
+ * 支持功能：
+ * - 添加/移除场景中的模型
+ * - 选中构件并编辑属性
+ * - 添加标点并配置弹窗
+ * - 批量上传图片到场景
+ * - 保存场景、截图、设为封面、预览
+ */
+
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
@@ -15,10 +33,10 @@ import { Icon } from '@iconify/react'
 import { Save20, Eye20, Building20, ArrowLeft20, Add20 } from '../components/FluentIcon'
 import { captureAsThumbnail, downloadScreenshot } from '../utils/screenshot'
 import { EditCanvas } from '../components/EditCanvas'
-import { SceneTree } from '../components/SceneTree'
-import { SceneSettings } from '../components/SceneSettings'
-import { ComponentProperties } from '../components/ComponentProperties'
+import { EditPanel } from '../components/EditPanel'
 import { EditToolbar } from '../components/EditToolbar'
+import { EditCameraInfo } from '../components/EditCameraInfo'
+import { MarkerPopupEditor } from '../components/MarkerPopup'
 import { useEditStore } from '../store/edit-store'
 import { getScene, getSceneData, updateScene, addModelToScene, removeSceneModel, batchUpdateSceneModels } from '../api/scenes'
 import { getModel, getModels } from '../api/models'
@@ -28,15 +46,12 @@ import { uploadFile } from '../api/upload'
 const { Sider, Content } = Layout
 const { Text } = Typography
 
-/**
- * 场景编辑页面
- * 整合现有编辑器组件，支持场景级别的配置和多模型管理
- * 加载场景中的所有模型，每个模型应用各自的变换
- */
+/** 场景编辑页面主组件 */
 export function SceneEditorPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const modelLoading = useEditStore((s) => s.modelLoading)
+  const modelLoadingProgress = useEditStore((s) => s.modelLoadingProgress)
   const isDirty = useEditStore((s) => s.isDirty)
   const [sceneName, setSceneName] = useState('')
   const [sceneConfig, setSceneConfig] = useState<any>(null)
@@ -48,8 +63,9 @@ export function SceneEditorPage() {
   const [modelsLoading, setModelsLoading] = useState(false)
   const [searchText, setSearchText] = useState('')
   const [addingModelId, setAddingModelId] = useState<string | null>(null)
+  const [editingMarker, setEditingMarker] = useState<any>(null)
+  const [markerPopupOpen, setMarkerPopupOpen] = useState(false)
 
-  /** 加载场景数据 */
   useEffect(() => {
     if (!id) return
     const loadScene = async () => {
@@ -58,41 +74,45 @@ export function SceneEditorPage() {
         setSceneName(scene.name)
         setSceneConfig(scene.scene_config)
 
-        // 恢复背景配置
         if (scene.scene_config?.background) {
           useEditStore.getState().setBackgroundConfig(scene.scene_config.background)
         } else {
           useEditStore.getState().setBackgroundConfig({ type: 'color', color: '#1a1a2e' })
         }
 
-        /* 加载场景中的所有模型 */
         const sceneData = await getSceneData(id)
         if (sceneData.models && sceneData.models.length > 0) {
           const store = useEditStore.getState()
           store.setModelLoading(true)
 
-          /* 获取模型文件 URL 的回调函数 */
+          const modelNameMap: Record<string, string> = {}
+
           const getModelUrl = async (modelId: string): Promise<string> => {
             const modelInfo = await getModel(modelId)
             if (!modelInfo?.file_url) {
               throw new Error(`模型 ${modelId} 没有可用的文件 URL`)
             }
+            if (modelInfo.name) modelNameMap[modelId] = modelInfo.name
             return modelInfo.file_url
           }
 
-          /* 使用多模型加载工具加载所有模型 */
           const sceneGroup = await loadSceneModels(
             sceneData.models,
             getModelUrl,
             (loaded, total, name) => {
-              /* 多模型加载进度回调 */
-              console.log(`[SceneEditorPage] 模型加载进度: ${loaded}/${total} - ${name}`)
+              const progress = Math.round((loaded / total) * 100)
+              useEditStore.getState().setModelLoadingProgress(progress)
             },
           )
 
           store.setModelObject(sceneGroup)
           store.setModelLoading(false)
-          setSceneModels(sceneData.models)
+
+          const enriched = sceneData.models.map((sm: any) => ({
+            ...sm,
+            resolvedName: sm.display_name || modelNameMap[sm.model_id] || `模型 ${sm.model_id?.slice(0, 6)}`,
+          }))
+          setSceneModels(enriched)
         }
       } catch (err) {
         console.error('加载场景失败:', err)
@@ -103,20 +123,36 @@ export function SceneEditorPage() {
     loadScene()
   }, [id])
 
-  /** 适配到视图 */
+  /** 适配视图：将相机聚焦到整个模型 */
   const handleFitView = useCallback(() => {
     const fn = useEditStore.getState().fitToViewFn
     if (fn) fn()
   }, [])
 
-  /** 保存所有更改 */
+  /** 聚焦到指定模型：选中该模型并触发相机聚焦 */
+  const handleFocusModel = useCallback((modelId: string) => {
+    const store = useEditStore.getState()
+    const root = store.modelObject
+    if (!root) return
+
+    const target = root.children.find(
+      (child) => child.userData?.modelId === modelId,
+    )
+    if (target) {
+      store.selectComponent(null)
+      requestAnimationFrame(() => {
+        store.selectComponent(target.uuid)
+      })
+    }
+  }, [])
+
+  /** 保存场景所有数据（名称、配置、模型变换、材质覆盖等） */
   const handleSaveAll = useCallback(async () => {
     if (!id) return
     setSaving(true)
     try {
       const store = useEditStore.getState()
 
-      // 1. 保存场景基础信息
       await updateScene(id, {
         name: sceneName,
         scene_config: {
@@ -125,7 +161,6 @@ export function SceneEditorPage() {
         },
       } as any)
 
-      // 2. 批量保存模型变换和材质
       const editData = store.editData
       const updates = sceneModels.map((sm) => {
         const modelEdits: Record<string, any> = {}
@@ -157,7 +192,7 @@ export function SceneEditorPage() {
     setSaving(false)
   }, [id, sceneName, sceneConfig, sceneModels])
 
-  /** 带脏检查的导航 */
+  /** 确认并导航：如果有未保存更改则弹窗确认 */
   const confirmAndNavigate = useCallback((target: string) => {
     if (!useEditStore.getState().isDirty) {
       navigate(target)
@@ -176,15 +211,17 @@ export function SceneEditorPage() {
     })
   }, [navigate, handleSaveAll])
 
+  /** 预览场景：跳转到预览页面 */
   const handlePreview = useCallback(() => {
     confirmAndNavigate(`/view/${id}?type=scene`)
   }, [confirmAndNavigate, id])
 
+  /** 返回场景列表 */
   const handleGoBack = useCallback(() => {
     confirmAndNavigate('/scenes')
   }, [confirmAndNavigate])
 
-  /** 设置缩略图 */
+  /** 设为封面：截取当前视口并上传为场景缩略图 */
   const handleSetThumbnail = useCallback(async (dataUrl: string) => {
     if (!id) return
     try {
@@ -194,7 +231,7 @@ export function SceneEditorPage() {
       formData.append('file', blob, `scene-${id}-thumbnail.png`)
       const result = await uploadFile(formData)
       if (result.url) {
-        await updateScene(id, { thumbnail_url: result.url } as any)
+        await updateScene(id, { thumbnail_url: result.url })
         message.success('封面已设置')
       }
     } catch (err) {
@@ -202,7 +239,6 @@ export function SceneEditorPage() {
     }
   }, [id])
 
-  /** beforeunload 处理 */
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (useEditStore.getState().isDirty) e.preventDefault()
@@ -211,7 +247,7 @@ export function SceneEditorPage() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [])
 
-  /** 刷新场景数据和 3D 视图 */
+  /** 刷新场景数据：重新加载场景模型列表和 3D 对象 */
   const refreshScene = useCallback(async () => {
     if (!id) return
     const sceneData = await getSceneData(id)
@@ -232,7 +268,7 @@ export function SceneEditorPage() {
     }
   }, [id])
 
-  /** 打开添加模型弹窗 */
+  /** 打开添加模型弹窗并加载可用模型列表 */
   const handleOpenAddModal = async () => {
     setAddModalOpen(true)
     setSearchText('')
@@ -260,7 +296,7 @@ export function SceneEditorPage() {
     setAddingModelId(null)
   }
 
-  /** 从场景移除模型 */
+  /** 从场景中移除模型 */
   const handleRemoveModel = async (sceneModelId: string) => {
     if (!id) return
     try {
@@ -283,44 +319,28 @@ export function SceneEditorPage() {
   return (
     <>
     <Layout className="h-full overflow-hidden">
-      <Sider width={280} theme="light" className="border-r border-[--ant-color-border-secondary] flex flex-col">
-        {/* 返回 + 标题 */}
+      <Sider width={300} theme="light" className="border-r border-[--ant-color-border-secondary] flex flex-col">
         <div className="py-3 px-4 border-b border-[--ant-color-border-secondary] flex items-center gap-2">
           <Button type="text" size="small" icon={<ArrowLeft20 />} onClick={handleGoBack} />
-          <Text strong className="text-sm">场景编辑</Text>
+          <Input
+            value={sceneName}
+            onChange={(e) => setSceneName(e.target.value)}
+            size="small"
+            variant="borderless"
+            style={{ fontWeight: 600, fontSize: 14 }}
+          />
         </div>
 
-        {/* 场景名称 */}
-        <div className="py-2 px-4">
-          <Input value={sceneName} onChange={(e) => setSceneName(e.target.value)} size="small" />
+        <div className="flex-1 overflow-hidden flex flex-col">
+          <EditPanel
+            sceneModels={sceneModels}
+            onRemoveModel={handleRemoveModel}
+            onOpenAddModal={handleOpenAddModal}
+            onAddModel={handleAddModel}
+            onEditMarker={(m) => { setEditingMarker(m); setMarkerPopupOpen(true) }}
+          />
         </div>
 
-        {/* 可滚动区域 */}
-        <div className="flex-1 overflow-auto">
-          <SceneTree />
-          <SceneSettings />
-          <ComponentProperties />
-
-          {/* 场景中的模型列表 */}
-          <div style={{ padding: '4px 8px' }}>
-            <div style={{ padding: '8px 4px 6px', fontSize: 12, fontWeight: 600, color: 'var(--ant-color-text-secondary)', borderBottom: '1px solid var(--ant-color-border-secondary)' }}>
-              场景模型 ({sceneModels.length})
-            </div>
-            {sceneModels.map((sm, i) => (
-              <div key={sm.id} className="flex items-center justify-between py-1 px-2">
-                <span className="text-xs">{sm.display_name || `模型 ${i + 1}`}</span>
-                <Button type="text" size="small" danger onClick={() => handleRemoveModel(sm.id)}>
-                  <Icon icon="lucide:trash-2" width={14} />
-                </Button>
-              </div>
-            ))}
-            <Button type="dashed" icon={<Add20 />} block size="small" className="mt-2" onClick={handleOpenAddModal}>
-              添加模型
-            </Button>
-          </div>
-        </div>
-
-        {/* 底部操作 */}
         <div className="py-3 px-4 border-t border-[--ant-color-border-secondary]">
           <div className="flex gap-2 mb-2">
             <Button
@@ -352,21 +372,30 @@ export function SceneEditorPage() {
         </div>
       </Sider>
 
-      {/* 中央 3D 编辑器 */}
       <Content className="relative bg-[#f5f5f5]">
         <EditCanvas />
         <EditToolbar
           onFitView={handleFitView}
         />
+        <EditCameraInfo />
         {modelLoading && (
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-            <Spin size="large" tip="加载中..." />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-3">
+            <Spin size="large" />
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-gray-500 text-xs">
+                {modelLoadingProgress > 0 ? `加载中 ${modelLoadingProgress}%` : '加载中...'}
+              </span>
+              {modelLoadingProgress > 0 && (
+                <div style={{ width: 160, height: 3, background: 'rgba(0,0,0,0.06)', borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{ width: `${modelLoadingProgress}%`, height: '100%', background: '#4a9eff', borderRadius: 2, transition: 'width 0.3s' }} />
+                </div>
+              )}
+            </div>
           </div>
         )}
       </Content>
     </Layout>
 
-    {/* 添加模型弹窗 */}
     <Modal
       title="添加模型到场景"
       open={addModalOpen}
@@ -420,6 +449,53 @@ export function SceneEditorPage() {
         )}
       </Spin>
     </Modal>
+
+    <MarkerPopupEditor
+      marker={editingMarker}
+      visible={markerPopupOpen}
+      onClose={() => { setMarkerPopupOpen(false); setEditingMarker(null) }}
+    />
+    </>
+  )
+}
+
+/** 标点列表组件：显示所有标点，支持配置弹窗和删除 */
+export function MarkerList({ onEditMarker }: { onEditMarker: (marker: any) => void }) {
+  const markers = useEditStore((s) => s.markers)
+  const removeMarker = useEditStore((s) => s.removeMarker)
+  const setAddingMarker = useEditStore((s) => s.setAddingMarker)
+  const addingMarker = useEditStore((s) => s.addingMarker)
+
+  return (
+    <>
+      {markers.length === 0 && (
+        <div style={{ textAlign: 'center', color: '#999', fontSize: 12, padding: '8px 0' }}>
+          暂无标点
+        </div>
+      )}
+      {markers.map((m) => (
+        <div key={m.id} className="flex items-center justify-between py-1 px-2 group hover:bg-[var(--ant-color-bg-text-hover)] rounded">
+          <span className="text-xs flex-1 truncate">{m.name}</span>
+          <div className="flex gap-1 opacity-0 group-hover:opacity-100">
+            <Button type="text" size="small" onClick={() => onEditMarker(m)} title="配置弹窗">
+              <Icon icon="lucide:message-square" width={14} />
+            </Button>
+            <Button type="text" size="small" danger onClick={() => removeMarker(m.id)}>
+              <Icon icon="lucide:trash-2" width={14} />
+            </Button>
+          </div>
+        </div>
+      ))}
+      <Button
+        type="dashed"
+        icon={<Icon icon="lucide:map-pin" width={14} />}
+        block
+        size="small"
+        className="mt-2"
+        onClick={() => setAddingMarker(!addingMarker)}
+      >
+        {addingMarker ? '取消添加' : '添加标点'}
+      </Button>
     </>
   )
 }

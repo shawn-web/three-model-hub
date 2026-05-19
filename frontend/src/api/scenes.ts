@@ -29,7 +29,7 @@ export async function createScene(dto: { name: string; description?: string; sce
 }
 
 /** 更新场景 */
-export async function updateScene(id: string, dto: { name?: string; description?: string; scene_config?: Record<string, any> }) {
+export async function updateScene(id: string, dto: { name?: string; description?: string; thumbnail_url?: string; scene_config?: Record<string, any> }) {
   const { data } = await apiClient.put(`/scenes/${id}`, dto)
   return data
 }

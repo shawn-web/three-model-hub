@@ -1,5 +1,20 @@
+/**
+ * 编辑器场景设置组件
+ *
+ * 在 React Three Fiber Canvas 内部运行，负责：
+ * - 配置场景灯光（环境光、方向光、半球光）
+ * - 配置 OrbitControls（轨道控制器）和 TransformControls（变换控制器）
+ * - 处理模型点击选中（射线检测）
+ * - 处理标点添加模式
+ * - 注册相机状态读写回调
+ * - 选中构件时自动聚焦相机
+ * - 显示选中构件的高亮框
+ * - 渲染标点精灵
+ * - 处理键盘快捷键（W/E/R 切换变换模式）
+ */
+
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
-import { useThree } from '@react-three/fiber'
+import { useThree, useFrame } from '@react-three/fiber'
 import { OrbitControls, TransformControls } from '@react-three/drei'
 import type { ThreeEvent } from '@react-three/fiber'
 import * as THREE from 'three'
@@ -7,9 +22,10 @@ import { useEditStore } from '../store/edit-store'
 import { fitToView } from '../utils/fit-to-view'
 import { SceneBackground } from './SceneBackground'
 
-// 标点计数器：删除后依然递增，避免编号重复
+/** 标点计数器，用于自动命名 */
 let markerCounter = 0
 
+/** 编辑器场景设置主组件 */
 export function EditSceneSetup() {
   const orbitRef = useRef<any>(null)
   const transformRef = useRef<any>(null)
@@ -25,7 +41,6 @@ export function EditSceneSetup() {
 
   const [selectedObj, setSelectedObj] = useState<THREE.Object3D | null>(null)
 
-  // Setup scene
   useEffect(() => {
     gl.shadowMap.enabled = true
     gl.shadowMap.type = THREE.PCFSoftShadowMap
@@ -33,12 +48,44 @@ export function EditSceneSetup() {
     gl.toneMappingExposure = 1.0
   }, [scene, gl])
 
-  // Update background color reactively
+  /** 注册相机状态读写回调，供相机信息显示等使用 */
   useEffect(() => {
-    scene.background = new THREE.Color(backgroundColor)
-  }, [backgroundColor, scene])
+    useEditStore.getState().setGetCameraState(() => {
+      const cam = camera as THREE.PerspectiveCamera
+      const controls = orbitRef.current
+      return {
+        position: { x: cam.position.x, y: cam.position.y, z: cam.position.z },
+        target: controls
+          ? { x: controls.target.x, y: controls.target.y, z: controls.target.z }
+          : { x: 0, y: 0, z: 0 },
+        up: { x: cam.up.x, y: cam.up.y, z: cam.up.z },
+        fov: cam.fov,
+      }
+    })
 
-  // Fit view when model loads
+    useEditStore.getState().setSetCameraState((state) => {
+      const cam = camera as THREE.PerspectiveCamera
+      const controls = orbitRef.current
+      cam.position.set(state.position.x, state.position.y, state.position.z)
+      if (controls) {
+        controls.target.set(state.target.x, state.target.y, state.target.z)
+      }
+      if (state.up) {
+        cam.up.set(state.up.x, state.up.y, state.up.z)
+      }
+      if (state.fov !== undefined) {
+        cam.fov = state.fov
+        cam.updateProjectionMatrix()
+      }
+      controls?.update()
+    })
+
+    return () => {
+      useEditStore.getState().setGetCameraState(null)
+      useEditStore.getState().setSetCameraState(null)
+    }
+  }, [camera])
+
   useEffect(() => {
     if (modelObject && orbitRef.current) {
       const cam = camera as THREE.PerspectiveCamera
@@ -46,7 +93,6 @@ export function EditSceneSetup() {
     }
   }, [modelObject, camera])
 
-  // Register fitToView callback in store
   useEffect(() => {
     useEditStore.getState().setFitToViewFn(() => {
       if (!modelObject || !orbitRef.current || !camera) return
@@ -55,7 +101,6 @@ export function EditSceneSetup() {
     return () => useEditStore.getState().setFitToViewFn(null)
   }, [modelObject, camera])
 
-  // Sync selectedComponentId to actual Three.js object
   useEffect(() => {
     if (!modelObject || !selectedComponentId) {
       setSelectedObj(null)
@@ -65,7 +110,13 @@ export function EditSceneSetup() {
     setSelectedObj(obj || null)
   }, [modelObject, selectedComponentId])
 
-  // TransformControls events
+  useEffect(() => {
+    if (selectedObj && orbitRef.current) {
+      const cam = camera as THREE.PerspectiveCamera
+      fitToView(cam, orbitRef.current, selectedObj)
+    }
+  }, [selectedObj, camera])
+
   useEffect(() => {
     const controls = transformRef.current
     if (!controls) return
@@ -92,12 +143,10 @@ export function EditSceneSetup() {
     }
   }, [selectedObj])
 
-  // Click handler for component selection or marker placement
   const handleClick = useCallback((event: ThreeEvent<MouseEvent>) => {
     if (!modelObject) return
     event.stopPropagation()
 
-    // Marker placement mode
     if (addingMarker) {
       const raycaster = new THREE.Raycaster()
       const mouse = new THREE.Vector2(
@@ -121,7 +170,6 @@ export function EditSceneSetup() {
       return
     }
 
-    // Normal selection
     let target: THREE.Object3D = event.object
     while (target.parent && target.parent !== modelObject && target.parent !== scene) {
       target = target.parent
@@ -135,13 +183,11 @@ export function EditSceneSetup() {
     useEditStore.getState().selectComponent(target.uuid)
   }, [modelObject, scene, addingMarker, camera, gl])
 
-  // Cursor for marker mode
   useEffect(() => {
     gl.domElement.style.cursor = addingMarker ? 'crosshair' : 'default'
     return () => { gl.domElement.style.cursor = 'default' }
   }, [addingMarker, gl])
 
-  /** 快捷键处理：W=移动, E=旋转, R=缩放 */
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
@@ -188,7 +234,6 @@ export function EditSceneSetup() {
         autoRotate={autoRotate}
         autoRotateSpeed={2}
       />
-      {/* 环境光和补光灯替代 HDR 环境贴图 */}
       <hemisphereLight intensity={0.3} />
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
         <planeGeometry args={[1000, 1000]} />
@@ -213,14 +258,19 @@ export function EditSceneSetup() {
         />
       )}
 
-      {/* Render markers as sprites */}
       {markers.map((marker) => (
-        <MarkerSprite key={marker.id} marker={marker} />
+        <MarkerSprite key={marker.id} marker={marker} onClick={(id) => {
+          const m = useEditStore.getState().markers.find(mk => mk.id === id)
+          if (m?.popup) {
+            useEditStore.getState().setSelectedComponentId(null)
+          }
+        }} />
       ))}
     </>
   )
 }
 
+/** 选中构件高亮框组件：使用 BoxHelper 显示选中构件的包围盒 */
 function SelectionHighlight({ object }: { object: THREE.Object3D }) {
   const [boxHelper, setBoxHelper] = useState<THREE.BoxHelper | null>(null)
 
@@ -240,10 +290,11 @@ function SelectionHighlight({ object }: { object: THREE.Object3D }) {
   return <primitive object={boxHelper} />
 }
 
-function MarkerSprite({ marker }: { marker: { id: string; position: [number, number, number]; imageUrl: string; width: number; height: number; name: string } }) {
+function MarkerSprite({ marker, onClick }: { marker: { id: string; position: [number, number, number]; imageUrl: string; width: number; height: number; name: string; popup?: any }; onClick?: (id: string) => void }) {
   const spriteRef = useRef<THREE.Sprite>(null)
   const textureRef = useRef<THREE.Texture | null>(null)
   const [hasTexture, setHasTexture] = useState(false)
+  const [hovered, setHovered] = useState(false)
 
   useEffect(() => {
     if (!marker.imageUrl) return
@@ -266,26 +317,43 @@ function MarkerSprite({ marker }: { marker: { id: string; position: [number, num
     }
   }, [marker.imageUrl])
 
-  // Default pin appearance when no image
   const scale = useMemo(() => {
     const w = marker.width || 1
     const h = marker.height || 1
     return [w, h, 1] as [number, number, number]
   }, [marker.width, marker.height])
 
+  const handleClick = useCallback((e: ThreeEvent<MouseEvent>) => {
+    e.stopPropagation()
+    onClick?.(marker.id)
+  }, [marker.id, onClick])
+
+  const color = hovered ? '#ffaa44' : '#ff6600'
+
   if (hasTexture && textureRef.current) {
     return (
-      <sprite ref={spriteRef} position={marker.position} scale={scale}>
+      <sprite
+        ref={spriteRef}
+        position={marker.position}
+        scale={scale}
+        onClick={handleClick}
+        onPointerOver={() => setHovered(true)}
+        onPointerOut={() => setHovered(false)}
+      >
         <spriteMaterial map={textureRef.current} depthTest={false} />
       </sprite>
     )
   }
 
-  // Default colored sphere when no image
   return (
-    <mesh position={marker.position}>
+    <mesh
+      position={marker.position}
+      onClick={handleClick}
+      onPointerOver={() => setHovered(true)}
+      onPointerOut={() => setHovered(false)}
+    >
       <sphereGeometry args={[0.08, 12, 12]} />
-      <meshBasicMaterial color="#ff6600" depthTest={false} />
+      <meshBasicMaterial color={color} depthTest={false} />
     </mesh>
   )
 }
