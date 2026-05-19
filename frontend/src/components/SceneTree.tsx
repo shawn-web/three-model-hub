@@ -79,24 +79,10 @@ export function SceneTree() {
     }
   }, [allKeys, checkedKeys.length])
 
-  const handleSelect: TreeProps['onSelect'] = useCallback((keys, info) => {
+  const handleSelect: TreeProps['onSelect'] = useCallback((keys) => {
     const key = keys[0] as string | undefined
     setSelectedComponentId(key ?? null)
-
-    if (key && modelObject) {
-      const obj = modelObject.getObjectByProperty('uuid', key)
-      if (obj) {
-        const fitFn = useEditStore.getState().fitToViewFn
-        if (fitFn) {
-          const store = useEditStore.getState()
-          const originalObj = store.modelObject
-          store.setModelObject(obj as any)
-          fitFn()
-          store.setModelObject(originalObj!)
-        }
-      }
-    }
-  }, [setSelectedComponentId, modelObject])
+  }, [setSelectedComponentId])
 
   const handleCheck: TreeProps['onCheck'] = useCallback((checked) => {
     const keys = checked as React.Key[]

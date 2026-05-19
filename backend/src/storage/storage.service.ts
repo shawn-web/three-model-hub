@@ -63,7 +63,18 @@ export class StorageService {
 
     const FormData = (await import('form-data')).default
     const formData = new FormData()
-    formData.append('file', fileBuffer, fileName)
+
+    // 根据文件扩展名设置正确的 MIME 类型（文件服务会校验）
+    const ext = path.extname(fileName).toLowerCase()
+    const mimeTypes: Record<string, string> = {
+      '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+      '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml',
+      '.bmp': 'image/bmp', '.ico': 'image/x-icon',
+      '.glb': 'model/gltf-binary', '.gltf': 'model/gltf+json',
+      '.pdf': 'application/pdf',
+    }
+    const contentType = mimeTypes[ext] || 'application/octet-stream'
+    formData.append('file', fileBuffer, { filename: fileName, contentType })
     formData.append('path', uploadPath)
     formData.append('bucket', bucket)
 
@@ -98,9 +109,13 @@ export class StorageService {
       throw new Error(`文件上传失败：文件服务返回错误 (${status || '未知'}) - ${typeof data === 'string' ? data : JSON.stringify(data)}`)
     }
 
-    // 文件服务返回结构：{ data: { resultUrl: "https://...", fileName: "xxx" } }
+    // 文件服务返回结构：{ statusCode: "200", data: { resultUrl: "https://...", fileName: "xxx" } }
     if (response.data) {
       const data = response.data
+      // 检查业务错误码（文件服务 HTTP 200 但业务可能失败）
+      if (data.statusCode && data.statusCode !== '200') {
+        throw new Error(`文件上传失败：${data.statusMessage || '未知错误'}`)
+      }
       const innerData = data.data || data
 
       const url = innerData.resultUrl || innerData.url

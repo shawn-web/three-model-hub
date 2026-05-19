@@ -103,7 +103,13 @@
       "Bash(ls frontend/node_modules/.bin/tsc*)",
       "Bash(ls node_modules/.bin/tsc*)",
       "Bash(./node_modules/.bin/tsc --noEmit)",
-      "Bash(xargs grep -l \"eslint\\\\|lint\")"
+      "Bash(xargs grep -l \"eslint\\\\|lint\")",
+      "Bash(npx nest *)",
+      "Bash(xargs grep -l \"global.*style\\\\|\\\\.ant\\\\|overflow\\\\|position\\\\|z-index\")",
+      "Bash(xargs grep -l \"SceneSettings\")",
+      "Bash(xargs grep -l \"screenshot\\\\|capture\")",
+      "Bash(./node_modules/.bin/tsc)",
+      "Bash(taskkill.exe //PID 34228 //F)"
     ]
   }
 }

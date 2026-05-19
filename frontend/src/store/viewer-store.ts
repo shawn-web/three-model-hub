@@ -5,9 +5,6 @@ import * as viewpointsApi from '../api/viewpoints'
 import type { AnnotationData } from '../api/annotations'
 import * as annotationsApi from '../api/annotations'
 
-/** 显示模式类型定义 */
-export type DisplayMode = 'shaded' | 'wireframe' | 'transparent'
-
 export interface ViewerState {
   modelUrl: string | null
   modelObject: THREE.Group | null
@@ -23,8 +20,6 @@ export interface ViewerState {
   treeVisible: boolean
   cameraInfoVisible: boolean
   rotationMode: boolean
-  /** 当前显示模式：正常着色 / 线框 / 半透明 */
-  displayMode: DisplayMode
   /** 当前场景 ID（用于视点保存等） */
   sceneId: string | null
   /** 当前查看模式：scene（场景）或 model（单个模型） */
@@ -72,8 +67,6 @@ export interface ViewerActions {
   setTreeVisible: (visible: boolean) => void
   setCameraInfoVisible: (visible: boolean) => void
   setRotationMode: (enabled: boolean) => void
-  /** 设置显示模式 */
-  setDisplayMode: (mode: DisplayMode) => void
   resetViewer: () => void
   /** 设置当前场景 ID */
   setSceneId: (sceneId: string | null) => void
@@ -119,7 +112,6 @@ const initialState: ViewerState = {
   treeVisible: true,
   cameraInfoVisible: false,
   rotationMode: false,
-  displayMode: 'shaded',
   sceneId: null,
   viewerType: null,
   sceneConfig: null,
@@ -149,7 +141,6 @@ export const useViewerStore = create<ViewerState & ViewerActions>()((set, get) =
   setTreeVisible: (visible) => set({ treeVisible: visible }),
   setCameraInfoVisible: (visible) => set({ cameraInfoVisible: visible }),
   setRotationMode: (enabled) => set({ rotationMode: enabled }),
-  setDisplayMode: (mode) => set({ displayMode: mode }),
   resetViewer: () => set(initialState),
 
   setSceneId: (sceneId) => set({ sceneId }),

@@ -120,7 +120,6 @@ function SceneTab({ sceneModels, onRemoveModel, onOpenAddModal }: {
   return (
     <div style={{ overflow: 'auto', padding: '4px 8px', maxHeight: 'calc(100vh - 200px)' }}>
       {/* 场景设置 */}
-      <SectionTitle title="场景设置" />
       <div style={{ marginBottom: 12 }}>
         <SceneSettings />
       </div>

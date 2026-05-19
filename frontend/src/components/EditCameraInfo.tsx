@@ -8,6 +8,7 @@ import { useEditStore } from '../store/edit-store'
  * 读取 useEditStore 中的相机状态
  */
 export function EditCameraInfo() {
+  const cameraInfoVisible = useEditStore((s) => s.cameraInfoVisible)
   const [cameraData, setCameraData] = useState<{
     position: { x: number; y: number; z: number }
     target: { x: number; y: number; z: number }
@@ -48,7 +49,7 @@ export function EditCameraInfo() {
     return () => clearInterval(timer)
   }, [])
 
-  if (!cameraData) return null
+  if (!cameraInfoVisible || !cameraData) return null
 
   const fmt = (v: number) => v.toFixed(2)
 

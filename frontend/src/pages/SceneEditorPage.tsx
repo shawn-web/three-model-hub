@@ -227,14 +227,17 @@ export function SceneEditorPage() {
     try {
       const res = await fetch(dataUrl)
       const blob = await res.blob()
+      // 确保 blob 有正确的 MIME 类型
+      const pngBlob = new Blob([blob], { type: 'image/png' })
       const formData = new FormData()
-      formData.append('file', blob, `scene-${id}-thumbnail.png`)
+      formData.append('file', pngBlob, `scene-${id}-thumbnail.png`)
       const result = await uploadFile(formData)
       if (result.url) {
         await updateScene(id, { thumbnail_url: result.url })
         message.success('封面已设置')
       }
     } catch (err) {
+      console.error('[SceneEditor] 设为封面失败:', err)
       message.error('设置封面失败')
     }
   }, [id])
@@ -320,15 +323,17 @@ export function SceneEditorPage() {
     <>
     <Layout className="h-full overflow-hidden">
       <Sider width={300} theme="light" className="border-r border-[--ant-color-border-secondary] flex flex-col">
-        <div className="py-3 px-4 border-b border-[--ant-color-border-secondary] flex items-center gap-2">
+        <div className="py-2 px-4 border-b border-[--ant-color-border-secondary] flex items-center gap-2">
           <Button type="text" size="small" icon={<ArrowLeft20 />} onClick={handleGoBack} />
           <Input
             value={sceneName}
             onChange={(e) => setSceneName(e.target.value)}
             size="small"
             variant="borderless"
-            style={{ fontWeight: 600, fontSize: 14 }}
+            style={{ fontWeight: 600, fontSize: 14, flex: 1 }}
           />
+          <Button type="text" size="small" icon={<Icon icon="lucide:camera" width={14} />} onClick={() => downloadScreenshot()} title="截图" />
+          <Button type="text" size="small" icon={<Icon icon="lucide:image" width={14} />} onClick={() => { const dataUrl = captureAsThumbnail(); if (dataUrl) handleSetThumbnail(dataUrl) }} title="设为封面" />
         </div>
 
         <div className="flex-1 overflow-hidden flex flex-col">
@@ -342,27 +347,6 @@ export function SceneEditorPage() {
         </div>
 
         <div className="py-3 px-4 border-t border-[--ant-color-border-secondary]">
-          <div className="flex gap-2 mb-2">
-            <Button
-              icon={<Icon icon="lucide:camera" width={14} />}
-              size="small"
-              className="flex-1"
-              onClick={() => downloadScreenshot()}
-            >
-              截图
-            </Button>
-            <Button
-              icon={<Icon icon="lucide:image" width={14} />}
-              size="small"
-              className="flex-1"
-              onClick={() => {
-                const dataUrl = captureAsThumbnail()
-                if (dataUrl) handleSetThumbnail(dataUrl)
-              }}
-            >
-              设为封面
-            </Button>
-          </div>
           <Button type="primary" icon={<Save20 />} block onClick={handleSaveAll} loading={saving}>
             保存场景
           </Button>

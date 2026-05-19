@@ -28,16 +28,6 @@ const FACE_DIRS: Record<string, Record<string, number[]>> = {
   bottom: { tl:[-1,-1,1], t:[0,-1,1], tr:[1,-1,1],  l:[-1,-1,0], c:[0,-1,0], r:[1,-1,0],  bl:[-1,-1,-1], b:[0,-1,-1], br:[-1,-1,-1] },
 }
 
-/** 每个面的每个区域对应的相邻面列表（用于边/角高亮） */
-const FACE_ADJACENT: Record<string, Record<string, string[]>> = {
-  front:  { tl: ['top','left'],   t: ['top'],         tr: ['top','right'],  l: ['left'],   r: ['right'],  bl: ['bottom','left'],  b: ['bottom'],  br: ['bottom','right'] },
-  back:   { tl: ['top','right'],  t: ['top'],         tr: ['top','left'],   l: ['right'],  r: ['left'],   bl: ['bottom','right'], b: ['bottom'],  br: ['bottom','left'] },
-  left:   { tl: ['top','back'],   t: ['top'],         tr: ['top','front'],  l: ['back'],   r: ['front'],  bl: ['bottom','back'],  b: ['bottom'],  br: ['bottom','front'] },
-  right:  { tl: ['top','front'],  t: ['top'],         tr: ['top','back'],   l: ['front'],  r: ['back'],   bl: ['bottom','front'], b: ['bottom'],  br: ['bottom','back'] },
-  top:    { tl: ['back','left'],  t: ['back'],        tr: ['back','right'], l: ['left'],   r: ['right'],  bl: ['front','left'],   b: ['front'],   br: ['front','right'] },
-  bottom: { tl: ['front','left'], t: ['front'],       tr: ['front','right'],l: ['left'],   r: ['right'],  bl: ['back','left'],    b: ['back'],    br: ['back','right'] },
-}
-
 /** 边区域到高亮条带方向的映射 */
 const EDGE_ZONE_MAP: Record<string, 'top' | 'bottom' | 'left' | 'right'> = {
   t: 'top', b: 'bottom', l: 'left', r: 'right',
@@ -51,8 +41,88 @@ const CORNER_ZONE_MAP: Record<string, { vEdge: 'top' | 'bottom'; hEdge: 'left' |
   br: { vEdge: 'bottom', hEdge: 'right' },
 }
 
+/** 角区域相邻面的正确角映射：给定 (face, zone)，返回两个相邻面及其对应的角位置 */
+const CORNER_ADJACENT: Record<string, Record<string, Array<{ face: string; corner: 'tl' | 'tr' | 'bl' | 'br' }>>> = {
+  front: {
+    tl: [{ face: 'top', corner: 'bl' }, { face: 'left', corner: 'tr' }],
+    tr: [{ face: 'top', corner: 'br' }, { face: 'right', corner: 'tl' }],
+    bl: [{ face: 'bottom', corner: 'tl' }, { face: 'left', corner: 'br' }],
+    br: [{ face: 'bottom', corner: 'tr' }, { face: 'right', corner: 'bl' }],
+  },
+  back: {
+    tl: [{ face: 'top', corner: 'tr' }, { face: 'right', corner: 'tr' }],
+    tr: [{ face: 'top', corner: 'tl' }, { face: 'left', corner: 'tl' }],
+    bl: [{ face: 'bottom', corner: 'br' }, { face: 'right', corner: 'br' }],
+    br: [{ face: 'bottom', corner: 'bl' }, { face: 'left', corner: 'bl' }],
+  },
+  left: {
+    tl: [{ face: 'top', corner: 'tl' }, { face: 'back', corner: 'tr' }],
+    tr: [{ face: 'top', corner: 'bl' }, { face: 'front', corner: 'tl' }],
+    bl: [{ face: 'bottom', corner: 'bl' }, { face: 'back', corner: 'br' }],
+    br: [{ face: 'bottom', corner: 'tl' }, { face: 'front', corner: 'bl' }],
+  },
+  right: {
+    tl: [{ face: 'top', corner: 'br' }, { face: 'front', corner: 'tr' }],
+    tr: [{ face: 'top', corner: 'tr' }, { face: 'back', corner: 'tl' }],
+    bl: [{ face: 'bottom', corner: 'tr' }, { face: 'front', corner: 'br' }],
+    br: [{ face: 'bottom', corner: 'br' }, { face: 'back', corner: 'bl' }],
+  },
+  top: {
+    tl: [{ face: 'back', corner: 'tr' }, { face: 'left', corner: 'tl' }],
+    tr: [{ face: 'back', corner: 'tl' }, { face: 'right', corner: 'tr' }],
+    bl: [{ face: 'front', corner: 'tl' }, { face: 'left', corner: 'tr' }],
+    br: [{ face: 'front', corner: 'tr' }, { face: 'right', corner: 'tl' }],
+  },
+  bottom: {
+    tl: [{ face: 'front', corner: 'bl' }, { face: 'left', corner: 'br' }],
+    tr: [{ face: 'front', corner: 'br' }, { face: 'right', corner: 'bl' }],
+    bl: [{ face: 'back', corner: 'br' }, { face: 'left', corner: 'bl' }],
+    br: [{ face: 'back', corner: 'bl' }, { face: 'right', corner: 'br' }],
+  },
+}
+
+/** 边区域相邻面及对应边映射：给定 (face, edgeZone)，返回相邻面及其对应的边方向 */
+const EDGE_ADJACENT: Record<string, Record<string, { face: string; edgeSide: 'top' | 'bottom' | 'left' | 'right' }>> = {
+  front: {
+    t: { face: 'top', edgeSide: 'bottom' },
+    b: { face: 'bottom', edgeSide: 'top' },
+    l: { face: 'left', edgeSide: 'right' },
+    r: { face: 'right', edgeSide: 'left' },
+  },
+  back: {
+    t: { face: 'top', edgeSide: 'top' },
+    b: { face: 'bottom', edgeSide: 'bottom' },
+    l: { face: 'right', edgeSide: 'right' },
+    r: { face: 'left', edgeSide: 'left' },
+  },
+  left: {
+    t: { face: 'top', edgeSide: 'left' },
+    b: { face: 'bottom', edgeSide: 'left' },
+    l: { face: 'back', edgeSide: 'right' },
+    r: { face: 'front', edgeSide: 'left' },
+  },
+  right: {
+    t: { face: 'top', edgeSide: 'right' },
+    b: { face: 'bottom', edgeSide: 'right' },
+    l: { face: 'front', edgeSide: 'right' },
+    r: { face: 'back', edgeSide: 'left' },
+  },
+  top: {
+    t: { face: 'back', edgeSide: 'top' },
+    b: { face: 'front', edgeSide: 'top' },
+    l: { face: 'left', edgeSide: 'top' },
+    r: { face: 'right', edgeSide: 'top' },
+  },
+  bottom: {
+    t: { face: 'front', edgeSide: 'bottom' },
+    b: { face: 'back', edgeSide: 'bottom' },
+    l: { face: 'left', edgeSide: 'bottom' },
+    r: { face: 'right', edgeSide: 'bottom' },
+  },
+}
+
 /** ViewCube 画布尺寸（像素） */
-const CANVAS_SIZE = 80
+const CANVAS_SIZE = 100
 /** ViewCube 相机到原点的距离 */
 const RADIUS = 2.6
 
@@ -84,15 +154,33 @@ function isCornerZone(zone: string): boolean {
   return ['tl', 'tr', 'bl', 'br'].includes(zone)
 }
 
-/** 创建面标签纹理（绘制文字标签到 Canvas 纹理） */
+/** 创建面标签纹理（绘制文字标签 + 灰色角/边可点击区域指示器） */
 function createFaceTexture(label: string): THREE.CanvasTexture {
   const s = 128
   const c = document.createElement('canvas')
   c.width = s; c.height = s
   const ctx = c.getContext('2d')!
-  ctx.fillStyle = '#f0f0f0'
+  ctx.fillStyle = '#e8ecf0'
   ctx.fillRect(0, 0, s, s)
-  ctx.strokeStyle = '#c8c8c8'
+
+  const zoneT = s * 0.3
+  const triS = s * 0.10
+  const barW = s * 0.10
+
+  ctx.fillStyle = 'rgba(0,0,0,0.18)'
+
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(triS, 0); ctx.lineTo(0, triS); ctx.closePath(); ctx.fill()
+  ctx.beginPath(); ctx.moveTo(s, 0); ctx.lineTo(s - triS, 0); ctx.lineTo(s, triS); ctx.closePath(); ctx.fill()
+  ctx.beginPath(); ctx.moveTo(0, s); ctx.lineTo(triS, s); ctx.lineTo(0, s - triS); ctx.closePath(); ctx.fill()
+  ctx.beginPath(); ctx.moveTo(s, s); ctx.lineTo(s - triS, s); ctx.lineTo(s, s - triS); ctx.closePath(); ctx.fill()
+
+  ctx.fillStyle = 'rgba(0,0,0,0.12)'
+  ctx.fillRect(zoneT, 0, s - zoneT * 2, barW)
+  ctx.fillRect(zoneT, s - barW, s - zoneT * 2, barW)
+  ctx.fillRect(0, zoneT, barW, s - zoneT * 2)
+  ctx.fillRect(s - barW, zoneT, barW, s - zoneT * 2)
+
+  ctx.strokeStyle = '#c0c8d0'
   ctx.lineWidth = 2
   ctx.strokeRect(1, 1, s - 2, s - 2)
   ctx.fillStyle = '#555'
@@ -128,7 +216,7 @@ function createHighlightTexture(
   const strip = s * 0.18
 
   if (type === 'edge' && edgeSide) {
-    ctx.fillStyle = 'rgba(74, 158, 255, 0.55)'
+    ctx.fillStyle = 'rgba(74, 158, 255, 0.7)'
     switch (edgeSide) {
       case 'top':    ctx.fillRect(0, 0, s, strip); break
       case 'bottom': ctx.fillRect(0, s - strip, s, strip); break
@@ -136,10 +224,10 @@ function createHighlightTexture(
       case 'right':  ctx.fillRect(s - strip, 0, strip, s); break
     }
   } else if (type === 'corner' && cornerInfo) {
-    ctx.fillStyle = 'rgba(74, 158, 255, 0.55)'
+    ctx.fillStyle = 'rgba(74, 158, 255, 0.7)'
     const cx = cornerInfo.hEdge === 'left' ? 0 : s
     const cy = cornerInfo.vEdge === 'top' ? 0 : s
-    const triSize = s * 0.35
+    const triSize = s * 0.10
     ctx.beginPath()
     ctx.moveTo(cx, cy)
     if (cornerInfo.vEdge === 'top' && cornerInfo.hEdge === 'left') {
@@ -212,11 +300,11 @@ export function ViewCube() {
       return m
     })
 
-    /** 高亮覆盖层网格（用于边/角悬停高亮效果） */
+    /** 高亮覆盖层网格（预配置材质，通过 visible 切换） */
     const highlightMeshes: THREE.Mesh[] = faceCfg.map(cfg => {
       const m = new THREE.Mesh(
         new THREE.PlaneGeometry(1, 1),
-        new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthTest: false }),
+        new THREE.MeshBasicMaterial({ color: '#3b82f6', transparent: true, opacity: 0.3, depthTest: false }),
       )
       m.position.set(
         (cfg.pos as [number, number, number])[0] * 1.002,
@@ -225,6 +313,7 @@ export function ViewCube() {
       )
       m.rotation.set(...(cfg.rot as [number, number, number]))
       m.renderOrder = 1
+      m.visible = false
       m.userData = { faceKey: cfg.key }
       cubeGroup.add(m)
       return m
@@ -395,12 +484,14 @@ export function ViewCube() {
     /** 清除所有高亮效果 */
     const clearHighlights = () => {
       highlightMeshes.forEach((hm) => {
+        hm.visible = false
         const mat = hm.material as THREE.MeshBasicMaterial
-        mat.opacity = 0
         if (mat.map) {
           mat.map.dispose()
           mat.map = null
         }
+        mat.color.set('#3b82f6')
+        mat.opacity = 0.3
       })
     }
 
@@ -411,7 +502,6 @@ export function ViewCube() {
     const applyEdgeHighlight = (faceKey: string, zone: string) => {
       const edgeSide = EDGE_ZONE_MAP[zone]
       if (!edgeSide) return
-      const adjFaces = FACE_ADJACENT[faceKey]?.[zone] || []
 
       const faceIdx = faceCfg.findIndex(f => f.key === faceKey)
       if (faceIdx >= 0) {
@@ -419,44 +509,31 @@ export function ViewCube() {
         const mat = hm.material as THREE.MeshBasicMaterial
         if (mat.map) mat.map.dispose()
         mat.map = createHighlightTexture('edge', edgeSide)
+        mat.color.set('white')
         mat.opacity = 1
+        hm.visible = true
       }
 
-      adjFaces.forEach(adjKey => {
-        const adjIdx = faceCfg.findIndex(f => f.key === adjKey)
-        if (adjIdx < 0) return
-        const hm = highlightMeshes[adjIdx]
-        const mat = hm.material as THREE.MeshBasicMaterial
-        if (mat.map) mat.map.dispose()
-
-        let adjEdgeSide: 'top' | 'bottom' | 'left' | 'right'
-        if (faceKey === 'front') {
-          adjEdgeSide = edgeSide === 'top' ? 'bottom' : edgeSide === 'bottom' ? 'top' : edgeSide === 'left' ? 'right' : 'left'
-        } else if (faceKey === 'back') {
-          adjEdgeSide = edgeSide === 'top' ? 'bottom' : edgeSide === 'bottom' ? 'top' : edgeSide === 'left' ? 'left' : 'right'
-        } else if (faceKey === 'left') {
-          adjEdgeSide = edgeSide === 'top' ? 'bottom' : edgeSide === 'bottom' ? 'top' : edgeSide === 'left' ? 'right' : 'left'
-        } else if (faceKey === 'right') {
-          adjEdgeSide = edgeSide === 'top' ? 'bottom' : edgeSide === 'bottom' ? 'top' : edgeSide === 'left' ? 'left' : 'right'
-        } else if (faceKey === 'top') {
-          adjEdgeSide = edgeSide === 'top' ? 'bottom' : edgeSide === 'bottom' ? 'top' : edgeSide === 'left' ? 'right' : 'left'
-        } else {
-          adjEdgeSide = edgeSide === 'top' ? 'top' : edgeSide === 'bottom' ? 'bottom' : edgeSide === 'left' ? 'left' : 'right'
+      const adjInfo = EDGE_ADJACENT[faceKey]?.[zone]
+      if (adjInfo) {
+        const adjIdx = faceCfg.findIndex(f => f.key === adjInfo.face)
+        if (adjIdx >= 0) {
+          const hm = highlightMeshes[adjIdx]
+          const mat = hm.material as THREE.MeshBasicMaterial
+          if (mat.map) mat.map.dispose()
+          mat.map = createHighlightTexture('edge', adjInfo.edgeSide)
+          mat.color.set('white')
+          mat.opacity = 1
+          hm.visible = true
         }
-
-        mat.map = createHighlightTexture('edge', adjEdgeSide)
-        mat.opacity = 1
-      })
+      }
     }
 
-    /**
-     * 应用角高亮效果
-     * 在当前面和相邻面上绘制等边三角形高亮
-     */
+    /** 应用角高亮效果：在当前面和相邻面上绘制三角形高亮 */
     const applyCornerHighlight = (faceKey: string, zone: string) => {
       const cornerInfo = CORNER_ZONE_MAP[zone]
       if (!cornerInfo) return
-      const adjFaces = FACE_ADJACENT[faceKey]?.[zone] || []
+      const adj = CORNER_ADJACENT[faceKey]?.[zone] || []
 
       const faceIdx = faceCfg.findIndex(f => f.key === faceKey)
       if (faceIdx >= 0) {
@@ -464,54 +541,21 @@ export function ViewCube() {
         const mat = hm.material as THREE.MeshBasicMaterial
         if (mat.map) mat.map.dispose()
         mat.map = createHighlightTexture('corner', undefined, cornerInfo)
+        mat.color.set('white')
         mat.opacity = 1
+        hm.visible = true
       }
 
-      adjFaces.forEach(adjKey => {
-        const adjIdx = faceCfg.findIndex(f => f.key === adjKey)
+      adj.forEach(({ face: adjFace, corner: adjZone }) => {
+        const adjIdx = faceCfg.findIndex(f => f.key === adjFace)
         if (adjIdx < 0) return
         const hm = highlightMeshes[adjIdx]
         const mat = hm.material as THREE.MeshBasicMaterial
         if (mat.map) mat.map.dispose()
-
-        let adjCornerInfo: { vEdge: 'top' | 'bottom'; hEdge: 'left' | 'right' }
-        const isVEdge = (adjKey === 'top' && cornerInfo.vEdge === 'top') || (adjKey === 'bottom' && cornerInfo.vEdge === 'bottom')
-        const isHEdge = (adjKey === 'left' && cornerInfo.hEdge === 'left') || (adjKey === 'right' && cornerInfo.hEdge === 'right')
-
-        if (faceKey === 'front') {
-          if (isVEdge) {
-            adjCornerInfo = { vEdge: 'bottom', hEdge: cornerInfo.hEdge === 'left' ? 'right' : 'left' }
-          } else {
-            adjCornerInfo = { vEdge: cornerInfo.vEdge === 'top' ? 'top' : 'bottom', hEdge: cornerInfo.hEdge === 'left' ? 'left' : 'right' }
-          }
-        } else if (faceKey === 'back') {
-          if (isVEdge) {
-            adjCornerInfo = { vEdge: 'bottom', hEdge: cornerInfo.hEdge }
-          } else {
-            adjCornerInfo = { vEdge: cornerInfo.vEdge, hEdge: cornerInfo.hEdge === 'left' ? 'right' : 'left' }
-          }
-        } else if (faceKey === 'left' || faceKey === 'right') {
-          if (isVEdge) {
-            adjCornerInfo = { vEdge: 'bottom', hEdge: cornerInfo.hEdge === 'left' ? 'right' : 'left' }
-          } else {
-            adjCornerInfo = { vEdge: cornerInfo.vEdge, hEdge: cornerInfo.hEdge === 'left' ? 'left' : 'right' }
-          }
-        } else if (faceKey === 'top') {
-          if (isVEdge) {
-            adjCornerInfo = { vEdge: cornerInfo.vEdge, hEdge: cornerInfo.hEdge === 'left' ? 'right' : 'left' }
-          } else {
-            adjCornerInfo = { vEdge: cornerInfo.vEdge === 'top' ? 'top' : 'bottom', hEdge: cornerInfo.hEdge }
-          }
-        } else {
-          if (isVEdge) {
-            adjCornerInfo = { vEdge: cornerInfo.vEdge, hEdge: cornerInfo.hEdge === 'left' ? 'right' : 'left' }
-          } else {
-            adjCornerInfo = { vEdge: cornerInfo.vEdge === 'top' ? 'top' : 'bottom', hEdge: cornerInfo.hEdge }
-          }
-        }
-
-        mat.map = createHighlightTexture('corner', undefined, adjCornerInfo)
+        mat.map = createHighlightTexture('corner', undefined, CORNER_ZONE_MAP[adjZone])
+        mat.color.set('white')
         mat.opacity = 1
+        hm.visible = true
       })
     }
 
@@ -534,8 +578,8 @@ export function ViewCube() {
         canvas.style.cursor = 'grabbing'
       }
       if (!dragging) return
-      theta = dragStart.theta + dx * 0.008
-      phi = Math.max(0.15, Math.min(Math.PI - 0.15, dragStart.phi + dy * 0.008))
+      theta = dragStart.theta - dx * 0.008
+      phi = Math.max(0.15, Math.min(Math.PI - 0.15, dragStart.phi - dy * 0.008))
       updateVC()
       syncToMain()
     }
@@ -583,14 +627,19 @@ export function ViewCube() {
         } else if (isCornerZone(zone)) {
           applyCornerHighlight(faceKey, zone)
         } else {
-          // 面中心高亮
+          // 面中心 - 微妙蓝色调高亮，不遮挡文字
+          canvas.style.cursor = 'pointer'
           const faceIdx = faceCfg.findIndex(f => f.key === faceKey)
           if (faceIdx >= 0) {
             const hm = highlightMeshes[faceIdx]
             const mat = hm.material as THREE.MeshBasicMaterial
-            if (mat.map) mat.map.dispose()
-            mat.map = createHighlightTexture('center')
-            mat.opacity = 1
+            if (mat.map) {
+              mat.map.dispose()
+              mat.map = null
+            }
+            mat.color.set('#3b82f6')
+            mat.opacity = 0.3
+            hm.visible = true
           }
         }
       } else {
@@ -643,7 +692,7 @@ export function ViewCube() {
     }}>
       <canvas
         ref={canvasRef}
-        style={{ width: CANVAS_SIZE, height: CANVAS_SIZE, cursor: 'grab', borderRadius: 6 }}
+        style={{ width: CANVAS_SIZE, height: CANVAS_SIZE, cursor: 'grab', borderRadius: 8 }}
       />
       <div
         onClick={() => animateRef.current([1, 1, 1])}

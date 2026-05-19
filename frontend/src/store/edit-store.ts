@@ -55,6 +55,8 @@ export interface EditState {
   addingMarker: boolean
   /** 场景图片列表 */
   sceneImages: SceneImage[]
+  /** 相机信息面板是否可见 */
+  cameraInfoVisible: boolean
   /** 适配视图函数 */
   fitToViewFn: (() => void) | null
   /** 用于获取相机状态的外部回调 */
@@ -125,6 +127,7 @@ export interface EditActions {
   updateSceneImage: (id: string, updates: Partial<SceneImage>) => void
   /** 批量设置场景图片列表 */
   setSceneImages: (images: SceneImage[]) => void
+  setCameraInfoVisible: (visible: boolean) => void
   /** 设置适配视图函数 */
   setFitToViewFn: (fn: (() => void) | null) => void
   /** 注册获取相机状态的回调 */
@@ -163,6 +166,7 @@ const initialState: EditState = {
   markers: [],
   addingMarker: false,
   sceneImages: [],
+  cameraInfoVisible: false,
   fitToViewFn: null,
   getCameraState: null,
   setCameraState: null,
@@ -266,6 +270,7 @@ export const useEditStore = create<EditState & EditActions>()(
         isDirty: true,
       })),
       setSceneImages: (images) => set({ sceneImages: images }),
+      setCameraInfoVisible: (visible) => set({ cameraInfoVisible: visible }),
       setFitToViewFn: (fn) => set({ fitToViewFn: fn }),
       setGetCameraState: (fn) => set({ getCameraState: fn }),
       setSetCameraState: (fn) => set({ setCameraState: fn }),

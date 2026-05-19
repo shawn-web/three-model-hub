@@ -149,9 +149,10 @@ export function EditSceneSetup() {
 
     if (addingMarker) {
       const raycaster = new THREE.Raycaster()
+      const rect = gl.domElement.getBoundingClientRect()
       const mouse = new THREE.Vector2(
-        ((event.nativeEvent.offsetX / gl.domElement.clientWidth) * 2 - 1),
-        -((event.nativeEvent.offsetY / gl.domElement.clientHeight) * 2 + 1),
+        ((event.nativeEvent.clientX - rect.left) / rect.width) * 2 - 1,
+        -((event.nativeEvent.clientY - rect.top) / rect.height) * 2 + 1,
       )
       raycaster.setFromCamera(mouse, camera)
       const intersects = raycaster.intersectObjects(modelObject.children, true)
