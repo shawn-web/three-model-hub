@@ -17,6 +17,7 @@ const TRANSFORM_MODES: { mode: TransformMode; icon: string; label: string; short
 export function EditToolbar({ onFitView }: EditToolbarProps) {
   const transformMode = useEditStore((s) => s.transformMode)
   const setTransformMode = useEditStore((s) => s.setTransformMode)
+  const cameraInfoVisible = useEditStore((s) => s.cameraInfoVisible)
 
   const handleModeChange = useCallback((mode: TransformMode) => {
     setTransformMode(mode)
@@ -40,6 +41,15 @@ export function EditToolbar({ onFitView }: EditToolbarProps) {
         icon={<Icon icon="lucide:maximize" width={16} height={16} />}
         label="适配视图"
         onClick={onFitView}
+      />
+
+      <div className="w-px h-5 bg-white/[0.12] mx-0.5" />
+
+      <ToolButton
+        icon={<Icon icon="lucide:crosshair" width={16} height={16} />}
+        label="视角信息"
+        active={cameraInfoVisible}
+        onClick={() => useEditStore.getState().setCameraInfoVisible(!cameraInfoVisible)}
       />
     </div>
   )

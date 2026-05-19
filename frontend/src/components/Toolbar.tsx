@@ -5,7 +5,6 @@ import { Icon } from '@iconify/react'
 import { ToolButton } from './ToolButton'
 import { IconHome, IconPointer, IconCut, IconRuler, IconFitView, IconRotate } from './Icons'
 import { useViewerStore } from '../store/viewer-store'
-import type { DisplayMode } from '../store/viewer-store'
 import type { ViewerPlugin } from '../plugins/types'
 import type { PluginManager } from '../core/plugin-manager'
 import { downloadScreenshot } from '../utils/screenshot'
@@ -47,7 +46,6 @@ export function Toolbar({ pluginManager, onFitView }: ToolbarProps) {
   const hiddenTools = useViewerStore((s) => s.hiddenTools)
   const toolbarVisible = useViewerStore((s) => s.toolbarVisible)
   const rotationMode = useViewerStore((s) => s.rotationMode)
-  const displayMode = useViewerStore((s) => s.displayMode)
   const sceneId = useViewerStore((s) => s.sceneId)
   const viewpoints = useViewerStore((s) => s.viewpoints)
   // 视点加载状态（供后续加载指示器使用）
@@ -78,49 +76,6 @@ export function Toolbar({ pluginManager, onFitView }: ToolbarProps) {
       useViewerStore.getState().setOnAnnotationClick(null)
     }
   }, [])
-
-  if (!toolbarVisible) return null
-
-  const allPlugins = pluginManager.getAllPlugins()
-  const filteredPlugins = allPlugins.filter((p) => {
-    if (hiddenTools.length > 0 && hiddenTools.includes(p.id)) return false
-    return true
-  })
-
-  const groups = ['picking', 'section', 'measurement'] as const
-  const groupedPlugins = groups.map((group) => ({
-    group,
-    plugins: filteredPlugins.filter((p) => p.group === group),
-  })).filter((g) => g.plugins.length > 0)
-
-  const handleToolClick = (plugin: ViewerPlugin) => {
-    if (activePluginId === plugin.id) {
-      pluginManager.deactivate(plugin.id)
-      useViewerStore.getState().setActivePluginId(null)
-    } else {
-      // Deactivate rotation mode when switching plugins
-      if (rotationMode) {
-        useViewerStore.getState().setRotationMode(false)
-      }
-      pluginManager.activate(plugin.id)
-      useViewerStore.getState().setActivePluginId(plugin.id)
-    }
-  }
-
-  const handleRotateClick = () => {
-    const newMode = !rotationMode
-    useViewerStore.getState().setRotationMode(newMode)
-    // If activating rotation, deactivate any active plugin
-    if (newMode && activePluginId) {
-      pluginManager.deactivate(activePluginId)
-      useViewerStore.getState().setActivePluginId(null)
-    }
-  }
-
-  /** 截图按钮点击处理 */
-  const handleScreenshot = () => {
-    downloadScreenshot()
-  }
 
   /** 保存视点 */
   const handleSaveViewpoint = useCallback(async () => {
@@ -158,67 +113,10 @@ export function Toolbar({ pluginManager, onFitView }: ToolbarProps) {
     }
   }, [sceneId])
 
-  /** 视点列表下拉菜单项 */
-  const viewpointMenuItems: MenuProps['items'] = viewpoints.length > 0
-    ? viewpoints.map((vp) => ({
-      key: vp.id,
-      icon: <Icon icon="lucide:crosshair" width={14} height={14} />,
-      label: (
-        <div className="flex items-center justify-between min-w-[160px]">
-          <span>{vp.name}</span>
-          <Popconfirm
-            title="确定删除此视点?"
-            onConfirm={(e) => {
-              e?.stopPropagation()
-              handleDeleteViewpoint(vp.id)
-            }}
-            onCancel={(e) => e?.stopPropagation()}
-          >
-            <span className="ml-2"><Icon icon="lucide:trash-2" width={14} height={14} style={{ color: "#ff4d4f" }} /></span>
-          </Popconfirm>
-        </div>
-      ),
-    }))
-    : [{ key: 'empty', label: '暂无保存的视点', disabled: true }]
-
-  /** 视点菜单点击处理 */
-  const handleViewpointMenuClick: MenuProps['onClick'] = ({ key }) => {
-    if (key === 'empty') return
-    const vp = viewpoints.find((v) => v.id === key)
-    if (vp) {
-      useViewerStore.getState().applyViewpoint(vp)
-    }
-  }
-
-  /** 显示模式选项配置 */
-  const displayModeItems: MenuProps['items'] = [
-    {
-      key: 'shaded',
-      label: '正常着色',
-      icon: <Icon icon="lucide:box" width={14} height={14} />,
-    },
-    {
-      key: 'wireframe',
-      label: '线框',
-      icon: <Icon icon="lucide:square" width={14} height={14} />,
-    },
-    {
-      key: 'transparent',
-      label: '半透明',
-      icon: <Icon icon="lucide:eye" width={14} height={14} />,
-    },
-  ]
-
-  /** 显示模式切换处理 */
-  const handleDisplayModeChange: MenuProps['onClick'] = ({ key }) => {
-    useViewerStore.getState().setDisplayMode(key as DisplayMode)
-  }
-
   /** 切换添加批注模式 */
   const handleToggleAnnotation = useCallback(() => {
     const newState = !addingAnnotation
     useViewerStore.getState().setAddingAnnotation(newState)
-    // 激活添加模式时，取消当前激活的插件
     if (newState && activePluginId) {
       pluginManager.deactivate(activePluginId)
       useViewerStore.getState().setActivePluginId(null)
@@ -264,18 +162,85 @@ export function Toolbar({ pluginManager, onFitView }: ToolbarProps) {
     }
   }, [sceneId])
 
-  /** 当前显示模式对应的图标 */
-  const displayModeIcon = (() => {
-    switch (displayMode) {
-      case 'wireframe': return <Icon icon="lucide:square" width={14} height={14} />
-      case 'transparent': return <Icon icon="lucide:eye" width={14} height={14} />
-      default: return <Icon icon="lucide:box" width={14} height={14} />
+  if (!toolbarVisible) return null
+
+  const allPlugins = pluginManager.getAllPlugins()
+  const filteredPlugins = allPlugins.filter((p) => {
+    if (hiddenTools.length > 0 && hiddenTools.includes(p.id)) return false
+    return true
+  })
+
+  const groups = ['picking', 'section', 'measurement'] as const
+  const groupedPlugins = groups.map((group) => ({
+    group,
+    plugins: filteredPlugins.filter((p) => p.group === group),
+  })).filter((g) => g.plugins.length > 0)
+
+  const handleToolClick = (plugin: ViewerPlugin) => {
+    if (activePluginId === plugin.id) {
+      pluginManager.deactivate(plugin.id)
+      useViewerStore.getState().setActivePluginId(null)
+    } else {
+      // Deactivate rotation mode when switching plugins
+      if (rotationMode) {
+        useViewerStore.getState().setRotationMode(false)
+      }
+      pluginManager.activate(plugin.id)
+      useViewerStore.getState().setActivePluginId(plugin.id)
     }
-  })()
+  }
+
+  const handleRotateClick = () => {
+    const newMode = !rotationMode
+    useViewerStore.getState().setRotationMode(newMode)
+    // If activating rotation, deactivate any active plugin
+    if (newMode && activePluginId) {
+      pluginManager.deactivate(activePluginId)
+      useViewerStore.getState().setActivePluginId(null)
+    }
+  }
+
+  /** 截图按钮点击处理 */
+  const handleScreenshot = () => {
+    downloadScreenshot()
+  }
+
+  /** 视点列表下拉菜单项 */
+  const viewpointMenuItems: MenuProps['items'] = viewpoints.length > 0
+    ? viewpoints.map((vp) => ({
+      key: vp.id,
+      icon: <Icon icon="lucide:crosshair" width={14} height={14} />,
+      label: (
+        <div className="flex items-center justify-between min-w-[160px]">
+          <span>{vp.name}</span>
+          <Popconfirm
+            title="确定删除此视点?"
+            onConfirm={(e) => {
+              e?.stopPropagation()
+              handleDeleteViewpoint(vp.id)
+            }}
+            onCancel={(e) => e?.stopPropagation()}
+          >
+            <span className="ml-2"><Icon icon="lucide:trash-2" width={14} height={14} style={{ color: "#ff4d4f" }} /></span>
+          </Popconfirm>
+        </div>
+      ),
+    }))
+    : [{ key: 'empty', label: '暂无保存的视点', disabled: true }]
+
+  /** 视点菜单点击处理 */
+  const handleViewpointMenuClick: MenuProps['onClick'] = ({ key }) => {
+    if (key === 'empty') return
+    const vp = viewpoints.find((v) => v.id === key)
+    if (vp) {
+      useViewerStore.getState().applyViewpoint(vp)
+    }
+  }
 
   return (
-    <ConfigProvider theme={darkDropdownConfig}>
-    <div className={`absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-0.5 bg-[rgba(20,20,30,0.9)] rounded-[10px] backdrop-blur-[12px] shadow-[0_2px_12px_rgba(0,0,0,0.4)] ${collapsed ? 'p-1' : 'py-1 px-2'}`}>
+    <ConfigProvider theme={darkDropdownConfig} getPopupContainer={() => document.body}>
+    <div className="absolute bottom-3 left-0 right-0 flex justify-center pointer-events-none">
+    <div className={`flex items-center gap-0.5 bg-[rgba(20,20,30,0.9)] rounded-[10px] backdrop-blur-[12px] shadow-[0_2px_12px_rgba(0,0,0,0.4)] pointer-events-auto ${collapsed ? 'p-1' : 'py-1 px-2'}`}>
       <ToolButton
         icon={collapsed ? <span className="text-sm">☰</span> : <span className="text-[10px]">▽</span>}
         label={collapsed ? '展开工具栏' : '收起工具栏'}
@@ -329,18 +294,6 @@ export function Toolbar({ pluginManager, onFitView }: ToolbarProps) {
             active={cameraInfoVisible}
             onClick={() => useViewerStore.getState().setCameraInfoVisible(!cameraInfoVisible)}
           />
-          {/* 显示模式下拉切换 */}
-          <Dropdown
-            menu={{ items: displayModeItems, onClick: handleDisplayModeChange, selectedKeys: [displayMode] }}
-            trigger={['click']}
-            placement="top"
-          >
-            <ToolButton
-              icon={displayModeIcon}
-              label="显示模式"
-              onClick={() => {}}
-            />
-          </Dropdown>
           {/* 视点功能按钮 */}
           {sceneId && viewerType === 'scene' && (
             <>
@@ -465,6 +418,7 @@ export function Toolbar({ pluginManager, onFitView }: ToolbarProps) {
           )}
         </>
       )}
+    </div>
     </div>
     </ConfigProvider>
   )

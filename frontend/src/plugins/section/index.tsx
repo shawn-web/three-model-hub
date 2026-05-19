@@ -8,6 +8,18 @@ export interface SectionState {
   bounds: { min: number; max: number }
 }
 
+interface OriginalMaterialState {
+  side: THREE.Side
+  clippingPlanes: THREE.Plane[] | null
+  clipShadows: boolean
+}
+
+interface MaterialWithSectionState extends THREE.Material {
+  [ORIGINAL_KEY]?: OriginalMaterialState
+}
+
+const ORIGINAL_KEY = '__sectionOriginalState'
+
 export class SectionPlugin implements ViewerPlugin {
   id = 'section'
   name = '剖面'
@@ -21,8 +33,6 @@ export class SectionPlugin implements ViewerPlugin {
   private sectionEnabled = false
   private modelMin = 0
   private modelMax = 0
-
-  // Listener for state changes from scene components
   private stateListener: ((state: SectionState) => void) | null = null
 
   install(context: ViewerContext): void {
@@ -38,7 +48,6 @@ export class SectionPlugin implements ViewerPlugin {
   activate(): void {
     this.active = true
     this.updateModelBounds()
-    // 初始位置设在模型边缘，不裁切任何内容
     this.sectionPosition = this.modelMax
     this.notifyListener()
   }
@@ -54,7 +63,6 @@ export class SectionPlugin implements ViewerPlugin {
     return this.active
   }
 
-  /** Set a listener that will be called whenever section state changes */
   onStateChange(listener: (state: SectionState) => void): void {
     this.stateListener = listener
   }
@@ -66,7 +74,6 @@ export class SectionPlugin implements ViewerPlugin {
   setAxis(axis: 'x' | 'y' | 'z'): void {
     this.sectionAxis = axis
     this.updateModelBounds()
-    // 切换轴时重置到边缘，不裁切任何内容
     this.sectionPosition = this.modelMax
     if (this.sectionEnabled) {
       this.applyClipping()
@@ -90,7 +97,6 @@ export class SectionPlugin implements ViewerPlugin {
     return this.sectionEnabled
   }
 
-  /** Enable/disable section clipping. Called by the in-scene component. */
   toggle(enabled?: boolean): void {
     this.sectionEnabled = enabled ?? !this.sectionEnabled
     if (this.sectionEnabled) {
@@ -149,12 +155,8 @@ export class SectionPlugin implements ViewerPlugin {
 
   applyClipping(): void {
     if (!this.context) return
-    this.removeClipping()
     this.updateModelBounds()
 
-    // 法线为负方向：箭头指向 +X 表示从 +X 方向剖切（移除正侧）
-    // THREE.Plane 裁剪 n·p + d < 0 的部分
-    // normal = (-1,0,0), d = position → 裁剪 -x + position < 0 → x > position（正侧被裁剪）
     const normal = new THREE.Vector3()
     switch (this.sectionAxis) {
       case 'x': normal.set(-1, 0, 0); break
@@ -170,6 +172,14 @@ export class SectionPlugin implements ViewerPlugin {
         if (child instanceof THREE.Mesh) {
           const materials = Array.isArray(child.material) ? child.material : [child.material]
           materials.forEach((m) => {
+            const saved = (m as MaterialWithSectionState)[ORIGINAL_KEY]
+            if (!saved) {
+              (m as MaterialWithSectionState)[ORIGINAL_KEY] = {
+                side: m.side,
+                clippingPlanes: m.clippingPlanes ? [...m.clippingPlanes] : null,
+                clipShadows: m.clipShadows,
+              }
+            }
             m.clippingPlanes = [plane]
             m.clipShadows = true
             m.side = THREE.DoubleSide
@@ -182,19 +192,29 @@ export class SectionPlugin implements ViewerPlugin {
   }
 
   private removeClipping(): void {
-    if (this.context) {
-      const model = this.context.store.getState().modelObject
-      if (model) {
-        model.traverse((child) => {
-          if (child instanceof THREE.Mesh) {
-            const materials = Array.isArray(child.material) ? child.material : [child.material]
-            materials.forEach((m) => {
+    if (!this.context) return
+    const model = this.context.store.getState().modelObject
+    if (model) {
+      model.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          const materials = Array.isArray(child.material) ? child.material : [child.material]
+          materials.forEach((m) => {
+            const saved = (m as MaterialWithSectionState)[ORIGINAL_KEY]
+            if (saved) {
+              m.side = saved.side
+              m.clippingPlanes = saved.clippingPlanes
+              m.clipShadows = saved.clipShadows
+              delete (m as MaterialWithSectionState)[ORIGINAL_KEY]
+            } else {
               m.clippingPlanes = []
-              m.needsUpdate = true
-            })
-          }
-        })
-      }
+            }
+            m.needsUpdate = true
+          })
+        }
+      })
+    }
+    if (!this.sectionEnabled) {
+      this.context.renderer.localClippingEnabled = false
     }
   }
 }
