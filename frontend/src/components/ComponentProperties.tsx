@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Input, Slider, ColorPicker, Empty } from 'antd'
+import { Input, Slider, ColorPicker, Empty, theme } from 'antd'
 import * as THREE from 'three'
 import { useEditStore } from '../store/edit-store'
 
@@ -11,6 +11,7 @@ export function ComponentProperties() {
   const modelObject = useEditStore((s) => s.modelObject)
   const selectedComponentId = useEditStore((s) => s.selectedComponentId)
   const updateComponentMaterial = useEditStore((s) => s.updateComponentMaterial)
+  const { token } = theme.useToken()
 
   const [selectedObj, setSelectedObj] = useState<THREE.Object3D | null>(null)
   const [description, setDescription] = useState('')
@@ -68,33 +69,33 @@ export function ComponentProperties() {
         padding: '8px 4px 6px',
         fontSize: 12,
         fontWeight: 600,
-        color: '#666',
-        borderBottom: '1px solid #f0f0f0',
+        color: token.colorTextSecondary,
+        borderBottom: `1px solid ${token.colorBorderSecondary}`,
       }}>
         构件属性
       </div>
 
       <div style={{ marginTop: 8 }}>
-        <div style={{ fontSize: 11, color: '#999', marginBottom: 2 }}>名称</div>
-        <div style={{ fontSize: 12, color: '#333' }}>{selectedObj.name || '(未命名)'}</div>
+        <div style={{ fontSize: 11, color: token.colorTextTertiary, marginBottom: 2 }}>名称</div>
+        <div style={{ fontSize: 12, color: token.colorText }}>{selectedObj.name || '(未命名)'}</div>
       </div>
 
       <div style={{ marginTop: 4 }}>
-        <div style={{ fontSize: 11, color: '#999', marginBottom: 2 }}>类型</div>
-        <div style={{ fontSize: 12, color: '#333' }}>{selectedObj.type}</div>
+        <div style={{ fontSize: 11, color: token.colorTextTertiary, marginBottom: 2 }}>类型</div>
+        <div style={{ fontSize: 12, color: token.colorText }}>{selectedObj.type}</div>
       </div>
 
       <div style={{ marginTop: 4 }}>
-        <div style={{ fontSize: 11, color: '#999', marginBottom: 2 }}>位置</div>
-        <div style={{ fontSize: 11, color: '#666', fontFamily: 'monospace' }}>
+        <div style={{ fontSize: 11, color: token.colorTextTertiary, marginBottom: 2 }}>位置</div>
+        <div style={{ fontSize: 11, color: token.colorTextSecondary, fontFamily: 'monospace' }}>
           X: {selectedObj.position.x.toFixed(3)} Y: {selectedObj.position.y.toFixed(3)} Z: {selectedObj.position.z.toFixed(3)}
         </div>
       </div>
 
       {meshMaterial && (
         <>
-          <div style={{ marginTop: 8, borderTop: '1px solid #f0f0f0', paddingTop: 8 }}>
-            <div style={{ fontSize: 11, color: '#999', marginBottom: 4 }}>颜色</div>
+          <div style={{ marginTop: 8, borderTop: `1px solid ${token.colorBorderSecondary}`, paddingTop: 8 }}>
+            <div style={{ fontSize: 11, color: token.colorTextTertiary, marginBottom: 4 }}>颜色</div>
             <ColorPicker
               size="small"
               value={meshMaterial.color.getStyle()}
@@ -103,7 +104,7 @@ export function ComponentProperties() {
           </div>
 
           <div style={{ marginTop: 8 }}>
-            <div style={{ fontSize: 11, color: '#999', marginBottom: 4 }}>
+            <div style={{ fontSize: 11, color: token.colorTextTertiary, marginBottom: 4 }}>
               透明度: {Math.round((meshMaterial.opacity ?? 1) * 100)}%
             </div>
             <Slider
@@ -117,8 +118,8 @@ export function ComponentProperties() {
         </>
       )}
 
-      <div style={{ marginTop: 8, borderTop: '1px solid #f0f0f0', paddingTop: 8 }}>
-        <div style={{ fontSize: 11, color: '#999', marginBottom: 4 }}>描述</div>
+      <div style={{ marginTop: 8, borderTop: `1px solid ${token.colorBorderSecondary}`, paddingTop: 8 }}>
+        <div style={{ fontSize: 11, color: token.colorTextTertiary, marginBottom: 4 }}>描述</div>
         <Input.TextArea
           size="small"
           value={description}

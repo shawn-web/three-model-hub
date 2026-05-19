@@ -83,6 +83,16 @@ export class ScenesController {
     return this.scenesService.addModel(id, dto)
   }
 
+  /** 批量更新场景中的模型配置（必须放在 :mid 路由之前，避免 :mid 匹配到 'batch'） */
+  @Put(':id/models/batch')
+  async batchUpdateModels(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: BatchUpdateSceneModelsDto,
+  ) {
+    await this.scenesService.batchUpdateModels(id, dto.models)
+    return { success: true }
+  }
+
   /** 更新场景中的模型 */
   @Put(':id/models/:mid')
   async updateModel(
@@ -100,16 +110,6 @@ export class ScenesController {
     @Param('mid', ParseUUIDPipe) mid: string,
   ) {
     await this.scenesService.removeModel(id, mid)
-    return { success: true }
-  }
-
-  /** 批量更新场景中的模型配置 */
-  @Put(':id/models/batch')
-  async batchUpdateModels(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: BatchUpdateSceneModelsDto,
-  ) {
-    await this.scenesService.batchUpdateModels(id, dto.models)
     return { success: true }
   }
 }

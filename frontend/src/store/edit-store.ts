@@ -39,6 +39,7 @@ export interface EditState {
   backgroundConfig: BackgroundConfig | null
   markers: MarkerData[]
   addingMarker: boolean
+  fitToViewFn: (() => void) | null
 }
 
 export interface EditActions {
@@ -62,6 +63,7 @@ export interface EditActions {
   removeMarker: (id: string) => void
   updateMarker: (id: string, updates: Partial<MarkerData>) => void
   setAddingMarker: (value: boolean) => void
+  setFitToViewFn: (fn: (() => void) | null) => void
   resetEdit: () => void
 }
 
@@ -89,6 +91,7 @@ const initialState: EditState = {
   backgroundConfig: null,
   markers: [],
   addingMarker: false,
+  fitToViewFn: null,
 }
 
 export const useEditStore = create<EditState & EditActions>()(
@@ -180,6 +183,7 @@ export const useEditStore = create<EditState & EditActions>()(
         markers: state.markers.map((m) => m.id === id ? { ...m, ...updates } : m),
       })),
       setAddingMarker: (value) => set({ addingMarker: value }),
+      setFitToViewFn: (fn) => set({ fitToViewFn: fn }),
       resetEdit: () => set(initialState),
     }),
     {

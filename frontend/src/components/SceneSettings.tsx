@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { Select, ColorPicker, Input, Upload, message, Button } from 'antd'
+import { Select, ColorPicker, Input, Upload, message, Button, theme } from 'antd'
 import { Icon } from '@iconify/react'
 import type { BackgroundConfig } from '../store/edit-store'
 import { useEditStore } from '../store/edit-store'
@@ -18,6 +18,7 @@ export function SceneSettings() {
   const backgroundConfig = useEditStore((s) => s.backgroundConfig)
   const setBackgroundConfig = useEditStore((s) => s.setBackgroundConfig)
   const [uploading, setUploading] = useState(false)
+  const { token } = theme.useToken()
 
   const currentType: BackgroundType = backgroundConfig?.type ?? 'color'
 
@@ -71,14 +72,14 @@ export function SceneSettings() {
         padding: '8px 4px 6px',
         fontSize: 12,
         fontWeight: 600,
-        color: '#666',
-        borderBottom: '1px solid #f0f0f0',
+        color: token.colorTextSecondary,
+        borderBottom: `1px solid ${token.colorBorderSecondary}`,
       }}>
         场景设置
       </div>
 
       <div style={{ marginTop: 8 }}>
-        <div style={{ fontSize: 11, color: '#999', marginBottom: 4 }}>背景类型</div>
+        <div style={{ fontSize: 11, color: token.colorTextTertiary, marginBottom: 4 }}>背景类型</div>
         <Select
           size="small"
           value={currentType}
@@ -90,7 +91,7 @@ export function SceneSettings() {
 
       {currentType === 'color' && backgroundConfig?.type === 'color' && (
         <div style={{ marginTop: 8 }}>
-          <div style={{ fontSize: 11, color: '#999', marginBottom: 4 }}>背景颜色</div>
+          <div style={{ fontSize: 11, color: token.colorTextTertiary, marginBottom: 4 }}>背景颜色</div>
           <ColorPicker
             size="small"
             value={backgroundConfig.color}
@@ -101,7 +102,7 @@ export function SceneSettings() {
 
       {currentType === 'image' && backgroundConfig?.type === 'image' && (
         <div style={{ marginTop: 8 }}>
-          <div style={{ fontSize: 11, color: '#999', marginBottom: 4 }}>图片 URL</div>
+          <div style={{ fontSize: 11, color: token.colorTextTertiary, marginBottom: 4 }}>图片 URL</div>
           <Input
             size="small"
             value={backgroundConfig.url}
@@ -125,7 +126,7 @@ export function SceneSettings() {
 
       {currentType === 'hdr' && backgroundConfig?.type === 'hdr' && (
         <div style={{ marginTop: 8 }}>
-          <div style={{ fontSize: 11, color: '#999', marginBottom: 4 }}>HDR 文件 URL</div>
+          <div style={{ fontSize: 11, color: token.colorTextTertiary, marginBottom: 4 }}>HDR 文件 URL</div>
           <Input
             size="small"
             value={backgroundConfig.url}
@@ -149,7 +150,7 @@ export function SceneSettings() {
 
       {currentType === 'skybox' && backgroundConfig?.type === 'skybox' && (
         <div style={{ marginTop: 8 }}>
-          <div style={{ fontSize: 11, color: '#999', marginBottom: 4 }}>
+          <div style={{ fontSize: 11, color: token.colorTextTertiary, marginBottom: 4 }}>
             天空盒图片（顺序：+X -X +Y -Y +Z -Z）
           </div>
           {['+X', '-X', '+Y', '-Y', '+Z', '-Z'].map((label, i) => (
