@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config'
 import axios from 'axios'
 import * as crypto from 'crypto'
 import * as path from 'path'
+import FormData = require('form-data')
 
 /** 上传进度回调类型 */
 export type ProgressCallback = (percent: number) => void
@@ -11,8 +12,6 @@ export type ProgressCallback = (percent: number) => void
 export interface UploadResult {
   /** 文件访问 URL */
   url: string
-  /** 文件存储桶名 */
-  bucket: string
   /** 文件在存储服务中的 key/fileName */
   fileKey: string
 }
@@ -42,16 +41,14 @@ export class StorageService {
    * 上传文件到文件服务
    * @param fileBuffer 文件二进制数据
    * @param fileName 文件名
-   * @param bucket 存储桶名，保证每次上传唯一
    * @param subPath 子路径（可选，如模型ID）
    * @param onProgress 上传进度回调（0-100）
-   * @param customBasePath 自定义基础路径（可选，覆盖默认 basePath，如图片上传使用 'labs/images'）
-   * @returns 上传结果（URL、bucket、fileKey）
+   * @param customBasePath 自定义基础路径（可选，覆盖默认 basePath）
+   * @returns 上传结果（URL、fileKey）
    */
   async uploadFile(
     fileBuffer: Buffer,
     fileName: string,
-    bucket: string,
     subPath?: string,
     onProgress?: ProgressCallback,
     customBasePath?: string,
@@ -61,7 +58,6 @@ export class StorageService {
       ? `${basePath}/${subPath}`
       : basePath
 
-    const FormData = (await import('form-data')).default
     const formData = new FormData()
 
     // 根据文件扩展名设置正确的 MIME 类型（文件服务会校验）
@@ -76,7 +72,6 @@ export class StorageService {
     const contentType = mimeTypes[ext] || 'application/octet-stream'
     formData.append('file', fileBuffer, { filename: fileName, contentType })
     formData.append('path', uploadPath)
-    formData.append('bucket', bucket)
 
     let response: any
     try {
@@ -84,8 +79,6 @@ export class StorageService {
         headers: {
           ...formData.getHeaders(),
           'token': this.token,
-          'clientId': this.configService.get<string>('FILE_SERVICE_CLIENT_ID') || '1001',
-          'passportId': this.configService.get<string>('FILE_SERVICE_PASSPORT_ID') || '',
         },
         maxContentLength: Infinity,
         maxBodyLength: Infinity,
@@ -103,13 +96,13 @@ export class StorageService {
         data,
         message: err?.message,
         uploadPath,
-        bucket,
         fileName,
       })
       throw new Error(`文件上传失败：文件服务返回错误 (${status || '未知'}) - ${typeof data === 'string' ? data : JSON.stringify(data)}`)
     }
 
     // 文件服务返回结构：{ statusCode: "200", data: { resultUrl: "https://...", fileName: "xxx" } }
+    console.log('[StorageService] 上传响应:', JSON.stringify(response.data))
     if (response.data) {
       const data = response.data
       // 检查业务错误码（文件服务 HTTP 200 但业务可能失败）
@@ -121,11 +114,11 @@ export class StorageService {
       const url = innerData.resultUrl || innerData.url
       if (url) {
         const fileKey = innerData.fileName || innerData.fileKey || this.extractFileNameFromUrl(url)
-        return { url, bucket, fileKey }
+        return { url, fileKey }
       }
       if (typeof data === 'string') {
         const fileKey = this.extractFileNameFromUrl(data)
-        return { url: data, bucket, fileKey }
+        return { url: data, fileKey }
       }
     }
 
@@ -135,15 +128,13 @@ export class StorageService {
 
   /**
    * 删除文件
-   * @param bucket 存储桶名
    * @param fileName 文件名
    */
-  async deleteFile(bucket: string, fileName: string): Promise<void> {
+  async deleteFile(fileName: string): Promise<void> {
     await axios.delete(this.deleteUrl, {
-      params: { bucket, fileName },
+      params: { bucket: 'huazhu', fileName },
       headers: {
         'token': this.token,
-        'clientId': this.configService.get<string>('FILE_SERVICE_CLIENT_ID') || '1001',
       },
     })
   }

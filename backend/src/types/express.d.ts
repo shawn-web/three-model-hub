@@ -2,8 +2,8 @@ import 'multer'
 
 declare global {
   namespace Express {
-    namespace Multer {
-      interface File {
+    interface Multer {
+      File: {
         fieldname: string
         originalname: string
         encoding: string

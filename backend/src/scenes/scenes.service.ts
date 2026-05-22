@@ -3,12 +3,16 @@ import { InjectRepository } from '@nestjs/typeorm'
 import { Repository } from 'typeorm'
 import { Scene } from './entities/scene.entity'
 import { SceneModel } from './entities/scene-model.entity'
+import { SceneImage } from './entities/scene-image.entity'
 import {
   CreateSceneDto,
   UpdateSceneDto,
   AddSceneModelDto,
   UpdateSceneModelDto,
   BatchSceneModelItemDto,
+  AddSceneImageDto,
+  UpdateSceneImageDto,
+  BatchSceneImageItemDto,
 } from './dto/scene.dto'
 
 /**
@@ -22,6 +26,8 @@ export class ScenesService {
     private sceneRepo: Repository<Scene>,
     @InjectRepository(SceneModel)
     private sceneModelRepo: Repository<SceneModel>,
+    @InjectRepository(SceneImage)
+    private sceneImageRepo: Repository<SceneImage>,
   ) {}
 
   /** 获取场景列表 */
@@ -48,7 +54,7 @@ export class ScenesService {
   async findOne(id: string): Promise<Scene> {
     const scene = await this.sceneRepo.findOne({
       where: { id },
-      relations: ['scene_models'],
+      relations: ['scene_models', 'scene_images'],
     })
     if (!scene) {
       throw new NotFoundException(`场景不存在: ${id}`)
@@ -70,9 +76,12 @@ export class ScenesService {
     return this.sceneRepo.save(scene)
   }
 
-  /** 更新场景 */
+  /** 更新场景（仅更新场景自身字段，不加载 scene_models 关联） */
   async update(id: string, dto: UpdateSceneDto): Promise<Scene> {
-    const scene = await this.findOne(id)
+    const scene = await this.sceneRepo.findOne({ where: { id } })
+    if (!scene) {
+      throw new NotFoundException(`场景不存在: ${id}`)
+    }
     Object.assign(scene, dto)
     return this.sceneRepo.save(scene)
   }
@@ -175,6 +184,28 @@ export class ScenesService {
       name: scene.name,
       description: scene.description,
       config: scene.scene_config,
+      markers: scene.markers || [],
+      images: (scene.scene_images || []).map((si) => ({
+        id: si.id,
+        type: si.type,
+        url: si.url,
+        name: si.name,
+        width: si.width,
+        height: si.height,
+        position: si.position,
+        scale: si.scale,
+        rotation: si.rotation,
+        visible: si.visible,
+        billboard: si.billboard,
+        sort_order: si.sort_order,
+        autoplay: si.autoplay,
+        muted: si.muted,
+        loop: si.loop,
+        text: si.text,
+        fontSize: si.fontSize,
+        fontColor: si.fontColor,
+        iframeUrl: si.iframeUrl,
+      })),
       models: scene.scene_models.map((sm) => ({
         id: sm.id,
         model_id: sm.model_id,
@@ -185,6 +216,123 @@ export class ScenesService {
         display_name: sm.display_name,
         sort_order: sm.sort_order,
       })),
+    }
+  }
+
+  /**
+   * 添加图片到场景
+   */
+  async addImage(sceneId: string, dto: AddSceneImageDto): Promise<SceneImage> {
+    await this.findOne(sceneId)
+    const image = this.sceneImageRepo.create({
+      scene_id: sceneId,
+      type: dto.type || 'image',
+      url: dto.url || null,
+      name: dto.name,
+      width: dto.width,
+      height: dto.height,
+      position: dto.position || null,
+      scale: dto.scale || null,
+      rotation: dto.rotation || null,
+      visible: dto.visible !== undefined ? dto.visible : true,
+      billboard: dto.billboard !== undefined ? dto.billboard : true,
+      sort_order: dto.sort_order || 0,
+      autoplay: dto.autoplay !== undefined ? dto.autoplay : null,
+      muted: dto.muted !== undefined ? dto.muted : null,
+      loop: dto.loop !== undefined ? dto.loop : null,
+      text: dto.text || null,
+      fontSize: dto.fontSize || null,
+      fontColor: dto.fontColor || null,
+      iframeUrl: dto.iframeUrl || null,
+    })
+    return this.sceneImageRepo.save(image)
+  }
+
+  /**
+   * 更新场景中的图片
+   */
+  async updateImage(
+    sceneId: string,
+    imageId: string,
+    dto: UpdateSceneImageDto,
+  ): Promise<SceneImage> {
+    const image = await this.sceneImageRepo.findOne({
+      where: { id: imageId, scene_id: sceneId },
+    })
+    if (!image) {
+      throw new NotFoundException('场景中的图片不存在')
+    }
+
+    if (dto.type !== undefined) image.type = dto.type
+    if (dto.url !== undefined) image.url = dto.url
+    if (dto.name !== undefined) image.name = dto.name
+    if (dto.width !== undefined) image.width = dto.width
+    if (dto.height !== undefined) image.height = dto.height
+    if (dto.position !== undefined) image.position = dto.position
+    if (dto.scale !== undefined) image.scale = dto.scale
+    if (dto.rotation !== undefined) image.rotation = dto.rotation
+    if (dto.visible !== undefined) image.visible = dto.visible
+    if (dto.sort_order !== undefined) image.sort_order = dto.sort_order
+    if (dto.billboard !== undefined) image.billboard = dto.billboard
+    if (dto.autoplay !== undefined) image.autoplay = dto.autoplay
+    if (dto.muted !== undefined) image.muted = dto.muted
+    if (dto.loop !== undefined) image.loop = dto.loop
+    if (dto.text !== undefined) image.text = dto.text
+    if (dto.fontSize !== undefined) image.fontSize = dto.fontSize
+    if (dto.fontColor !== undefined) image.fontColor = dto.fontColor
+    if (dto.iframeUrl !== undefined) image.iframeUrl = dto.iframeUrl
+
+    return this.sceneImageRepo.save(image)
+  }
+
+  /**
+   * 从场景中移除图片
+   */
+  async removeImage(sceneId: string, imageId: string): Promise<void> {
+    const image = await this.sceneImageRepo.findOne({
+      where: { id: imageId, scene_id: sceneId },
+    })
+    if (!image) {
+      throw new NotFoundException('场景中的图片不存在')
+    }
+    await this.sceneImageRepo.remove(image)
+  }
+
+  /**
+   * 批量保存场景图片（替换所有）
+   * 先删除该场景的所有图片，再重新创建
+   */
+  async batchSaveImages(sceneId: string, items: BatchSceneImageItemDto[]): Promise<void> {
+    await this.findOne(sceneId)
+
+    // 删除该场景的所有现有图片
+    await this.sceneImageRepo.delete({ scene_id: sceneId })
+
+    // 重新创建所有图片
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      const image = this.sceneImageRepo.create({
+        scene_id: sceneId,
+        type: item.type || 'image',
+        url: item.url || null,
+        name: item.name,
+        width: item.width,
+        height: item.height,
+        position: item.position || null,
+        scale: item.scale || null,
+        rotation: item.rotation || null,
+        visible: item.visible !== undefined ? item.visible : true,
+        billboard: item.billboard !== undefined ? item.billboard : true,
+        sort_order: item.sort_order ?? i,
+        autoplay: item.autoplay !== undefined ? item.autoplay : null,
+        muted: item.muted !== undefined ? item.muted : null,
+        loop: item.loop !== undefined ? item.loop : null,
+        text: item.text || null,
+        fontSize: item.fontSize || null,
+        fontColor: item.fontColor || null,
+        iframeUrl: item.iframeUrl || null,
+      })
+      await this.sceneImageRepo.save(image)
     }
   }
 }

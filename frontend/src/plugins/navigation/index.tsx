@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import type { ViewerPlugin, ViewerContext } from '../types'
 import { fitToView } from '../../utils/fit-to-view'
 
@@ -10,7 +11,7 @@ export class NavigationPlugin implements ViewerPlugin {
 
   private context: ViewerContext | null = null
   private active = true
-  private controlsRef: any = null
+  private controlsRef: OrbitControlsImpl | null = null
 
   install(context: ViewerContext): void {
     this.context = context
@@ -33,7 +34,7 @@ export class NavigationPlugin implements ViewerPlugin {
     return this.active
   }
 
-  setControlsRef(ref: any): void {
+  setControlsRef(ref: OrbitControlsImpl | null): void {
     this.controlsRef = ref
   }
 

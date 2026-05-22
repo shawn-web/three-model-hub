@@ -5,6 +5,7 @@ export class CreateSceneDto {
   name: string
   description?: string
   scene_config?: Record<string, any>
+  markers?: Record<string, any>
 }
 
 /**
@@ -16,6 +17,7 @@ export class UpdateSceneDto {
   thumbnail_url?: string
   scene_config?: Record<string, any>
   is_public?: boolean
+  markers?: Record<string, any>
 }
 
 /**
@@ -54,4 +56,79 @@ export class BatchSceneModelItemDto {
 /** 批量更新场景模型 DTO */
 export class BatchUpdateSceneModelsDto {
   models: BatchSceneModelItemDto[]
+}
+
+/**
+ * 添加场景媒体 DTO
+ */
+export class AddSceneImageDto {
+  type?: string
+  url?: string
+  name: string
+  width: number
+  height: number
+  position?: Record<string, any>
+  scale?: Record<string, any>
+  rotation?: Record<string, any>
+  visible?: boolean
+  billboard?: boolean
+  sort_order?: number
+  autoplay?: boolean
+  muted?: boolean
+  loop?: boolean
+  text?: string
+  fontSize?: number
+  fontColor?: string
+  iframeUrl?: string
+}
+
+/**
+ * 更新场景媒体 DTO
+ */
+export class UpdateSceneImageDto {
+  type?: string
+  url?: string
+  name?: string
+  width?: number
+  height?: number
+  position?: Record<string, any>
+  scale?: Record<string, any>
+  rotation?: Record<string, any>
+  visible?: boolean
+  billboard?: boolean
+  sort_order?: number
+  autoplay?: boolean
+  muted?: boolean
+  loop?: boolean
+  text?: string
+  fontSize?: number
+  fontColor?: string
+  iframeUrl?: string
+}
+
+/** 批量保存场景媒体 DTO 中的单项 */
+export class BatchSceneImageItemDto {
+  type?: string
+  url?: string
+  name: string
+  width: number
+  height: number
+  position?: Record<string, any>
+  scale?: Record<string, any>
+  rotation?: Record<string, any>
+  visible?: boolean
+  billboard?: boolean
+  sort_order?: number
+  autoplay?: boolean
+  muted?: boolean
+  loop?: boolean
+  text?: string
+  fontSize?: number
+  fontColor?: string
+  iframeUrl?: string
+}
+
+/** 批量保存场景媒体 DTO */
+export class BatchSaveSceneImagesDto {
+  images: BatchSceneImageItemDto[]
 }

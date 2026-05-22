@@ -42,7 +42,7 @@ export function captureScreenshot(canvas?: HTMLCanvasElement): string {
   try {
     return target.toDataURL('image/png')
   } catch (err) {
-    throw new Error(`截图失败: ${err instanceof Error ? err.message : String(err)}`)
+    throw new Error(`截图失败: ${err instanceof Error ? err.message : String(err)}`, { cause: err })
   }
 }
 

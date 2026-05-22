@@ -1,3 +1,4 @@
+import type { FC } from 'react'
 import type { ViewerPlugin, ViewerContext } from '../plugins/types'
 
 export class PluginManager {
@@ -7,6 +8,10 @@ export class PluginManager {
 
   setContext(context: ViewerContext): void {
     this.context = context
+  }
+
+  getContext(): ViewerContext | null {
+    return this.context
   }
 
   register(plugin: ViewerPlugin, context?: ViewerContext): void {
@@ -65,5 +70,12 @@ export class PluginManager {
 
   getAllPlugins(): ViewerPlugin[] {
     return Array.from(this.plugins.values())
+  }
+
+  /** 获取所有插件的 sceneComponent 列表（用于渲染 3D 内容） */
+  getSceneComponents(): FC[] {
+    return Array.from(this.plugins.values())
+      .filter((p) => p.isActive() && p.sceneComponent)
+      .map((p) => p.sceneComponent!)
   }
 }

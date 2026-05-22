@@ -7,6 +7,7 @@ import { SharingModule } from './sharing/sharing.module'
 import { ViewpointsModule } from './viewpoints/viewpoints.module'
 import { AnnotationsModule } from './annotations/annotations.module'
 import { UploadModule } from './upload/upload.module'
+import { ResourcesModule } from './resources/resources.module'
 
 /**
  * 根模块
@@ -40,6 +41,7 @@ import { UploadModule } from './upload/upload.module'
     ViewpointsModule,
     AnnotationsModule,
     UploadModule,
+    ResourcesModule,
   ],
 })
 export class AppModule {}

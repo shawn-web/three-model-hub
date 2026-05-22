@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { Repository } from 'typeorm'
-import { v4 as uuidv4 } from 'uuid'
 import { Model } from './entities/model.entity'
 import { ModelVersion } from './entities/model-version.entity'
+import { SceneModel } from '../scenes/entities/scene-model.entity'
+import { Scene } from '../scenes/entities/scene.entity'
 import { StorageService } from '../storage/storage.service'
 import { CreateModelDto, UpdateModelDto, CreateFromUrlDto } from './dto/model.dto'
 
@@ -21,6 +22,8 @@ export class ModelsService {
     private modelRepo: Repository<Model>,
     @InjectRepository(ModelVersion)
     private versionRepo: Repository<ModelVersion>,
+    @InjectRepository(SceneModel)
+    private sceneModelRepo: Repository<SceneModel>,
     private storageService: StorageService,
   ) {}
 
@@ -91,7 +94,6 @@ export class ModelsService {
       file_name: dto.file_name,
       file_size: dto.file_size,
       file_format: fileFormat,
-      file_bucket: dto.file_bucket,
       file_key: dto.file_key,
       version_count: 1,
     } as any)
@@ -102,7 +104,6 @@ export class ModelsService {
       version_number: 1,
       file_url: dto.file_url,
       file_size: dto.file_size,
-      file_bucket: dto.file_bucket,
       file_key: dto.file_key,
       commit_message: dto.commit_message || '初始版本',
     })
@@ -119,13 +120,9 @@ export class ModelsService {
     file: UploadedFile,
     dto: CreateModelDto,
   ): Promise<Model> {
-    // 生成唯一 bucket，确保每次上传的文件都不一样
-    const bucket = `three-mode-${Date.now()}-${uuidv4().slice(0, 8)}`
-
     const uploadResult = await this.storageService.uploadFile(
       file.buffer,
       file.originalname,
-      bucket,
     )
 
     const fileHash = this.storageService.calculateHash(file.buffer)
@@ -139,7 +136,6 @@ export class ModelsService {
       file_name: file.originalname,
       file_size: file.size,
       file_format: fileFormat,
-      file_bucket: uploadResult.bucket,
       file_key: uploadResult.fileKey,
       version_count: 1,
     } as any)
@@ -151,7 +147,6 @@ export class ModelsService {
       file_url: uploadResult.url,
       file_size: file.size,
       file_hash: fileHash,
-      file_bucket: uploadResult.bucket,
       file_key: uploadResult.fileKey,
       commit_message: dto.commit_message || '初始版本',
     })
@@ -171,30 +166,56 @@ export class ModelsService {
 
   /**
    * 删除模型及其所有版本，同时删除远程文件
+   * 若模型被场景引用则拒绝删除
    */
   async remove(id: string): Promise<void> {
     const model = await this.findOne(id)
 
+    // 检查是否有场景引用该模型
+    const boundScenes = await this.getBoundScenes(id)
+    if (boundScenes.length > 0) {
+      const names = boundScenes.map((s) => s.sceneName).join('、')
+      throw new BadRequestException(
+        `该模型已被以下场景使用：${names}，请先从场景中移除该模型或删除相关场景`,
+      )
+    }
+
     // 收集所有需要删除的文件（去重）
-    const filesToDelete = new Map<string, { bucket: string; fileName: string }>()
-    if (model.file_bucket && model.file_key) {
-      filesToDelete.set(`${model.file_bucket}::${model.file_key}`, { bucket: model.file_bucket, fileName: model.file_key })
+    const filesToDelete = new Set<string>()
+    if (model.file_key) {
+      filesToDelete.add(model.file_key)
     }
     if (model.versions) {
       for (const version of model.versions) {
-        if (version.file_bucket && version.file_key) {
-          filesToDelete.set(`${version.file_bucket}::${version.file_key}`, { bucket: version.file_bucket, fileName: version.file_key })
+        if (version.file_key) {
+          filesToDelete.add(version.file_key)
         }
       }
     }
 
     // 先删除远程文件，全部成功后再删除本地数据
-    for (const { bucket, fileName } of filesToDelete.values()) {
-      await this.storageService.deleteFile(bucket, fileName)
+    for (const fileName of filesToDelete) {
+      try {
+        await this.storageService.deleteFile(fileName)
+      } catch {
+        // 远程文件删除失败不影响记录删除
+      }
     }
 
     // 远程文件全部删除成功，删除数据库记录
     await this.modelRepo.remove(model)
+  }
+
+  /** 查询使用了指定模型的场景列表 */
+  private async getBoundScenes(modelId: string): Promise<{ sceneId: string; sceneName: string }[]> {
+    const rows = await this.sceneModelRepo
+      .createQueryBuilder('sm')
+      .select('sm.scene_id', 'sceneId')
+      .innerJoin(Scene, 's', 's.id = sm.scene_id')
+      .addSelect('s.name', 'sceneName')
+      .where('sm.model_id = :modelId', { modelId })
+      .getRawMany()
+    return rows
   }
 
   /**
@@ -207,14 +228,10 @@ export class ModelsService {
   ): Promise<ModelVersion> {
     const model = await this.findOne(modelId)
 
-    // 生成唯一 bucket
-    const bucket = `three-mode-${Date.now()}-${uuidv4().slice(0, 8)}`
-
     // 上传文件
     const uploadResult = await this.storageService.uploadFile(
       file.buffer,
       file.originalname,
-      bucket,
       modelId,
     )
 
@@ -229,7 +246,6 @@ export class ModelsService {
       file_url: uploadResult.url,
       file_size: file.size,
       file_hash: fileHash,
-      file_bucket: uploadResult.bucket,
       file_key: uploadResult.fileKey,
       commit_message: commitMessage || `版本 ${newVersionNumber}`,
     })
@@ -240,7 +256,6 @@ export class ModelsService {
     model.file_url = uploadResult.url
     model.file_size = file.size
     model.file_name = file.originalname
-    model.file_bucket = uploadResult.bucket
     model.file_key = uploadResult.fileKey
     await this.modelRepo.save(model)
 
@@ -272,7 +287,6 @@ export class ModelsService {
       file_size: original.file_size,
       file_format: original.file_format,
       thumbnail_url: original.thumbnail_url,
-      file_bucket: original.file_bucket,
       file_key: original.file_key,
       version_count: 1,
     })
@@ -290,7 +304,6 @@ export class ModelsService {
         file_url: latestVersion.file_url,
         file_size: latestVersion.file_size,
         file_hash: latestVersion.file_hash,
-        file_bucket: latestVersion.file_bucket,
         file_key: latestVersion.file_key,
         commit_message: `复制自 ${original.name}`,
       })

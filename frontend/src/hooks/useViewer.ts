@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { PluginManager } from '../core/plugin-manager'
@@ -6,15 +6,21 @@ import { createViewerContext } from '../core/viewer'
 import { LoaderRegistryImpl } from '../loaders/loader-registry'
 import { GlbLoader } from '../loaders/glb-loader'
 import { getMessageBus } from './useMessageBus'
+import { useSceneStore } from '../store/scene-store'
 import { useViewerStore } from '../store/viewer-store'
 import { MESSAGE_TYPES } from '../communication/protocol'
 import { parseUrlParams } from '../communication/url-params'
 import { applyEditData } from '../utils/edit-apply'
 
-export function useViewer() {
+export function useViewer(onReady?: (result: { pluginManager: PluginManager; loaderRegistry: LoaderRegistryImpl }) => void) {
   const pluginManagerRef = useRef(new PluginManager())
   const loaderRegistryRef = useRef(new LoaderRegistryImpl())
   const { scene, camera, gl } = useThree()
+  const [ready, setReady] = useState(false)
+  const stableOnReady = useCallback((pm: PluginManager, lr: LoaderRegistryImpl) => {
+    onReady?.({ pluginManager: pm, loaderRegistry: lr })
+    setReady(true)
+  }, [onReady])
 
   useEffect(() => {
     const loaderRegistry = loaderRegistryRef.current
@@ -24,11 +30,12 @@ export function useViewer() {
     const pluginManager = pluginManagerRef.current
     const context = createViewerContext(
       scene, camera, gl,
-      useViewerStore, messageBus, pluginManager
+      useSceneStore, messageBus, pluginManager
     )
     pluginManager.setContext(context)
 
-    const store = useViewerStore.getState()
+    const sceneState = useSceneStore.getState()
+    const viewerState = useViewerStore.getState()
 
     // Handler: load-model
     messageBus.on(MESSAGE_TYPES.LOAD_MODEL, async (payload: unknown) => {
@@ -42,17 +49,17 @@ export function useViewer() {
         return
       }
 
-      store.setModelLoading(true)
-      store.setModelError(null)
+      sceneState.setModelLoading(true)
+      viewerState.setModelError(null)
 
       try {
         const model = await loader.load(p.url, (percent) => {
           messageBus.send(MESSAGE_TYPES.PROGRESS, { loaded: percent, total: 100, percent })
         })
         console.log('[Viewer] Model loaded:', model.name, 'children:', model.children.length)
-        store.setModelObject(model)
-        store.setModelUrl(p.url)
-        store.setModelLoading(false)
+        sceneState.setModelObject(model)
+        sceneState.setModelUrl(p.url)
+        sceneState.setModelLoading(false)
 
         const box = new THREE.Box3().setFromObject(model)
         const size = box.getSize(new THREE.Vector3())
@@ -89,49 +96,52 @@ export function useViewer() {
             })
           }
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('[Viewer] Model load error:', err)
-        store.setModelError(err.message)
-        store.setModelLoading(false)
-        messageBus.send(MESSAGE_TYPES.MODEL_ERROR, { url: p.url, error: err.message })
+        const errMsg = err instanceof Error ? err.message : String(err)
+        viewerState.setModelError(errMsg)
+        sceneState.setModelLoading(false)
+        messageBus.send(MESSAGE_TYPES.MODEL_ERROR, { url: p.url, error: errMsg })
       }
     })
 
     messageBus.on(MESSAGE_TYPES.UNLOAD_MODEL, () => {
-      const currentModel = store.modelObject
+      const currentModel = sceneState.modelObject
       if (currentModel) {
         const loader = loaderRegistry.get('glb')
         loader?.dispose(currentModel)
       }
-      store.setModelObject(null)
-      store.setModelUrl(null)
+      sceneState.setModelObject(null)
+      sceneState.setModelUrl(null)
     })
 
     messageBus.on(MESSAGE_TYPES.SET_ENVIRONMENT, (payload: unknown) => {
       const p = payload as { preset?: string }
-      if (p.preset) store.setEnvironmentPreset(p.preset)
+      if (p.preset) viewerState.setEnvironmentPreset(p.preset)
     })
 
     messageBus.on(MESSAGE_TYPES.TOOL_CONFIG, (payload: unknown) => {
       const p = payload as { visible?: string[]; hidden?: string[] }
-      if (p.visible) store.setVisibleTools(p.visible)
-      if (p.hidden) store.setHiddenTools(p.hidden)
+      if (p.visible) viewerState.setVisibleTools(p.visible)
+      if (p.hidden) viewerState.setHiddenTools(p.hidden)
     })
 
     messageBus.on(MESSAGE_TYPES.TOOL_ACTIVATE, (payload: unknown) => {
       const p = payload as { toolId: string }
       pluginManager.activate(p.toolId)
-      store.setActivePluginId(p.toolId)
+      viewerState.setActivePluginId(p.toolId)
       messageBus.send(MESSAGE_TYPES.TOOL_ACTIVATED, { toolId: p.toolId })
     })
+
+    // 初始化完成后通知外部
+    stableOnReady(pluginManager, loaderRegistry)
 
     return () => {
       pluginManager.getAllPlugins().forEach((p) => pluginManager.unregister(p.id))
     }
-  }, [scene, camera, gl])
+  }, [scene, camera, gl, stableOnReady])
 
-  return {
-    pluginManager: pluginManagerRef.current,
-    loaderRegistry: loaderRegistryRef.current,
-  }
+  // 不直接返回 ref.current，避免渲染期读取 ref
+  // 外部通过 onReady 回调获取 pluginManager 和 loaderRegistry
+  return { ready }
 }

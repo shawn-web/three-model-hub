@@ -29,6 +29,39 @@ interface LoadingEntry {
 /** 缓存过期时间（毫秒），默认 30 分钟 */
 const CACHE_TTL = 30 * 60 * 1000
 
+/** 浏览器 Cache API 缓存名称 */
+const BROWSER_CACHE_NAME = 'glb-model-cache-v1'
+
+/** 检查浏览器 Cache API 是否可用 */
+const isCacheApiAvailable = typeof caches !== 'undefined'
+
+/** 从浏览器 Cache API 获取缓存的 GLB 数据 */
+async function getFromBrowserCache(url: string): Promise<ArrayBuffer | null> {
+  if (!isCacheApiAvailable) return null
+  try {
+    const cache = await caches.open(BROWSER_CACHE_NAME)
+    const response = await cache.match(url)
+    if (!response || !response.ok) return null
+    return await response.arrayBuffer()
+  } catch {
+    return null
+  }
+}
+
+/** 将 GLB 数据写入浏览器 Cache API */
+async function setToBrowserCache(url: string, data: ArrayBuffer): Promise<void> {
+  if (!isCacheApiAvailable) return
+  try {
+    const cache = await caches.open(BROWSER_CACHE_NAME)
+    const response = new Response(data, {
+      headers: { 'Content-Type': 'application/octet-stream' },
+    })
+    await cache.put(url, response)
+  } catch {
+    // Cache API 写入失败不影响主流程
+  }
+}
+
 /** 内部默认 GLTFLoader 实例，供 loadGLBWithCache(url) 简化调用使用 */
 const defaultGLTFLoader = new GLTFLoader()
 
@@ -80,17 +113,23 @@ function setCachedModel(
  */
 export async function loadGLBWithCache(
   gltfLoaderOrUrl: GLTFLoader | string,
-  url?: string,
+  urlOrOnProgress?: string | ((event: ProgressEvent) => void),
+  onProgress?: (event: ProgressEvent) => void,
 ): Promise<{ scene: THREE.Group; fromCache: boolean }> {
-  // 支持两种调用方式：loadGLBWithCache(url) 或 loadGLBWithCache(loader, url)
+  // 支持多种调用方式：
+  // loadGLBWithCache(url[, onProgress])
+  // loadGLBWithCache(loader, url[, onProgress])
   let loader: GLTFLoader
   let fileUrl: string
+  let progressCb: ((event: ProgressEvent) => void) | undefined
   if (typeof gltfLoaderOrUrl === 'string') {
     loader = defaultGLTFLoader
     fileUrl = gltfLoaderOrUrl
+    progressCb = typeof urlOrOnProgress === 'function' ? urlOrOnProgress : undefined
   } else {
     loader = gltfLoaderOrUrl
-    fileUrl = url!
+    fileUrl = urlOrOnProgress as string
+    progressCb = onProgress
   }
   // 1. 检查已完成缓存
   const cached = getCachedModel(fileUrl)
@@ -106,13 +145,48 @@ export async function loadGLBWithCache(
     return { scene: cloned, fromCache: true }
   }
 
-  // 3. 发起新的加载请求
-  const loadPromise = loader.loadAsync(fileUrl)
+  // 3. 检查浏览器 Cache API（持久化缓存，刷新页面后仍可用）
+  const browserCached = await getFromBrowserCache(fileUrl)
+  if (browserCached) {
+    const loadPromise = loader.parseAsync(browserCached, '')
+    loadingCache.set(fileUrl, { promise: loadPromise })
+    try {
+      const gltf = await loadPromise
+      setCachedModel(fileUrl, gltf)
+      return { scene: SkeletonUtils.clone(gltf.scene) as THREE.Group, fromCache: true }
+    } catch {
+      // Cache API 数据损坏，清除并继续网络加载
+      try { await caches.delete(BROWSER_CACHE_NAME) } catch { /* 忽略清除失败 */ }
+    } finally {
+      loadingCache.delete(fileUrl)
+    }
+  }
+
+  // 4. 发起新的加载请求（使用 fetch 获取原始数据以便缓存）
+  const loadPromise = new Promise<Awaited<ReturnType<GLTFLoader['loadAsync']>>>((resolve, reject) => {
+    loader.load(
+      fileUrl,
+      (gltf) => resolve(gltf),
+      (event) => {
+        if (progressCb && event.lengthComputable) {
+          progressCb(event)
+        }
+      },
+      (err) => reject(err),
+    )
+  })
   loadingCache.set(fileUrl, { promise: loadPromise })
 
   try {
     const gltf = await loadPromise
     setCachedModel(fileUrl, gltf)
+    // 后台写入浏览器缓存（不阻塞返回）
+    fetch(fileUrl).then((res) => {
+      if (res.ok) return res.arrayBuffer()
+      return null
+    }).then((buf) => {
+      if (buf) setToBrowserCache(fileUrl, buf)
+    }).catch(() => {})
     return { scene: gltf.scene as THREE.Group, fromCache: false }
   } finally {
     loadingCache.delete(fileUrl)
@@ -126,6 +200,9 @@ export async function loadGLBWithCache(
 export function clearModelCache(): void {
   modelCache.clear()
   loadingCache.clear()
+  if (isCacheApiAvailable) {
+    caches.delete(BROWSER_CACHE_NAME).catch(() => {})
+  }
 }
 
 /**
@@ -161,6 +238,10 @@ export interface SceneModelData {
     components?: Record<string, {
       color?: string
       opacity?: number
+      description?: string | null
+      position?: [number, number, number]
+      rotation?: [number, number, number]
+      scale?: [number, number, number]
     }>
   } | null
   /** 是否可见 */
@@ -174,7 +255,25 @@ export type ProgressCallback = (
   loaded: number,
   total: number,
   currentName: string,
+  /** 整体百分比（0-100），包含单文件下载进度 */
+  overallPercent?: number,
 ) => void
+
+/**
+ * 获取节点在 root 下的索引路径（如 "0/1/2"）
+ * 同一 GLB 文件的节点遍历顺序固定，索引路径跨会话稳定
+ */
+export function getNodePath(node: THREE.Object3D, root: THREE.Object3D): string {
+  const parts: string[] = []
+  let current = node
+  while (current && current !== root) {
+    const parent = current.parent
+    if (!parent) break
+    parts.unshift(String(parent.children.indexOf(current)))
+    current = parent
+  }
+  return parts.join('/')
+}
 
 /**
  * 将 transform 数据应用到 Three.js 对象
@@ -225,15 +324,41 @@ export async function loadSceneModels(
   let loaded = 0
   const errors: string[] = []
 
+  /** 报告当前整体进度（含单文件下载进度） */
+  const reportProgress = (currentFilePercent: number) => {
+    if (!onProgress) return
+    const basePercent = (loaded / total) * 100
+    const stepPercent = (1 / total) * 100
+    const overallPercent = Math.round(basePercent + stepPercent * currentFilePercent)
+    onProgress(loaded, total, '', overallPercent)
+  }
+
   for (const sm of sceneModels) {
     const displayName = sm.display_name || sm.model_id
 
     try {
+      /* 报告开始处理此模型 */
+      if (onProgress) {
+        const basePercent = (loaded / total) * 100
+        onProgress(loaded, total, displayName, Math.round(basePercent))
+      }
+
       /* 获取模型文件下载地址 */
       const fileUrl = await getModelUrl(sm.model_id)
 
-      /* 使用带缓存的加载（命中缓存时跳过网络请求） */
-      const { scene: model, fromCache } = await loadGLBWithCache(gltfLoader, fileUrl)
+      /* 使用带缓存的加载，传递单文件下载进度 */
+      const { scene: model, fromCache } = await loadGLBWithCache(
+        gltfLoader,
+        fileUrl,
+        (event: ProgressEvent) => {
+          if (event.lengthComputable) {
+            reportProgress(event.loaded / event.total)
+          } else if (event.loaded > 0) {
+            /* 无 Content-Length 时用已下载字节数近似进度 */
+            reportProgress(Math.min(event.loaded / (event.loaded + 1), 0.9))
+          }
+        },
+      )
       model.name = displayName
 
       if (fromCache) {
@@ -254,10 +379,26 @@ export async function loadSceneModels(
 
       /* 应用材质覆盖 */
       if (sm.material_overrides?.components) {
+        const components = sm.material_overrides.components
+        console.log('[Load] model:', displayName, 'override keys:', Object.keys(components))
         model.traverse((child) => {
-          if (!(child instanceof THREE.Mesh)) return
-          const override = sm.material_overrides!.components![child.uuid]
+          // 按优先级查找：name → 索引路径 → uuid
+          const path = getNodePath(child, model)
+          const override = components[child.name] || components[path] || components[child.uuid]
           if (!override) return
+          // 诊断日志：记录覆盖匹配
+          const matchBy = components[child.name] ? 'name' : components[path] ? 'path' : 'uuid'
+          console.log('[Load] override applied:', child.name || child.type,
+            'matchBy:', matchBy, 'position:', override.position, 'rotation:', override.rotation)
+          // 复制描述到 userData，供属性面板读取
+          if (override.description !== undefined) {
+            child.userData.description = override.description
+          }
+          // 应用构件级变换覆盖
+          if (override.position) child.position.set(...override.position)
+          if (override.rotation) child.rotation.set(...override.rotation)
+          if (override.scale) child.scale.set(...override.scale)
+          if (!(child instanceof THREE.Mesh)) return
           const mat = child.material
           const materials = Array.isArray(mat) ? mat : [mat]
           materials.forEach((m) => {
@@ -281,7 +422,7 @@ export async function loadSceneModels(
 
       loaded++
       if (onProgress) {
-        onProgress(loaded, total, displayName)
+        onProgress(loaded, total, displayName, Math.round((loaded / total) * 100))
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -289,7 +430,7 @@ export async function loadSceneModels(
       errors.push(displayName)
       loaded++
       if (onProgress) {
-        onProgress(loaded, total, displayName)
+        onProgress(loaded, total, displayName, Math.round((loaded / total) * 100))
       }
     }
   }

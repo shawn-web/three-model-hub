@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { Layout as AntdLayout, Menu, Switch, ConfigProvider, theme as antdTheme } from 'antd'
 import { SunOutlined, MoonOutlined } from '@ant-design/icons'
-import { Home20, Cube20, LayerScene20 } from './FluentIcon'
+import { Home20, Cube20, LayerScene20, Image20 } from './FluentIcon'
 import { useThemeStore } from '../store/theme-store'
 import { getThemeConfig } from '../theme'
 
@@ -15,6 +15,7 @@ const menuItems = [
   { key: '/', label: '首页', icon: <Home20 /> },
   { key: '/models', label: '模型管理', icon: <Cube20 /> },
   { key: '/scenes', label: '场景管理', icon: <LayerScene20 /> },
+  { key: '/resources', label: '资源管理', icon: <Image20 /> },
 ]
 
 /**

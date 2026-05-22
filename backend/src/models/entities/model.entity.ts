@@ -43,10 +43,6 @@ export class Model {
   @Column({ length: 20, default: 'glb' })
   file_format: string
 
-  /** 文件存储桶名，用于删除文件 */
-  @Column({ length: 255, nullable: true })
-  file_bucket: string
-
   /** 文件在存储服务中的 key/fileName，用于删除文件 */
   @Column({ length: 500, nullable: true })
   file_key: string
