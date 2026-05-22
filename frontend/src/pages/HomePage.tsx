@@ -7,13 +7,29 @@ import { getScenes } from '../api/scenes'
 
 const { Title, Text } = Typography
 
+/** 首页卡片最小类型 */
+interface HomeModelItem {
+  id: string
+  name: string
+  thumbnail_url?: string
+  file_format?: string
+  file_size?: number
+}
+
+interface HomeSceneItem {
+  id: string
+  name: string
+  description?: string
+  thumbnail_url?: string
+}
+
 /**
  * 首页
  * 展示最近的模型和场景卡片
  */
 export function HomePage() {
-  const [models, setModels] = useState<any[]>([])
-  const [scenes, setScenes] = useState<any[]>([])
+  const [models, setModels] = useState<HomeModelItem[]>([])
+  const [scenes, setScenes] = useState<HomeSceneItem[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -30,7 +46,7 @@ export function HomePage() {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-[300px]">
-        <Spin size="large" tip="加载中..." />
+        <Spin size="large" description="加载中..." />
       </div>
     )
   }
@@ -153,7 +169,7 @@ function Section({ title, count, linkTo, icon, children, className }: {
           </Title>
         </Space>
         <Link to={linkTo}>
-          <Button type="link" icon={<ChevronRight20 />} iconPosition="end">
+          <Button type="link" icon={<ChevronRight20 />} iconPlacement="end">
             查看全部
           </Button>
         </Link>

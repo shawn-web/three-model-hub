@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Card,
@@ -15,6 +15,7 @@ import {
 } from 'antd'
 import { Add20, Edit20, Eye20, Delete20, Viewport3d20 } from '../components/FluentIcon'
 import { getScenes, createScene, deleteScene } from '../api/scenes'
+import { invalidateHttpCache } from '../api/client'
 
 /** 场景数据类型 */
 interface SceneItem {
@@ -38,18 +39,25 @@ export function ScenesPage() {
   const [creating, setCreating] = useState(false)
 
   /** 加载场景列表 */
-  const loadScenes = async () => {
-    setLoading(true)
-    try {
-      const res = await getScenes()
-      setScenes(res.items || [])
-    } catch {
-      setScenes([])
-    }
-    setLoading(false)
-  }
+  const [refreshKey, setRefreshKey] = useState(0)
+  const reloadScenes = useCallback(() => setRefreshKey((k) => k + 1), [])
 
-  useEffect(() => { loadScenes() }, [])
+  useEffect(() => {
+    let cancelled = false
+    const doLoad = async () => {
+      setLoading(true)
+      try {
+        invalidateHttpCache('/scenes')
+        const res = await getScenes()
+        if (!cancelled) setScenes(res.items || [])
+      } catch {
+        if (!cancelled) setScenes([])
+      }
+      if (!cancelled) setLoading(false)
+    }
+    doLoad()
+    return () => { cancelled = true }
+  }, [refreshKey])
 
   /** 创建场景 */
   const handleCreate = async () => {
@@ -60,7 +68,7 @@ export function ScenesPage() {
       setCreateModalOpen(false)
       createForm.resetFields()
       message.success('创建成功')
-      loadScenes()
+      reloadScenes()
     } catch (err) {
       console.error('创建失败:', err)
       message.error('创建失败')
@@ -74,7 +82,7 @@ export function ScenesPage() {
     try {
       await deleteScene(id)
       message.success('删除成功')
-      loadScenes()
+      reloadScenes()
     } catch (err) {
       console.error('删除失败:', err)
       message.error('删除失败')
@@ -84,7 +92,7 @@ export function ScenesPage() {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-[300px]">
-        <Spin size="large" tip="加载中..." />
+        <Spin size="large" description="加载中..." />
       </div>
     )
   }
@@ -166,7 +174,7 @@ export function ScenesPage() {
         okText="创建"
         cancelText="取消"
         confirmLoading={creating}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={createForm} layout="vertical" className="mt-4">
           <Form.Item

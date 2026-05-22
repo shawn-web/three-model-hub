@@ -37,7 +37,6 @@ export class CreateFromUrlDto {
   file_url: string
   file_name: string
   file_size: number
-  file_bucket: string
   file_key: string
   commit_message?: string
 }

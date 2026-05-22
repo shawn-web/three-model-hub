@@ -11,8 +11,6 @@ export class PickingPlugin implements ViewerPlugin {
   private active = false
   private raycaster = new THREE.Raycaster()
   private mouse = new THREE.Vector2()
-  private selectedObjects: THREE.Object3D[] = []
-  private originalMaterials = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>()
 
   install(context: ViewerContext): void {
     this.context = context
@@ -58,7 +56,7 @@ export class PickingPlugin implements ViewerPlugin {
     const intersects = this.raycaster.intersectObjects(model.children, true)
     if (intersects.length > 0) {
       const hit = intersects[0].object
-      this.selectObject(hit)
+      this.context.store.getState().setSelectedComponentId(hit.uuid)
       this.context.messageBus.send('pick-result', {
         objectId: hit.uuid,
         info: { name: hit.name, type: hit.type, position: hit.position.toArray() },
@@ -69,36 +67,10 @@ export class PickingPlugin implements ViewerPlugin {
     }
   }
 
-  private selectObject(obj: THREE.Object3D): void {
-    this.clearSelection()
-    if (obj instanceof THREE.Mesh) {
-      this.originalMaterials.set(obj, obj.material)
-      if (Array.isArray(obj.material)) {
-        obj.material = obj.material.map((m) => {
-          const clone = m.clone()
-          clone.emissive = new THREE.Color(0x4a9eff)
-          clone.emissiveIntensity = 0.3
-          return clone
-        })
-      } else {
-        const clone = obj.material.clone()
-        clone.emissive = new THREE.Color(0x4a9eff)
-        clone.emissiveIntensity = 0.3
-        obj.material = clone
-      }
-      this.selectedObjects.push(obj)
-    }
-  }
-
   private clearSelection(): void {
-    for (const obj of this.selectedObjects) {
-      if (obj instanceof THREE.Mesh) {
-        const original = this.originalMaterials.get(obj)
-        if (original) obj.material = original
-      }
+    if (this.context) {
+      this.context.store.getState().setSelectedComponentId(null)
     }
-    this.selectedObjects = []
-    this.originalMaterials.clear()
   }
 }
 

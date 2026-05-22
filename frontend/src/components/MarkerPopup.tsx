@@ -2,16 +2,18 @@
  * 标点弹窗组件
  *
  * 提供两个组件：
- * - MarkerPopupEditor：弹窗配置编辑器（Modal），用于配置标点的弹窗内容
+ * - MarkerPopupEditor：弹窗配置编辑器（Modal），用于配置标点的弹窗内容和多图片管理
  * - MarkerPopupView：弹窗展示组件，在 3D 场景中展示标点的弹窗信息
  *
- * 弹窗支持配置：标题、内容、图片链接、跳转链接
+ * 弹窗支持配置：标题、内容、图片链接、跳转链接、多图片管理
  */
 import { useState, useCallback } from 'react'
-import { Input, Button, Modal, Form, message } from 'antd'
+import { Input, Button, Modal, Form, message, Upload } from 'antd'
 import { Icon } from '@iconify/react'
+import { plusIcon, trash2Icon, xIcon } from './Icons'
 import { useEditStore } from '../store/edit-store'
-import type { MarkerData, MarkerPopup } from '../types/edit-data'
+import { uploadFile } from '../api/upload'
+import type { MarkerData, MarkerPopup, MarkerImage } from '../types/edit-data'
 
 /**
  * 标点弹窗配置编辑器
@@ -28,8 +30,10 @@ export function MarkerPopupEditor({
 }) {
   const updateMarker = useEditStore((s) => s.updateMarker)
   const [form] = Form.useForm()
+  const [images, setImages] = useState<MarkerImage[]>([])
+  const [activeImageId, setActiveImageId] = useState<string>('')
 
-  /** 保存弹窗配置到 store */
+  /** 保存弹窗配置和图片到 store */
   const handleSave = useCallback(() => {
     if (!marker) return
     const values = form.getFieldsValue()
@@ -39,10 +43,33 @@ export function MarkerPopupEditor({
       imageUrl: values.imageUrl || undefined,
       linkUrl: values.linkUrl || undefined,
     }
-    updateMarker(marker.id, { popup })
+    // 找到当前激活的图片 URL 作为显示图片
+    const activeImage = images.find((img) => img.id === activeImageId)
+    updateMarker(marker.id, {
+      popup,
+      images: images.length > 0 ? images : undefined,
+      imageUrl: activeImage?.url || values.imageUrl || marker.imageUrl,
+    })
     message.success('弹窗配置已保存')
     onClose()
-  }, [marker, form, updateMarker, onClose])
+  }, [marker, form, updateMarker, onClose, images, activeImageId])
+
+  /** 上传标点图片 */
+  const handleUploadImage = useCallback(async (file: File) => {
+    try {
+      const result = await uploadFile(file)
+      const newImg: MarkerImage = {
+        id: `mi-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        url: result.url,
+        name: file.name,
+      }
+      setImages((prev) => [...prev, newImg])
+      if (!activeImageId) setActiveImageId(newImg.id)
+    } catch {
+      message.error('上传图片失败')
+    }
+    return false
+  }, [activeImageId])
 
   if (!marker) return null
 
@@ -56,10 +83,16 @@ export function MarkerPopupEditor({
       cancelText="取消"
       width={420}
       afterOpenChange={(open) => {
-        if (open && marker?.popup) {
-          form.setFieldsValue(marker.popup)
+        if (open && marker) {
+          form.setFieldsValue(marker.popup || {})
+          setImages(marker.images || [])
+          // 找到当前 imageUrl 对应的图片
+          const matchImg = (marker.images || []).find((img) => img.url === marker.imageUrl)
+          setActiveImageId(matchImg?.id || (marker.images?.[0]?.id || ''))
         } else if (open) {
           form.resetFields()
+          setImages([])
+          setActiveImageId('')
         }
       }}
     >
@@ -76,6 +109,73 @@ export function MarkerPopupEditor({
         <Form.Item label="跳转链接" name="linkUrl">
           <Input placeholder="可选：点击弹窗后跳转的URL" />
         </Form.Item>
+
+        {/* 多图片管理 */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <label style={{ fontSize: 13, fontWeight: 500 }}>标点图片</label>
+            <Upload
+              accept="image/*"
+              showUploadList={false}
+              beforeUpload={(file) => { handleUploadImage(file); return false }}
+            >
+              <Button type="link" size="small" icon={<Icon icon={plusIcon} width={12} />}>
+                添加图片
+              </Button>
+            </Upload>
+          </div>
+          {images.length === 0 && (
+            <div style={{ color: '#999', fontSize: 12, textAlign: 'center', padding: '8px 0' }}>
+              暂无图片，点击添加
+            </div>
+          )}
+          {images.map((img) => (
+            <div
+              key={img.id}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '4px 6px',
+                marginBottom: 4,
+                borderRadius: 4,
+                background: activeImageId === img.id ? 'rgba(74,158,255,0.1)' : 'transparent',
+                border: activeImageId === img.id ? '1px solid rgba(74,158,255,0.3)' : '1px solid transparent',
+              }}
+            >
+              <img src={img.url} alt="" style={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 3 }} />
+              <Input
+                size="small"
+                value={img.state || img.name || ''}
+                placeholder="状态标签"
+                style={{ flex: 1, fontSize: 12 }}
+                onChange={(e) => {
+                  setImages((prev) => prev.map((i) => i.id === img.id ? { ...i, state: e.target.value } : i))
+                }}
+              />
+              <Button
+                type={activeImageId === img.id ? 'primary' : 'text'}
+                size="small"
+                onClick={() => setActiveImageId(img.id)}
+              >
+                {activeImageId === img.id ? '当前' : '选用'}
+              </Button>
+              <Button
+                type="text"
+                size="small"
+                danger
+                onClick={() => {
+                  setImages((prev) => prev.filter((i) => i.id !== img.id))
+                  if (activeImageId === img.id) {
+                    setActiveImageId(images.find((i) => i.id !== img.id)?.id || '')
+                  }
+                }}
+              >
+                <Icon icon={trash2Icon} width={12} />
+              </Button>
+            </div>
+          ))}
+        </div>
       </Form>
     </Modal>
   )
@@ -131,7 +231,7 @@ export function MarkerPopupView({
             display: 'flex',
           }}
         >
-          <Icon icon="lucide:x" width={14} />
+          <Icon icon={xIcon} width={14} />
         </button>
       </div>
       {popup.imageUrl && (

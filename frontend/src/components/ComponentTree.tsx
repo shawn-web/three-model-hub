@@ -3,7 +3,13 @@ import { Tree, Empty } from 'antd'
 import type { TreeProps, TreeDataNode } from 'antd'
 import { Eye20, EyeOff20 } from './FluentIcon'
 import { useEditStore } from '../store/edit-store'
+import type { EditComponentData } from '../store/edit-store'
 import * as THREE from 'three'
+
+/** 扩展 Object3D 类型，包含标点标记属性 */
+interface MarkerObject3D extends THREE.Object3D {
+  isMarker?: boolean
+}
 
 /**
  * 将 THREE.Object3D 层级结构转换为 antd Tree 所需的 treeData 格式
@@ -11,7 +17,7 @@ import * as THREE from 'three'
  */
 function buildTreeData(
   object: THREE.Object3D,
-  editData: Record<string, any>,
+  editData: Record<string, EditComponentData>,
   isRoot: boolean = false,
 ): TreeDataNode[] {
   const data = editData[object.uuid]
@@ -31,7 +37,7 @@ function buildTreeData(
 
   if (object.children.length > 0) {
     node.children = object.children
-      .filter((child) => !(child as any).isMarker)
+      .filter((child) => !(child as MarkerObject3D).isMarker)
       .map((child) => buildTreeData(child, editData, false)[0])
       .filter(Boolean)
   }
@@ -61,7 +67,7 @@ export function ComponentTree() {
    * 处理节点选中事件
    * 根节点选中时取消选择（传入 null），子节点选中时传入对应 uuid
    */
-  const handleSelect: TreeProps['onSelect'] = useCallback((keys, _info) => {
+  const handleSelect: TreeProps['onSelect'] = useCallback((keys) => {
     if (keys.length === 0) {
       // 取消选中
       selectComponent(null)

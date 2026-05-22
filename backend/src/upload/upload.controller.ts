@@ -2,13 +2,22 @@ import { Controller, Post, UseInterceptors, UploadedFile, BadRequestException } 
 import { FileInterceptor } from '@nestjs/platform-express'
 import { UploadService } from './upload.service'
 
+interface MulterFile {
+  fieldname: string
+  originalname: string
+  encoding: string
+  mimetype: string
+  size: number
+  buffer: Buffer
+}
+
 @Controller('upload')
 export class UploadController {
   constructor(private uploadService: UploadService) {}
 
   @Post()
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 50 * 1024 * 1024 } }))
-  async upload(@UploadedFile() file: Express.Multer.File) {
+  async upload(@UploadedFile() file: MulterFile) {
     if (!file) {
       throw new BadRequestException('请选择要上传的文件')
     }

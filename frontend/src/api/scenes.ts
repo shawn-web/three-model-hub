@@ -4,6 +4,9 @@ import apiClient from './client'
  * 场景相关 API
  */
 
+/** 通用 JSON 配置类型 */
+type JsonConfig = Record<string, unknown>
+
 /** 获取场景列表 */
 export async function getScenes(params?: { page?: number; limit?: number; search?: string }) {
   const { data } = await apiClient.get('/scenes', { params })
@@ -23,13 +26,13 @@ export async function getSceneData(id: string) {
 }
 
 /** 创建场景 */
-export async function createScene(dto: { name: string; description?: string; scene_config?: Record<string, any> }) {
+export async function createScene(dto: { name: string; description?: string; scene_config?: JsonConfig }) {
   const { data } = await apiClient.post('/scenes', dto)
   return data
 }
 
 /** 更新场景 */
-export async function updateScene(id: string, dto: { name?: string; description?: string; thumbnail_url?: string; scene_config?: Record<string, any> }) {
+export async function updateScene(id: string, dto: { name?: string; description?: string; thumbnail_url?: string; scene_config?: JsonConfig }) {
   const { data } = await apiClient.put(`/scenes/${id}`, dto)
   return data
 }
@@ -44,7 +47,7 @@ export async function deleteScene(id: string) {
 export async function addModelToScene(sceneId: string, dto: {
   model_id: string
   model_version_id?: string
-  transform?: Record<string, any>
+  transform?: JsonConfig
   display_name?: string
 }) {
   const { data } = await apiClient.post(`/scenes/${sceneId}/models`, dto)
@@ -53,8 +56,8 @@ export async function addModelToScene(sceneId: string, dto: {
 
 /** 更新场景中的模型 */
 export async function updateSceneModel(sceneId: string, sceneModelId: string, dto: {
-  transform?: Record<string, any>
-  material_overrides?: Record<string, any>
+  transform?: JsonConfig
+  material_overrides?: JsonConfig
   visible?: boolean
   display_name?: string
 }) {
@@ -73,12 +76,39 @@ export async function batchUpdateSceneModels(
   sceneId: string,
   models: Array<{
     id: string
-    transform?: Record<string, any>
-    material_overrides?: Record<string, any>
+    transform?: JsonConfig
+    material_overrides?: JsonConfig
     visible?: boolean
     display_name?: string
   }>,
 ) {
   const { data } = await apiClient.put(`/scenes/${sceneId}/models/batch`, { models })
+  return data
+}
+
+/** 批量保存场景媒体 */
+export async function batchSaveSceneImages(
+  sceneId: string,
+  images: Array<{
+    type?: string
+    url?: string
+    name: string
+    width: number
+    height: number
+    position?: [number, number, number]
+    scale?: [number, number]
+    rotation?: number
+    visible: boolean
+    billboard?: boolean
+    autoplay?: boolean
+    muted?: boolean
+    loop?: boolean
+    text?: string
+    fontSize?: number
+    fontColor?: string
+    iframeUrl?: string
+  }>,
+) {
+  const { data } = await apiClient.put(`/scenes/${sceneId}/images/batch`, { images })
   return data
 }

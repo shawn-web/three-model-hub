@@ -16,6 +16,9 @@ import {
   AddSceneModelDto,
   UpdateSceneModelDto,
   BatchUpdateSceneModelsDto,
+  AddSceneImageDto,
+  UpdateSceneImageDto,
+  BatchSaveSceneImagesDto,
 } from './dto/scene.dto'
 
 /**
@@ -110,6 +113,45 @@ export class ScenesController {
     @Param('mid', ParseUUIDPipe) mid: string,
   ) {
     await this.scenesService.removeModel(id, mid)
+    return { success: true }
+  }
+
+  /** 添加图片到场景 */
+  @Post(':id/images')
+  async addImage(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AddSceneImageDto,
+  ) {
+    return this.scenesService.addImage(id, dto)
+  }
+
+  /** 批量保存场景图片（必须放在 :iid 路由之前，避免 :iid 匹配到 'batch'） */
+  @Put(':id/images/batch')
+  async batchSaveImages(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: BatchSaveSceneImagesDto,
+  ) {
+    await this.scenesService.batchSaveImages(id, dto.images)
+    return { success: true }
+  }
+
+  /** 更新场景中的图片 */
+  @Put(':id/images/:iid')
+  async updateImage(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('iid', ParseUUIDPipe) iid: string,
+    @Body() dto: UpdateSceneImageDto,
+  ) {
+    return this.scenesService.updateImage(id, iid, dto)
+  }
+
+  /** 从场景中移除图片 */
+  @Delete(':id/images/:iid')
+  async removeImage(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('iid', ParseUUIDPipe) iid: string,
+  ) {
+    await this.scenesService.removeImage(id, iid)
     return { success: true }
   }
 }

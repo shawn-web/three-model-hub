@@ -7,6 +7,7 @@ import {
   OneToMany,
 } from 'typeorm'
 import { SceneModel } from './scene-model.entity'
+import { SceneImage } from './scene-image.entity'
 
 /**
  * 场景实体
@@ -38,6 +39,10 @@ export class Scene {
   @Column({ default: true })
   is_public: boolean
 
+  /** 标点数据 JSON */
+  @Column({ type: 'json', nullable: true })
+  markers: Record<string, any>
+
   @CreateDateColumn()
   created_at: Date
 
@@ -46,4 +51,7 @@ export class Scene {
 
   @OneToMany(() => SceneModel, (sm) => sm.scene)
   scene_models: SceneModel[]
+
+  @OneToMany(() => SceneImage, (si) => si.scene)
+  scene_images: SceneImage[]
 }

@@ -1,9 +1,14 @@
-import { useMemo, useCallback, useState } from 'react'
+import { useMemo, useCallback, useState, useEffect, useRef, useLayoutEffect } from 'react'
 import { Tree } from 'antd'
 import type { TreeProps, TreeDataNode } from 'antd'
 import { Icon } from '@iconify/react'
+import { panelLeftIcon, panelLeftCloseIcon } from './Icons'
 import * as THREE from 'three'
 import { useViewerStore } from '../store/viewer-store'
+
+interface MarkerObject3D extends THREE.Object3D {
+  isMarker?: boolean
+}
 
 /** 将 THREE.Object3D 层级结构转换为 antd Tree 数据 */
 function buildTreeData(object: THREE.Object3D, isRoot: boolean = false): TreeDataNode[] {
@@ -16,7 +21,7 @@ function buildTreeData(object: THREE.Object3D, isRoot: boolean = false): TreeDat
 
   if (object.children.length > 0) {
     node.children = object.children
-      .filter((child) => !(child as any).isMarker)
+      .filter((child) => !(child as MarkerObject3D).isMarker)
       .map((child) => buildTreeData(child, false)[0])
       .filter(Boolean)
   }
@@ -31,49 +36,110 @@ function buildTreeData(object: THREE.Object3D, isRoot: boolean = false): TreeDat
 export function ViewerTree() {
   const modelObject = useViewerStore((s) => s.modelObject)
   const treeVisible = useViewerStore((s) => s.treeVisible)
+  const selectedComponentId = useViewerStore((s) => s.selectedComponentId)
   const [collapsed, setCollapsed] = useState(false)
-  const [selectedKeys, setSelectedKeys] = useState<React.Key[]>([])
   const [checkedKeys, setCheckedKeys] = useState<React.Key[]>([])
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [containerHeight, setContainerHeight] = useState(400)
+
+  useLayoutEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const updateHeight = () => {
+      const h = el.clientHeight
+      if (h > 0) setContainerHeight(h)
+    }
+    updateHeight()
+    const observer = new ResizeObserver(() => updateHeight())
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [collapsed])
 
   const treeData = useMemo<TreeDataNode[]>(() => {
     if (!modelObject) return []
     return buildTreeData(modelObject, true)
   }, [modelObject])
 
-  /** 初始化：默认全选 */
+  /** 收集所有树节点 key（包括父节点和叶子节点） */
   const allKeys = useMemo(() => {
     const keys: string[] = []
-    if (modelObject) {
-      modelObject.traverse((child) => keys.push(child.uuid))
+    const collect = (nodes: TreeDataNode[]) => {
+      for (const node of nodes) {
+        keys.push(node.key as string)
+        if (node.children) collect(node.children)
+      }
     }
+    if (treeData.length > 0) collect(treeData)
     return keys
-  }, [modelObject])
+  }, [treeData])
 
-  // 首次加载时全选
-  useMemo(() => {
+  /** allKeys 的 Set 版本，用于 O(1) 查找 */
+  const allKeysSet = useMemo(() => new Set(allKeys), [allKeys])
+
+  /** 首次加载时全选并确保所有模型子对象 visible = true */
+  useEffect(() => {
     if (allKeys.length > 0 && checkedKeys.length === 0) {
-      setCheckedKeys(allKeys)
+      // 使用 setTimeout 将 setState 从 effect 同步执行上下文中移出
+      const timer = setTimeout(() => {
+        setCheckedKeys(allKeys)
+      }, 0)
+      if (modelObject) {
+        modelObject.traverse((child) => { child.visible = true })
+      }
+      return () => clearTimeout(timer)
     }
-  }, [allKeys])
+  }, [allKeys, checkedKeys.length, modelObject])
+
+  /** 反向同步：3D 视口选择时，树也高亮对应节点 */
+  // 使用 useMemo 派生 selectedKeys，避免 effect 内 setState
+  const derivedSelectedKeys = useMemo(() => {
+    return selectedComponentId ? [selectedComponentId] : []
+  }, [selectedComponentId])
 
   const handleSelect: TreeProps['onSelect'] = useCallback((keys) => {
-    setSelectedKeys(keys)
+    const key = keys[0] as string | undefined
+    useViewerStore.getState().setSelectedComponentId(key ?? null)
   }, [])
 
   const handleCheck: TreeProps['onCheck'] = useCallback((checked) => {
-    // checkStrictly 模式下返回 { checked, halfChecked }
-    const keys = Array.isArray(checked) ? (checked as React.Key[]) : ((checked as any).checked as React.Key[])
-    setCheckedKeys(keys)
+    const checkedKeysList = checked as React.Key[]
+    setCheckedKeys(checkedKeysList)
 
-    // 根据勾选状态控制模型对象可见性
     if (modelObject) {
+      const checkedSet = new Set<string>(checkedKeysList.map(String))
+      const visibleKeys = new Set<string>()
+
+      // 返回该层级是否有可见节点，有可见子节点时父节点也必须可见
+      const collectVisible = (nodes: TreeDataNode[]): boolean => {
+        let anyVisible = false
+        for (const node of nodes) {
+          const key = node.key as string
+          if (checkedSet.has(key)) {
+            const addAllDescendants = (n: TreeDataNode) => {
+              visibleKeys.add(n.key as string)
+              if (n.children) n.children.forEach(addAllDescendants)
+            }
+            addAllDescendants(node)
+            anyVisible = true
+          } else if (node.children) {
+            if (collectVisible(node.children)) {
+              visibleKeys.add(key)
+              anyVisible = true
+            }
+          }
+        }
+        return anyVisible
+      }
+      collectVisible(treeData)
+
       modelObject.traverse((child) => {
-        if (allKeys.includes(child.uuid)) {
-          child.visible = keys.includes(child.uuid)
+        if (child === modelObject) return
+        if (allKeysSet.has(child.uuid)) {
+          child.visible = visibleKeys.has(child.uuid)
         }
       })
     }
-  }, [modelObject, allKeys])
+  }, [modelObject, allKeysSet, treeData])
 
   if (!modelObject || !treeVisible) return null
 
@@ -107,7 +173,7 @@ export function ViewerTree() {
           onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(40, 40, 55, 0.95)' }}
           onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(20, 20, 30, 0.9)' }}
         >
-          <Icon icon="lucide:panel-left" width={16} height={16} />
+          <Icon icon={panelLeftIcon} width={16} height={16} />
         </button>
       ) : (
         /* 展开状态：完整面板 */
@@ -120,6 +186,8 @@ export function ViewerTree() {
           overflow: 'hidden',
           boxShadow: '0 2px 12px rgba(0,0,0,0.4)',
           animation: 'slideIn 0.2s ease-out',
+          display: 'flex',
+          flexDirection: 'column',
         }}
           className="custom-scrollbar"
         >
@@ -155,23 +223,26 @@ export function ViewerTree() {
               onMouseEnter={(e) => { e.currentTarget.style.color = '#ccc'; e.currentTarget.style.background = 'rgba(255,255,255,0.08)' }}
               onMouseLeave={(e) => { e.currentTarget.style.color = '#888'; e.currentTarget.style.background = 'transparent' }}
             >
-              <Icon icon="lucide:panel-left-close" width={14} height={14} />
+              <Icon icon={panelLeftCloseIcon} width={14} height={14} />
             </button>
           </div>
-          <div style={{ padding: '4px 8px', overflow: 'auto', maxHeight: 'calc(100vh - 150px)' }} className="custom-scrollbar">
+          <div style={{ padding: '4px 8px', flex: 1, minHeight: 0, overflow: 'hidden' }} className="custom-scrollbar">
+            <div ref={containerRef} style={{ height: '100%' }}>
             <Tree
               treeData={treeData}
               defaultExpandAll
-              selectedKeys={selectedKeys}
+              selectedKeys={derivedSelectedKeys}
               checkedKeys={checkedKeys}
               onSelect={handleSelect}
               onCheck={handleCheck}
               checkable
-              checkStrictly
               showIcon={false}
               blockNode
+              virtual
+              height={containerHeight}
               style={{ background: 'transparent', color: '#ccc', fontSize: 12 }}
             />
+            </div>
           </div>
         </div>
       )}

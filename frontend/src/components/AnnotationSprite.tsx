@@ -1,6 +1,7 @@
 import { useRef, useState, useMemo, useCallback } from 'react'
 import { useThree, useFrame } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
+import type { ThreeEvent } from '@react-three/fiber'
 import * as THREE from 'three'
 import type { AnnotationData } from '../api/annotations'
 
@@ -73,7 +74,7 @@ export function AnnotationSprite({ annotation, index, modelExtent, onClick }: An
     [annotation.position],
   )
 
-  const handleClick = useCallback((e: any) => {
+  const handleClick = useCallback((e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation()
     setExpanded((prev) => !prev)
     onClick?.(annotation)

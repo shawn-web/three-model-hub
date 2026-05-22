@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
-import { Spin, Result, ConfigProvider, theme as antdTheme, Button } from 'antd'
+import { Spin, ConfigProvider, theme as antdTheme, Button } from 'antd'
 import * as THREE from 'three'
 import { Warning20 } from '../components/FluentIcon'
 import { ViewerCanvas } from '../components/ViewerCanvas'
@@ -11,11 +11,26 @@ import { ViewCube } from '../components/ViewCube'
 import { useMessageBus } from '../hooks/useMessageBus'
 import { MESSAGE_TYPES } from '../communication/protocol'
 import { useViewerStore } from '../store/viewer-store'
+import { useSceneStore } from '../store/scene-store'
 import { getSceneData } from '../api/scenes'
 import { getModel } from '../api/models'
 import { loadSceneModels } from '../utils/multi-model-loader'
 import { GlbLoader } from '../loaders/glb-loader'
+import { applyExternalConfig } from '../utils/scene-config'
 import type { PluginManager } from '../core/plugin-manager'
+
+/** 场景数据响应类型 */
+interface SceneDataResp {
+  models: Array<{
+    model_id: string
+    material_overrides?: { components?: Record<string, Record<string, unknown>> }
+    [key: string]: unknown
+  }>
+  config?: Record<string, unknown>
+  markers?: unknown[]
+  images?: unknown[]
+  name?: string
+}
 
 /**
  * 预览页面
@@ -28,11 +43,102 @@ export function ViewerPage() {
   const [searchParams] = useSearchParams()
   const typeHint = searchParams.get('type') // 'model' | 'scene' | null
   const messageBus = useMessageBus()
-  const modelLoading = useViewerStore((s) => s.modelLoading)
-  const modelLoadingProgress = useViewerStore((s) => s.modelLoadingProgress)
+  const modelLoading = useSceneStore((s) => s.modelLoading)
+  const modelLoadingProgress = useSceneStore((s) => s.modelLoadingProgress)
+  const getCameraState = useSceneStore((s) => s.getCameraState)
+  const setCameraState = useSceneStore((s) => s.setCameraState)
+  const modelObject = useSceneStore((s) => s.modelObject)
   const [pluginManager, setPluginManager] = useState<PluginManager | null>(null)
   const [error, setError] = useState<string | null>(null)
   const loadedRef = useRef(false)
+
+  /** 作为场景加载（多模型） */
+  const loadAsScene = useCallback(async (sceneData: SceneDataResp) => {
+    const store = useViewerStore.getState()
+    store.setModelLoadingProgress(0)
+    store.setModelLoading(true)
+    useSceneStore.getState().setModelLoading(true)
+    store.setSceneConfig(sceneData.config)
+
+    const getModelUrl = async (modelId: string): Promise<string> => {
+      const modelInfo = await getModel(modelId)
+      if (!modelInfo?.file_url) {
+        throw new Error(`模型 ${modelId} 没有可用的文件 URL`)
+      }
+      return modelInfo.file_url
+    }
+
+    const sceneGroup = await loadSceneModels(
+      sceneData.models,
+      getModelUrl,
+      (loaded, total, _name, overallPercent) => {
+        const progress = overallPercent ?? Math.round((loaded / total) * 100)
+        useViewerStore.getState().setModelLoadingProgress(progress)
+      },
+    )
+
+    // 根据 material_overrides 中 _deleted 标记，移除已删除的构件
+    for (const sm of sceneData.models) {
+      if (!sm.material_overrides?.components) continue
+      for (const [key, value] of Object.entries(sm.material_overrides.components)) {
+        if (!(value as Record<string, unknown>)?._deleted) continue
+        const obj = sceneGroup.getObjectByName(key)
+        if (obj) obj.removeFromParent()
+      }
+    }
+
+    store.setModelObject(sceneGroup)
+    useSceneStore.getState().setModelObject(sceneGroup)
+    store.setMarkers(sceneData.markers || [])
+    useSceneStore.getState().setMarkers(sceneData.markers || [])
+    store.setSceneImages(sceneData.images || [])
+    useSceneStore.getState().setSceneImages(sceneData.images || [])
+    store.setModelLoadingProgress(100)
+    useSceneStore.getState().setModelLoadingProgress(100)
+    setTimeout(() => {
+      useViewerStore.getState().setModelLoading(false)
+      useSceneStore.getState().setModelLoading(false)
+    }, 300)
+
+    messageBus.send(MESSAGE_TYPES.MODEL_LOADED, {
+      metadata: { name: sceneData.name || '场景', modelCount: sceneData.models.length },
+    })
+  }, [messageBus])
+
+  /** 作为单个模型加载 */
+  const loadAsModel = useCallback(async (id: string) => {
+    const model = await getModel(id)
+    if (!model?.file_url) {
+      throw new Error('模型没有可用的文件 URL')
+    }
+    const store = useViewerStore.getState()
+    store.setModelLoadingProgress(0)
+    store.setModelLoading(true)
+    useSceneStore.getState().setModelLoading(true)
+    try {
+      const loader = new GlbLoader()
+      const modelObj = await loader.load(model.file_url, (percent) => {
+        store.setModelLoadingProgress(percent)
+      })
+      store.setModelObject(modelObj)
+      useSceneStore.getState().setModelObject(modelObj)
+      store.setModelUrl(model.file_url)
+      useSceneStore.getState().setModelUrl(model.file_url)
+      store.setModelLoadingProgress(100)
+      useSceneStore.getState().setModelLoadingProgress(100)
+      setTimeout(() => {
+        useViewerStore.getState().setModelLoading(false)
+        useSceneStore.getState().setModelLoading(false)
+      }, 300)
+      messageBus.send(MESSAGE_TYPES.MODEL_LOADED, {
+        metadata: { name: modelObj.name },
+      })
+    } catch (err) {
+      store.setModelLoading(false)
+      useSceneStore.getState().setModelLoading(false)
+      throw err
+    }
+  }, [messageBus])
 
   useEffect(() => {
     if (!sceneId || loadedRef.current) return
@@ -40,6 +146,7 @@ export function ViewerPage() {
 
     messageBus.send(MESSAGE_TYPES.VIEWER_READY, { status: 'ok' })
     useViewerStore.getState().setSceneId(sceneId)
+    useSceneStore.getState().setModelUrl(sceneId)
     useViewerStore.getState().setViewerType(typeHint === 'model' ? 'model' : typeHint === 'scene' ? 'scene' : null)
 
     // 读取 URL 配置：树/工具栏可见性
@@ -77,67 +184,21 @@ export function ViewerPage() {
     }
 
     loadData()
-  }, [sceneId, typeHint])
 
-  /** 作为场景加载（多模型） */
-  const loadAsScene = async (sceneData: any) => {
-    const store = useViewerStore.getState()
-    store.setModelLoading(true)
-    store.setSceneConfig(sceneData.config)
-
-    const getModelUrl = async (modelId: string): Promise<string> => {
-      const modelInfo = await getModel(modelId)
-      if (!modelInfo?.file_url) {
-        throw new Error(`模型 ${modelId} 没有可用的文件 URL`)
-      }
-      return modelInfo.file_url
+    // 监听外部 postMessage 配置（iframe 嵌入场景时使用）
+    const handleMessage = (event: MessageEvent) => {
+      const data = event.data
+      if (!data || data.type !== 'scene-config') return
+      const store = useViewerStore.getState()
+      applyExternalConfig(data, store)
     }
 
-    const sceneGroup = await loadSceneModels(
-      sceneData.models,
-      getModelUrl,
-      (loaded, total, name) => {
-        console.log(`[ViewerPage] 模型加载进度: ${loaded}/${total} - ${name}`)
-        const progress = Math.round((loaded / total) * 100)
-        useViewerStore.getState().setModelLoadingProgress(progress)
-      },
-    )
-
-    store.setModelObject(sceneGroup)
-    store.setModelLoading(false)
-
-    messageBus.send(MESSAGE_TYPES.MODEL_LOADED, {
-      metadata: { name: sceneData.name || '场景', modelCount: sceneData.models.length },
-    })
-  }
-
-  /** 作为单个模型加载 */
-  const loadAsModel = async (id: string) => {
-    const model = await getModel(id)
-    if (!model?.file_url) {
-      throw new Error('模型没有可用的文件 URL')
-    }
-    const store = useViewerStore.getState()
-    store.setModelLoading(true)
-    try {
-      const loader = new GlbLoader()
-      const modelObj = await loader.load(model.file_url, (percent) => {
-        store.setModelLoadingProgress(percent)
-      })
-      store.setModelObject(modelObj)
-      store.setModelUrl(model.file_url)
-      store.setModelLoading(false)
-      messageBus.send(MESSAGE_TYPES.MODEL_LOADED, {
-        metadata: { name: modelObj.name },
-      })
-    } catch (err) {
-      store.setModelLoading(false)
-      throw err
-    }
-  }
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [sceneId, typeHint, messageBus, searchParams, loadAsModel, loadAsScene])
 
   const handleFitView = useCallback(() => {
-    const store = useViewerStore.getState()
+    const store = useSceneStore.getState()
     const modelObject = store.modelObject
     const getCameraState = store.getCameraState
     const setCameraState = store.setCameraState
@@ -149,7 +210,7 @@ export function ViewerPage() {
     const size = box.getSize(new THREE.Vector3())
     const maxDim = Math.max(size.x, size.y, size.z)
     const fov = cam.fov * (Math.PI / 180)
-    let cameraZ = Math.abs(maxDim / (2 * Math.tan(fov / 2))) * 1.2
+    const cameraZ = Math.abs(maxDim / (2 * Math.tan(fov / 2))) * 1.2
 
     const direction = new THREE.Vector3()
       .subVectors(
@@ -192,19 +253,30 @@ export function ViewerPage() {
     <div className="w-screen h-screen relative overflow-hidden bg-[#141414]">
       <ViewerTree />
       <ViewerCanvas onPluginManagerReady={setPluginManager} />
-      <ViewCube />
+      {!modelLoading && modelObject && (
+        <>
+          <ViewCube getCameraState={getCameraState} setCameraState={setCameraState} modelObject={modelObject} />
+          {pluginManager && <Toolbar pluginManager={pluginManager} onFitView={handleFitView} />}
+        </>
+      )}
       <CameraInfo />
-      {pluginManager && <Toolbar pluginManager={pluginManager} onFitView={handleFitView} />}
       {modelLoading && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-3">
           <Spin size="large" />
           <div className="flex flex-col items-center gap-1">
             <span className="text-white/60 text-xs">
-              {modelLoadingProgress > 0 ? `加载中 ${modelLoadingProgress}%` : '加载中...'}
+              {modelLoadingProgress >= 100 ? '渲染中...' : modelLoadingProgress > 0 ? `加载中 ${modelLoadingProgress}%` : '加载中...'}
             </span>
-            {modelLoadingProgress > 0 && (
+            {modelLoadingProgress > 0 && modelLoadingProgress < 100 ? (
               <div style={{ width: 160, height: 3, background: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden' }}>
                 <div style={{ width: `${modelLoadingProgress}%`, height: '100%', background: '#4a9eff', borderRadius: 2, transition: 'width 0.3s' }} />
+              </div>
+            ) : (
+              <div style={{ width: 160, height: 3, background: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden', position: 'relative' }}>
+                <div style={{
+                  position: 'absolute', width: '40%', height: '100%', background: '#4a9eff', borderRadius: 2,
+                  animation: 'indeterminate 1.5s infinite ease-in-out',
+                }} />
               </div>
             )}
           </div>

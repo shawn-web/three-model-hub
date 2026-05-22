@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react'
 import { Icon } from '@iconify/react'
-import { useViewerStore } from '../store/viewer-store'
+import { crosshairIcon } from './Icons'
+import { useSceneStore } from '../store/scene-store'
 
 /**
  * 相机信息卡片
  * 实时显示相机位置、目标点、FOV 等信息
+ * 编辑模式和预览模式共用，数据统一从 scene-store 读取
  */
 export function CameraInfo() {
-  const cameraInfoVisible = useViewerStore((s) => s.cameraInfoVisible)
+  const cameraInfoVisible = useSceneStore((s) => s.cameraInfoVisible)
   const [cameraData, setCameraData] = useState<{
     position: { x: number; y: number; z: number }
     target: { x: number; y: number; z: number }
@@ -22,7 +24,7 @@ export function CameraInfo() {
     if (!cameraInfoVisible) return
 
     const timer = setInterval(() => {
-      const getCameraState = useViewerStore.getState().getCameraState
+      const getCameraState = useSceneStore.getState().getCameraState
       if (getCameraState) {
         const cam = getCameraState()
         const pos = cam.position
@@ -79,7 +81,7 @@ export function CameraInfo() {
         alignItems: 'center',
         gap: 6,
       }}>
-        <Icon icon="lucide:crosshair" width={14} height={14} style={{ color: '#4a9eff' }} />
+        <Icon icon={crosshairIcon} width={14} height={14} style={{ color: '#4a9eff' }} />
         视角信息
       </div>
 

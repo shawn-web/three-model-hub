@@ -15,8 +15,31 @@
  */
 import { useRef, useEffect } from 'react'
 import { Icon } from '@iconify/react'
+import { homeIcon } from './Icons'
 import * as THREE from 'three'
-import { useViewerStore } from '../store/viewer-store'
+
+/** ViewCube 相机状态接口 */
+interface CameraState {
+  position: { x: number; y: number; z: number }
+  target: { x: number; y: number; z: number }
+  up: { x: number; y: number; z: number }
+  fov: number
+}
+
+/** ViewCube 组件 Props */
+export interface ViewCubeProps {
+  /** 获取主场景相机状态的回调 */
+  getCameraState: (() => CameraState) | null
+  /** 设置主场景相机状态的回调 */
+  setCameraState: ((state: {
+    position: { x: number; y: number; z: number }
+    target: { x: number; y: number; z: number }
+    up?: { x: number; y: number; z: number }
+    fov?: number
+  }) => void) | null
+  /** 3D 模型对象，用于对角线视角距离计算 */
+  modelObject: THREE.Group | null
+}
 
 /** 每个面的 9 个区域（3×3 网格）对应的方向向量 */
 const FACE_DIRS: Record<string, Record<string, number[]>> = {
@@ -121,8 +144,8 @@ const EDGE_ADJACENT: Record<string, Record<string, { face: string; edgeSide: 'to
   },
 }
 
-/** ViewCube 画布尺寸（像素） */
-const CANVAS_SIZE = 100
+/** ViewCube 画布显示尺寸（像素） */
+const CANVAS_SIZE = 96
 /** ViewCube 相机到原点的距离 */
 const RADIUS = 2.6
 
@@ -131,7 +154,7 @@ const RADIUS = 2.6
  * 返回 'tl' | 't' | 'tr' | 'l' | 'c' | 'r' | 'bl' | 'b' | 'br'
  */
 function getZoneFromUV(u: number, v: number): string {
-  const T = 0.3
+  const T = 0.067
   const left = u < T, right = u > 1 - T, bottom = v < T, top = v > 1 - T
   if (top && left) return 'tl'
   if (top && right) return 'tr'
@@ -160,11 +183,11 @@ function createFaceTexture(label: string): THREE.CanvasTexture {
   const c = document.createElement('canvas')
   c.width = s; c.height = s
   const ctx = c.getContext('2d')!
-  ctx.fillStyle = '#e8ecf0'
+  ctx.fillStyle = '#b8bfca'
   ctx.fillRect(0, 0, s, s)
 
-  const zoneT = s * 0.3
-  const triS = s * 0.10
+  const triS = s * 0.14
+  const zoneT = s * 0.32
   const barW = s * 0.10
 
   ctx.fillStyle = 'rgba(0,0,0,0.18)'
@@ -174,16 +197,16 @@ function createFaceTexture(label: string): THREE.CanvasTexture {
   ctx.beginPath(); ctx.moveTo(0, s); ctx.lineTo(triS, s); ctx.lineTo(0, s - triS); ctx.closePath(); ctx.fill()
   ctx.beginPath(); ctx.moveTo(s, s); ctx.lineTo(s - triS, s); ctx.lineTo(s, s - triS); ctx.closePath(); ctx.fill()
 
-  ctx.fillStyle = 'rgba(0,0,0,0.12)'
+  ctx.fillStyle = 'rgba(0,0,0,0.18)'
   ctx.fillRect(zoneT, 0, s - zoneT * 2, barW)
   ctx.fillRect(zoneT, s - barW, s - zoneT * 2, barW)
   ctx.fillRect(0, zoneT, barW, s - zoneT * 2)
   ctx.fillRect(s - barW, zoneT, barW, s - zoneT * 2)
 
-  ctx.strokeStyle = '#c0c8d0'
+  ctx.strokeStyle = '#8a929a'
   ctx.lineWidth = 2
   ctx.strokeRect(1, 1, s - 2, s - 2)
-  ctx.fillStyle = '#555'
+  ctx.fillStyle = '#2a2f36'
   ctx.font = 'bold 34px -apple-system,BlinkMacSystemFont,sans-serif'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
@@ -213,21 +236,21 @@ function createHighlightTexture(
   ctx.fillStyle = 'rgba(0,0,0,0)'
   ctx.clearRect(0, 0, s, s)
 
-  const strip = s * 0.18
-
   if (type === 'edge' && edgeSide) {
     ctx.fillStyle = 'rgba(74, 158, 255, 0.7)'
+    const barW = s * 0.10
+    const zoneT = s * 0.32
     switch (edgeSide) {
-      case 'top':    ctx.fillRect(0, 0, s, strip); break
-      case 'bottom': ctx.fillRect(0, s - strip, s, strip); break
-      case 'left':   ctx.fillRect(0, 0, strip, s); break
-      case 'right':  ctx.fillRect(s - strip, 0, strip, s); break
+      case 'top':    ctx.fillRect(zoneT, 0, s - zoneT * 2, barW); break
+      case 'bottom': ctx.fillRect(zoneT, s - barW, s - zoneT * 2, barW); break
+      case 'left':   ctx.fillRect(0, zoneT, barW, s - zoneT * 2); break
+      case 'right':  ctx.fillRect(s - barW, zoneT, barW, s - zoneT * 2); break
     }
   } else if (type === 'corner' && cornerInfo) {
     ctx.fillStyle = 'rgba(74, 158, 255, 0.7)'
     const cx = cornerInfo.hEdge === 'left' ? 0 : s
     const cy = cornerInfo.vEdge === 'top' ? 0 : s
-    const triSize = s * 0.10
+    const triSize = s * 0.14
     ctx.beginPath()
     ctx.moveTo(cx, cy)
     if (cornerInfo.vEdge === 'top' && cornerInfo.hEdge === 'left') {
@@ -254,9 +277,18 @@ function createHighlightTexture(
 }
 
 /** ViewCube 组件：渲染可交互的三维导航立方体 */
-export function ViewCube() {
+export function ViewCube({ getCameraState, setCameraState, modelObject }: ViewCubeProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const animateRef = useRef<(dir: number[]) => void>(() => {})
+
+  // 用 ref 保持 props 最新值，供内部 useEffect 读取
+  const getCameraStateRef = useRef(getCameraState)
+  const setCameraStateRef = useRef(setCameraState)
+  const modelObjectRef = useRef(modelObject)
+
+  useEffect(() => { getCameraStateRef.current = getCameraState }, [getCameraState])
+  useEffect(() => { setCameraStateRef.current = setCameraState }, [setCameraState])
+  useEffect(() => { modelObjectRef.current = modelObject }, [modelObject])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -264,7 +296,7 @@ export function ViewCube() {
 
     const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true })
     renderer.setSize(CANVAS_SIZE, CANVAS_SIZE)
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    renderer.setPixelRatio(Math.max(window.devicePixelRatio, 2.5))
 
     const scene = new THREE.Scene()
     const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100)
@@ -274,7 +306,7 @@ export function ViewCube() {
 
     cubeGroup.add(new THREE.Mesh(
       new THREE.BoxGeometry(0.97, 0.97, 0.97),
-      new THREE.MeshBasicMaterial({ color: 0xeaeaea }),
+      new THREE.MeshBasicMaterial({ color: 0xcdd2d8 }),
     ))
 
     /** 面配置：key、标签、位置、旋转 */
@@ -319,11 +351,28 @@ export function ViewCube() {
       return m
     })
 
-    /** 立方体边框线 */
-    cubeGroup.add(new THREE.LineSegments(
-      new THREE.EdgesGeometry(new THREE.BoxGeometry(1.003, 1.003, 1.003)),
-      new THREE.LineBasicMaterial({ color: 0xaaaaaa }),
-    ))
+    /** 立方体边框线（缩短至角三角形最近点） */
+    const HALF = 0.5015
+    const TRI_W = 0.14
+    const cns: [number, number, number][] = [
+      [-1,-1,-1],[-1,-1,1],[-1,1,-1],[-1,1,1],
+      [1,-1,-1],[1,-1,1],[1,1,-1],[1,1,1],
+    ].map(c => [c[0]*HALF, c[1]*HALF, c[2]*HALF] as [number,number,number])
+    const eis: [number,number][] = [
+      [0,1],[2,3],[4,5],[6,7],
+      [0,2],[1,3],[4,6],[5,7],
+      [0,4],[1,5],[2,6],[3,7],
+    ]
+    const ePts: number[] = []
+    for (const [ai,bi] of eis) {
+      const [ax,ay,az] = cns[ai], [bx,by,bz] = cns[bi]
+      const dx=bx-ax, dy=by-ay, dz=bz-az, len=Math.sqrt(dx*dx+dy*dy+dz*dz)
+      ePts.push(ax+dx/len*TRI_W, ay+dy/len*TRI_W, az+dz/len*TRI_W)
+      ePts.push(bx-dx/len*TRI_W, by-dy/len*TRI_W, bz-dz/len*TRI_W)
+    }
+    const edgeGeo = new THREE.BufferGeometry()
+    edgeGeo.setAttribute('position', new THREE.Float32BufferAttribute(ePts, 3))
+    cubeGroup.add(new THREE.LineSegments(edgeGeo, new THREE.LineBasicMaterial({ color: 0xbcc2cb })))
 
     /** 水平方位角（theta）和极角（phi） */
     let theta = Math.PI / 4
@@ -357,8 +406,8 @@ export function ViewCube() {
 
     /** 拖拽时同步主场景相机方向 */
     const syncToMain = () => {
-      const gs = useViewerStore.getState().getCameraState
-      const ss = useViewerStore.getState().setCameraState
+      const gs = getCameraStateRef.current
+      const ss = setCameraStateRef.current
       if (!gs || !ss) return
       const cam = gs()
       const d = Math.sqrt(
@@ -383,8 +432,8 @@ export function ViewCube() {
      * @param targetDir 目标方向向量
      */
     const animateToDir = (targetDir: number[]) => {
-      const gs = useViewerStore.getState().getCameraState
-      const ss = useViewerStore.getState().setCameraState
+      const gs = getCameraStateRef.current
+      const ss = setCameraStateRef.current
       if (!gs || !ss) return
       animating = true
 
@@ -399,9 +448,9 @@ export function ViewCube() {
       // 对角线方向（等轴测等）时基于模型包围盒计算合适的距离
       const absSum = Math.abs(targetDir[0]) + Math.abs(targetDir[1]) + Math.abs(targetDir[2])
       if (absSum > 1.5) {
-        const modelObject = useViewerStore.getState().modelObject
-        if (modelObject) {
-          const box = new THREE.Box3().setFromObject(modelObject)
+        const mo = modelObjectRef.current
+        if (mo) {
+          const box = new THREE.Box3().setFromObject(mo)
           const size = box.getSize(new THREE.Vector3())
           const maxDim = Math.max(size.x, size.y, size.z)
           const fov = (cam.fov || 50) * (Math.PI / 180)
@@ -464,7 +513,7 @@ export function ViewCube() {
     /** 定时同步主场景相机方向到 ViewCube（80ms 间隔） */
     const syncId = setInterval(() => {
       if (animating || dragging || potentialDrag || vcAnimating) return
-      const gs = useViewerStore.getState().getCameraState
+      const gs = getCameraStateRef.current
       if (!gs) return
       const cam = gs()
       const dir = new THREE.Vector3(
@@ -627,18 +676,15 @@ export function ViewCube() {
         } else if (isCornerZone(zone)) {
           applyCornerHighlight(faceKey, zone)
         } else {
-          // 面中心 - 微妙蓝色调高亮，不遮挡文字
           canvas.style.cursor = 'pointer'
           const faceIdx = faceCfg.findIndex(f => f.key === faceKey)
           if (faceIdx >= 0) {
             const hm = highlightMeshes[faceIdx]
             const mat = hm.material as THREE.MeshBasicMaterial
-            if (mat.map) {
-              mat.map.dispose()
-              mat.map = null
-            }
-            mat.color.set('#3b82f6')
-            mat.opacity = 0.3
+            if (mat.map) mat.map.dispose()
+            mat.map = createHighlightTexture('center')
+            mat.color.set('white')
+            mat.opacity = 1
             hm.visible = true
           }
         }
@@ -714,7 +760,7 @@ export function ViewCube() {
         onMouseEnter={(e) => { e.currentTarget.style.background = '#e6f7ff'; e.currentTarget.style.color = '#1890ff' }}
         onMouseLeave={(e) => { e.currentTarget.style.background = '#f0f0f0'; e.currentTarget.style.color = '#999' }}
       >
-        <Icon icon="lucide:home" width={11} height={11} />
+        <Icon icon={homeIcon} width={11} height={11} />
       </div>
     </div>
   )

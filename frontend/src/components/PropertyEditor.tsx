@@ -1,5 +1,6 @@
 import { useEditStore } from '../store/edit-store'
 import * as THREE from 'three'
+import type { Color } from 'antd/es/color-picker'
 import {
   Form,
   Input,
@@ -57,37 +58,48 @@ export function PropertyEditor() {
   const name = data?.name ?? obj.name ?? ''
   const description = data?.description ?? ''
 
+  /** 从 store 中获取当前选中的 Three.js 对象 */
+  const getObj = () => modelObject.getObjectByProperty('uuid', selectedComponentId) as THREE.Object3D | null
+
   /** 处理位置变更 */
   const handlePositionChange = (axis: number, value: number | null) => {
+    const o = getObj()
+    if (!o) return
     const v = value ?? 0
     const newPos = [...position] as [number, number, number]
     newPos[axis] = v
-    obj.position.set(...newPos)
+    o.position.set(...newPos)
     updateComponentTransform(selectedComponentId, { position: newPos })
   }
 
   /** 处理旋转变更（角度转弧度） */
   const handleRotationChange = (axis: number, value: number | null) => {
+    const o = getObj()
+    if (!o) return
     const v = value ?? 0
     const newRot = [...rotation] as [number, number, number]
     newRot[axis] = degToRad(v)
-    obj.rotation.set(...newRot)
+    o.rotation.set(...newRot)
     updateComponentTransform(selectedComponentId, { rotation: newRot })
   }
 
   /** 处理缩放变更 */
   const handleScaleChange = (axis: number, value: number | null) => {
+    const o = getObj()
+    if (!o) return
     const v = value ?? 1
     const newScale = [...scale] as [number, number, number]
     newScale[axis] = v
-    obj.scale.set(...newScale)
+    o.scale.set(...newScale)
     updateComponentTransform(selectedComponentId, { scale: newScale })
   }
 
   /** 处理颜色变更 */
-  const handleColorChange = (value: any) => {
+  const handleColorChange = (value: Color | string) => {
+    const o = getObj()
+    if (!o) return
     const hex = typeof value === 'string' ? value : value?.toHexString?.() || '#ffffff'
-    obj.traverse((child) => {
+    o.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         const materials = Array.isArray(child.material) ? child.material : [child.material]
         materials.forEach((m) => {
@@ -104,7 +116,9 @@ export function PropertyEditor() {
 
   /** 处理透明度变更 */
   const handleOpacityChange = (value: number) => {
-    obj.traverse((child) => {
+    const o = getObj()
+    if (!o) return
+    o.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         const materials = Array.isArray(child.material) ? child.material : [child.material]
         materials.forEach((m) => {
@@ -119,13 +133,17 @@ export function PropertyEditor() {
 
   /** 处理可见性切换 */
   const handleVisibilityChange = (v: boolean) => {
-    obj.visible = v
+    const o = getObj()
+    if (!o) return
+    o.visible = v
     updateComponentVisibility(selectedComponentId, v)
   }
 
   /** 处理名称变更 */
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    obj.name = e.target.value
+    const o = getObj()
+    if (!o) return
+    o.name = e.target.value
     updateComponentName(selectedComponentId, e.target.value || null)
   }
 

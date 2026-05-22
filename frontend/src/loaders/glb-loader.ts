@@ -7,7 +7,16 @@ export class GlbLoader implements ModelLoader {
 
   async load(url: string, onProgress?: (percent: number) => void): Promise<THREE.Group> {
     // 使用共享的缓存加载函数，命中缓存时跳过网络请求
-    const { scene: model, fromCache } = await loadGLBWithCache(url)
+    const { scene: model, fromCache } = await loadGLBWithCache(url, onProgress
+      ? (event: ProgressEvent) => {
+          if (event.lengthComputable) {
+            onProgress(Math.round((event.loaded / event.total) * 100))
+          } else if (event.loaded > 0) {
+            onProgress(Math.min(90, Math.round((event.loaded / (event.loaded + 100000)) * 100)))
+          }
+        }
+      : undefined,
+    )
 
     if (fromCache) {
       console.debug(`[GlbLoader] 模型从缓存加载: ${url}`)

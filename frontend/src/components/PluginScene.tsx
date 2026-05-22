@@ -1,79 +1,43 @@
-import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
+import { useRef, useState, useEffect, useMemo, useCallback } from 'react'
 import { useThree, useFrame } from '@react-three/fiber'
-import { Line, Html, TransformControls } from '@react-three/drei'
+import { Line, Html } from '@react-three/drei'
 import * as THREE from 'three'
+import { useSceneStore } from '../store/scene-store'
 import { useViewerStore } from '../store/viewer-store'
 import type { PluginManager } from '../core/plugin-manager'
-import type { SectionPlugin } from '../plugins/section'
+import type { SectionPlugin, SectionState } from '../plugins/section'
 import type { MeasurementPlugin, MeasurementData } from '../plugins/measurement'
-
-import { AnnotationSprite } from './AnnotationSprite'
 
 interface PluginSceneProps {
   pluginManager: PluginManager
   modelGroupRef: React.RefObject<THREE.Group>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   orbitRef: React.RefObject<any>
 }
 
 export function PluginScene({ pluginManager, modelGroupRef, orbitRef }: PluginSceneProps) {
   const activePluginId = useViewerStore((s) => s.activePluginId)
-  const rotationMode = useViewerStore((s) => s.rotationMode)
-  const modelObject = useViewerStore((s) => s.modelObject)
-  const annotations = useViewerStore((s) => s.annotations)
-  const addingAnnotation = useViewerStore((s) => s.addingAnnotation)
+  const _modelObject = useSceneStore((s) => s.modelObject)
+  // modelGroupRef 和 _modelObject 保留用于后续扩展
+  void modelGroupRef
+  void _modelObject
 
-const { camera, gl } = useThree()
-  useEffect(() => {
-    if (!addingAnnotation || !modelObject) return
-
-    const canvas = gl.domElement
-    const raycaster = new THREE.Raycaster()
-    const mouse = new THREE.Vector2()
-
-    const onClick = (event: MouseEvent) => {
-      if (event.button !== 0) return
-      const rect = canvas.getBoundingClientRect()
-      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
-      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
-      raycaster.setFromCamera(mouse, camera)
-      const intersects = raycaster.intersectObjects(modelObject.children, true)
-      if (intersects.length === 0) return
-      const point = intersects[0].point
-      const cb = useViewerStore.getState().onAnnotationClick
-      if (cb) {
-        cb({ x: point.x, y: point.y, z: point.z })
-      }
-    }
-
-    canvas.addEventListener('click', onClick)
-    canvas.style.cursor = 'crosshair'
-    return () => {
-      canvas.removeEventListener('click', onClick)
-      canvas.style.cursor = 'default'
-    }
-  }, [addingAnnotation, modelObject, camera, gl])
-
-  const modelExtent = useMemo(() => {
-    if (!modelObject) return 1
-    const box = new THREE.Box3().setFromObject(modelObject)
-    return box.getSize(new THREE.Vector3()).length()
-  }, [modelObject])
+  // 收集所有激活插件的 sceneComponent
+  const allPlugins = pluginManager.getAllPlugins()
+  const sceneComponents = allPlugins
+    .filter((p) => p.isActive() && p.sceneComponent)
+    .map((p) => {
+      const Comp = p.sceneComponent!
+      return <Comp key={p.id} />
+    })
 
   return (
     <>
+      {/* 保留 section/measurement 的复杂 3D 渲染（内部状态与 PluginScene 深度耦合） */}
       {activePluginId === 'section' && <SectionScene pluginManager={pluginManager} orbitRef={orbitRef} />}
       {activePluginId === 'measurement' && <MeasurementScene pluginManager={pluginManager} />}
-      {rotationMode && modelGroupRef.current && (
-        <RotationControls target={modelGroupRef.current} orbitRef={orbitRef} />
-      )}
-      {annotations.map((annotation, index) => (
-        <AnnotationSprite
-          key={annotation.id}
-          annotation={annotation}
-          index={index}
-          modelExtent={modelExtent}
-        />
-      ))}
+      {/* 所有其他插件的 sceneComponent */}
+      {sceneComponents}
     </>
   )
 }
@@ -86,73 +50,43 @@ const AXIS_CONFIG = [
   { axis: 'z' as const, color: '#4488ff', direction: new THREE.Vector3(0, 0, 1) },
 ]
 
+type Axis = 'x' | 'y' | 'z'
+
 interface DragState {
-  axis: 'x' | 'y' | 'z'
-  plane: THREE.Plane
+  axis: Axis
+  startPos: number
+  dragPlane: THREE.Plane
+  pointer: { x: number; y: number }
 }
 
-function SectionScene({ pluginManager, orbitRef }: { pluginManager: PluginManager; orbitRef: React.RefObject<any> }) {
-  const modelObject = useViewerStore((s) => s.modelObject)
-  const { camera, gl } = useThree()
+function SectionScene({ pluginManager, orbitRef }: { pluginManager: PluginManager; orbitRef: React.RefObject<unknown> }) {
+  const modelObject = useSceneStore((s) => s.modelObject)
+  const { camera, gl: glFromHook } = useThree()
+  // 使用 ref 保存 hook 返回的 Three.js 对象，通过 effect 同步
+  const glRef = useRef(glFromHook)
+  useEffect(() => { glRef.current = glFromHook })
 
   const plugin = pluginManager.getPlugin('section') as unknown as SectionPlugin | undefined
 
-  const [sectionState, setSectionState] = useState<{
-    axis: 'x' | 'y' | 'z'
-    position: number
-    enabled: boolean
-    bounds: { min: number; max: number }
-  }>({
-    axis: 'y',
-    position: 0,
-    enabled: false,
-    bounds: { min: -5, max: 5 },
+  const [sectionState, setSectionState] = useState<SectionState>({
+    planes: {
+      x: { enabled: false, position: 0 },
+      y: { enabled: false, position: 0 },
+      z: { enabled: false, position: 0 },
+    },
+    bounds: {
+      x: { min: -5, max: 5 },
+      y: { min: -5, max: 5 },
+      z: { min: -5, max: 5 },
+    },
   })
 
   const dragStateRef = useRef<DragState | null>(null)
-  const handleMeshRefs = useRef<Record<string, THREE.Mesh | null>>({})
-  const lineMeshRefs = useRef<Record<string, THREE.Mesh | null>>({})
   const baseConeRadiusRef = useRef(1)
-
-  useFrame(() => {
-    if (!modelObject) return
-    const pixelRatio = Math.min(window.devicePixelRatio, 2)
-    const canvasHeight = gl.domElement.clientHeight
-    const distance = camera.position.distanceTo(modelCenter)
-    const fovRad = (camera as THREE.PerspectiveCamera).fov * (Math.PI / 180)
-    const viewportHeight = 2 * distance * Math.tan(fovRad / 2)
-
-    const targetPixels = 20
-    const worldSize = (viewportHeight * targetPixels) / (canvasHeight * pixelRatio)
-    const s = worldSize / baseConeRadiusRef.current
-    Object.values(handleMeshRefs.current).forEach(m => {
-      if (m) m.scale.setScalar(s)
-    })
-
-    const lineTargetPixels = 3
-    const lineWorldSize = (viewportHeight * lineTargetPixels) / (canvasHeight * pixelRatio)
-    const ls = lineWorldSize / 0.02
-    Object.values(lineMeshRefs.current).forEach(m => {
-      if (m) m.scale.set(ls, 1, ls)
-    })
-  })
-
-  useEffect(() => {
-    if (!plugin) return
-    plugin.onStateChange((state) => {
-      setSectionState(state)
-    })
-    setSectionState(plugin.getState())
-  }, [plugin])
-
-  useEffect(() => {
-    if (plugin && plugin.isEnabled()) {
-      gl.localClippingEnabled = true
-    }
-    return () => {
-      gl.localClippingEnabled = false
-    }
-  }, [plugin, gl, sectionState.enabled])
+  const coneRefs = useRef<Record<string, THREE.Mesh | null>>({})
+  const handleRefs = useRef<Record<string, THREE.Object3D | null>>({})
+  const lineRefsStore = useRef<Record<string, THREE.Mesh | null>>({})
+  const planeVisualRefs = useRef<Record<string, THREE.Group | null>>({})
 
   const modelCenter = useMemo(() => {
     if (!modelObject) return new THREE.Vector3()
@@ -170,196 +104,187 @@ function SectionScene({ pluginManager, orbitRef }: { pluginManager: PluginManage
     return Math.max(modelSize.x, modelSize.y, modelSize.z) * 0.5
   }, [modelSize])
 
-  const pointerRef = useRef({ x: 0, y: 0 })
+  // 监听插件状态变化，使用 useFrame 初始化避免 effect 中同步 setState
+  const pluginInitialized = useRef(false)
+  useEffect(() => {
+    if (!plugin) return
+    plugin.onStateChange((state) => setSectionState(state))
+    // 标记需要在帧循环中初始化
+    pluginInitialized.current = false
+  }, [plugin])
 
-  // 拖拽时逐帧更新剖切位置
+  // 在 useFrame 中初始化状态（避免 effect 中同步 setState）
   useFrame(() => {
-    const ds = dragStateRef.current
-    if (!ds || !plugin) return
-
-    const raycaster = new THREE.Raycaster()
-    const mouse = new THREE.Vector2(pointerRef.current.x, pointerRef.current.y)
-    raycaster.setFromCamera(mouse, camera)
-
-    const intersection = new THREE.Vector3()
-    if (raycaster.ray.intersectPlane(ds.plane, intersection)) {
-      let value: number
-      switch (ds.axis) {
-        case 'x': value = intersection.x; break
-        case 'y': value = intersection.y; break
-        case 'z': value = intersection.z; break
-      }
-      const bounds = plugin.getBounds()
-      value = Math.max(bounds.min, Math.min(bounds.max, value))
-      plugin.setPosition(value)
-
-      const handleMesh = handleMeshRefs.current[ds.axis + '-handle']
-      if (handleMesh) {
-        const pos = modelCenter.clone()
-        switch (ds.axis) {
-          case 'x': pos.x = value; break
-          case 'y': pos.y = value; break
-          case 'z': pos.z = value; break
-        }
-        handleMesh.position.copy(pos)
-      }
+    if (plugin && !pluginInitialized.current) {
+      pluginInitialized.current = true
+      setSectionState(plugin.getState())
     }
   })
 
-  const handlePointerDown = useCallback((axis: 'x' | 'y' | 'z', e: any) => {
-    e.stopPropagation()
+  useEffect(() => {
+    const gl = glRef.current
+    if (plugin && plugin.getActivePlaneCount() > 0) gl.localClippingEnabled = true
+    return () => { gl.localClippingEnabled = false }
+  }, [plugin])
+
+  // 屏幕空间恒定大小缩放
+  useFrame(() => {
+    if (!modelObject) return
+    // 在帧循环中更新 baseConeRadiusRef，避免渲染中修改 ref
+    baseConeRadiusRef.current = arrowLength * 0.05
+    const gl = glRef.current
+    const pr = Math.min(window.devicePixelRatio, 2)
+    const ch = gl.domElement.clientHeight
+    const dist = camera.position.distanceTo(modelCenter)
+    const fov = (camera as THREE.PerspectiveCamera).fov * (Math.PI / 180)
+    const vh = 2 * dist * Math.tan(fov / 2)
+
+    const s = (vh * 8) / (ch * pr * baseConeRadiusRef.current)
+    ;[...Object.values(coneRefs.current), ...Object.values(handleRefs.current)]
+      .forEach(m => { if (m) m.scale.setScalar(s) })
+
+    const ls = (vh * 1) / (ch * pr * 0.02)
+    Object.values(lineRefsStore.current).forEach(m => { if (m) m.scale.set(ls, 1, ls) })
+  })
+
+  // 拖拽逐帧更新（射线-平面求交，保证 1:1 同步）
+  useFrame(() => {
+    const ds = dragStateRef.current
+    if (!ds || !plugin) return
+    const raycaster = new THREE.Raycaster()
+    raycaster.setFromCamera(new THREE.Vector2(ds.pointer.x, ds.pointer.y), camera)
+    const intersection = new THREE.Vector3()
+    const hit = raycaster.ray.intersectPlane(ds.dragPlane, intersection)
+    if (!hit) return
+    let v: number
+    switch (ds.axis) { case 'x': v = intersection.x; break; case 'y': v = intersection.y; break; case 'z': v = intersection.z; break }
+    const b = plugin.getBounds(ds.axis)
+    v = Math.max(b.min, Math.min(b.max, v))
+    plugin.setPosition(ds.axis, v)
+    const hm = handleRefs.current[ds.axis]
+    if (hm) {
+      const p = modelCenter.clone()
+      switch (ds.axis) { case 'x': p.x = v; break; case 'y': p.y = v; break; case 'z': p.z = v; break }
+      hm.position.copy(p)
+    }
+    // 更新剖面可视化位置（直接操作 Three.js 对象，不依赖 React 重渲染）
+    const vg = planeVisualRefs.current[ds.axis]
+    if (vg) {
+      const p = modelCenter.clone()
+      switch (ds.axis) { case 'x': p.x = v; break; case 'y': p.y = v; break; case 'z': p.z = v; break }
+      vg.position.copy(p)
+    }
+  })
+
+  // 开始拖拽
+  const startDrag = useCallback((axis: Axis, e: React.PointerEvent | PointerEvent) => {
     if (!plugin) return
+    ;(e as unknown as React.PointerEvent).preventDefault?.()
 
-    plugin.setAxis(axis)
-    if (!plugin.isEnabled()) {
-      plugin.toggle(true)
+    // 从 plugin 直接读取最新状态（避免过期闭包）
+    const currentState = plugin.getState()
+
+    // 单轴模式：自动启用该轴
+    if (!currentState.planes[axis].enabled) {
+      plugin.toggle(axis, true)
     }
 
-    const currentPosition = plugin.getPosition()
-    const handlePos = modelCenter.clone()
-    switch (axis) {
-      case 'x': handlePos.x = currentPosition; break
-      case 'y': handlePos.y = currentPosition; break
-      case 'z': handlePos.z = currentPosition; break
-    }
+    const pos = plugin.getState().planes[axis].position
+    const hp = modelCenter.clone()
+    switch (axis) { case 'x': hp.x = pos; break; case 'y': hp.y = pos; break; case 'z': hp.z = pos; break }
 
-    const axisDir = new THREE.Vector3()
-    switch (axis) {
-      case 'x': axisDir.set(1, 0, 0); break
-      case 'y': axisDir.set(0, 1, 0); break
-      case 'z': axisDir.set(0, 0, 1); break
-    }
-    const camDir = new THREE.Vector3()
-    camera.getWorldDirection(camDir)
+    // 构造垂直于相机视线的拖拽平面，经过手柄世界位置
+    const cameraDir = new THREE.Vector3()
+    camera.getWorldDirection(cameraDir)
+    const dragPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(cameraDir, hp)
 
-    let planeNormal = new THREE.Vector3().crossVectors(axisDir, camDir)
-    if (planeNormal.length() < 0.001) {
-      planeNormal.crossVectors(camera.up, axisDir)
-    }
-    planeNormal.normalize()
-    const dragPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, handlePos)
-    dragStateRef.current = { axis, plane: dragPlane }
-
-    if (orbitRef.current) orbitRef.current.enabled = false
-
-    const canvas = gl.domElement
+    const canvas = glRef.current.domElement
     const rect = canvas.getBoundingClientRect()
-    pointerRef.current.x = ((e.nativeEvent.clientX - rect.left) / rect.width) * 2 - 1
-    pointerRef.current.y = -((e.nativeEvent.clientY - rect.top) / rect.height) * 2 + 1
+    const pointer = { x: 0, y: 0 }
 
-    const onPointerMove = (event: PointerEvent) => {
-      pointerRef.current.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
-      pointerRef.current.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+    const update = (ev: PointerEvent) => {
+      pointer.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1
+      pointer.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1
     }
 
-    const onPointerUp = () => {
+    const ne = (e as React.PointerEvent).nativeEvent || e
+    update(ne as PointerEvent)
+
+    dragStateRef.current = {
+      axis,
+      startPos: pos,
+      dragPlane,
+      pointer,
+    }
+    if (orbitRef.current) { (orbitRef.current as { enabled: boolean }).enabled = false }
+
+    const onMove = (ev: PointerEvent) => update(ev)
+    const onUp = () => {
       dragStateRef.current = null
-      if (orbitRef.current) orbitRef.current.enabled = true
-      canvas.removeEventListener('pointermove', onPointerMove)
-      canvas.removeEventListener('pointerup', onPointerUp)
+      if (orbitRef.current) { (orbitRef.current as { enabled: boolean }).enabled = true }
+      document.removeEventListener('pointermove', onMove)
+      document.removeEventListener('pointerup', onUp)
     }
-
-    canvas.addEventListener('pointermove', onPointerMove)
-    canvas.addEventListener('pointerup', onPointerUp)
-  }, [plugin, modelCenter, camera, gl, orbitRef])
+    document.addEventListener('pointermove', onMove)
+    document.addEventListener('pointerup', onUp)
+  }, [plugin, modelCenter, camera, orbitRef])
 
   if (!modelObject || !plugin) return null
 
+  // 计算当前 handleScale（仅用于渲染，baseConeRadiusRef 在 useFrame 中更新）
+  const handleScale = arrowLength * 0.05
+
   return (
     <group renderOrder={999}>
+      {/* 每个轴的 Gizmo */}
       {AXIS_CONFIG.map(({ axis, color, direction }) => {
-        const startPos = modelCenter.clone()
         const endPos = modelCenter.clone().addScaledVector(direction, arrowLength)
-        const isSelected = sectionState.axis === axis && sectionState.enabled
-        const handleScale = arrowLength * 0.05
-        baseConeRadiusRef.current = handleScale
-        // 剖切位置对应的线上的点
+        const isEnabled = sectionState.planes[axis].enabled
         const sectionPoint = modelCenter.clone()
         switch (axis) {
-          case 'x': sectionPoint.x = sectionState.position; break
-          case 'y': sectionPoint.y = sectionState.position; break
-          case 'z': sectionPoint.z = sectionState.position; break
+          case 'x': sectionPoint.x = sectionState.planes[axis].position; break
+          case 'y': sectionPoint.y = sectionState.planes[axis].position; break
+          case 'z': sectionPoint.z = sectionState.planes[axis].position; break
         }
 
         return (
           <group key={axis}>
-            {/* 剖面轴线：超薄圆柱体，不大不小始终一致 */}
-            <SectionLine
-              start={startPos}
-              end={endPos}
-              color={color}
-              isSelected={isSelected}
-              lineRefs={lineMeshRefs}
-            />
-
-            {/* 箭头锥体 */}
+            <SectionLine start={modelCenter} end={endPos} color={color} isSelected={isEnabled} onLineRef={(id, el) => { lineRefsStore.current[id] = el }} />
+            {/* 锥体端点 — 唯一的轴切换入口 */}
             <mesh
-              ref={(el) => { handleMeshRefs.current[axis + '-cone'] = el }}
+              ref={(el) => { coneRefs.current[axis] = el }}
               position={endPos}
               rotation={getConeRotation(axis)}
-              onPointerDown={(e) => handlePointerDown(axis, e)}
               renderOrder={999}
+              onPointerDown={(e) => { e.stopPropagation(); startDrag(axis, e as unknown as PointerEvent) }}
             >
-              <coneGeometry args={[handleScale, handleScale * 3, 12]} />
-              <meshBasicMaterial
-                color={color}
-                transparent
-                opacity={isSelected ? 0.9 : 0.5}
-                depthTest={false}
-              />
+              <coneGeometry args={[handleScale, handleScale * 2.5, 12]} />
+              <meshBasicMaterial color={color} transparent opacity={isEnabled ? 0.9 : 0.5} depthTest={false} />
             </mesh>
-
-            {/* 扩大点击区域的隐形球 */}
-            <mesh ref={(el) => { handleMeshRefs.current[axis + '-sphere'] = el }} position={endPos} onPointerDown={(e) => handlePointerDown(axis, e)}>
-              <sphereGeometry args={[handleScale * 2.5, 12, 12]} />
-              <meshBasicMaterial transparent opacity={0} depthTest={false} />
-            </mesh>
-
-            {/* 线上可拖动的位置手柄 */}
-            {isSelected && sectionState.enabled && (
-              <mesh
-                ref={(el) => { handleMeshRefs.current[axis + '-handle'] = el }}
-                position={sectionPoint}
-                onPointerDown={(e) => handlePointerDown(axis, e)}
-                renderOrder={1000}
-              >
-                <sphereGeometry args={[handleScale * 1.5, 16, 16]} />
-                <meshBasicMaterial color={color} transparent opacity={0.8} depthTest={false} />
-              </mesh>
+            {/* 手柄球体 */}
+            {isEnabled && (
+              <group ref={(el) => { handleRefs.current[axis] = el }} position={sectionPoint} renderOrder={1000}>
+                <mesh
+                  onPointerDown={(e) => { e.stopPropagation(); startDrag(axis, e as unknown as PointerEvent) }}
+                >
+                  <sphereGeometry args={[handleScale * 1.5, 16, 16]} />
+                  <meshBasicMaterial color={color} depthTest={false} depthWrite={false} />
+                </mesh>
+              </group>
             )}
-
-            {/* 位置标签 */}
-            <Html
-              position={endPos.clone().addScaledVector(direction, handleScale * 2).toArray()}
-              center
-              style={{ pointerEvents: 'none', userSelect: 'none' }}
-            >
+            {/* 半透明剖面圆面 */}
+            {isEnabled && (
+              <SectionPlaneVisual axis={axis} position={sectionState.planes[axis].position} modelCenter={modelCenter} modelSize={modelSize} color={color} groupRef={(el) => { planeVisualRefs.current[axis] = el }} />
+            )}
+            <Html position={endPos.clone().addScaledVector(direction, handleScale * 2).toArray()} center style={{ pointerEvents: 'none', userSelect: 'none' }}>
               <div style={{
-                background: 'rgba(0,0,0,0.85)',
-                color: color,
-                padding: '2px 6px',
-                borderRadius: '3px',
-                fontSize: '11px',
-                fontFamily: 'monospace',
-                whiteSpace: 'nowrap',
-                border: `1px solid ${isSelected ? color : 'transparent'}`,
-                opacity: isSelected ? 1 : 0.7,
+                background: 'rgba(0,0,0,0.85)', color, padding: '2px 6px', borderRadius: '3px',
+                fontSize: '11px', fontFamily: 'monospace', whiteSpace: 'nowrap',
+                border: `1px solid ${isEnabled ? color : 'transparent'}`, opacity: isEnabled ? 1 : 0.7,
               }}>
-                {axis.toUpperCase()}
-                {isSelected && sectionState.enabled ? `: ${sectionState.position.toFixed(2)}` : ''}
+                {axis.toUpperCase()}{isEnabled ? `: ${sectionState.planes[axis].position.toFixed(2)}` : ''}
               </div>
             </Html>
-
-            {/* 剖切平面可视化 */}
-            {isSelected && sectionState.enabled && (
-              <SectionPlane
-                axis={axis}
-                position={sectionState.position}
-                modelCenter={modelCenter}
-                modelSize={modelSize}
-                color={color}
-              />
-            )}
           </group>
         )
       })}
@@ -367,7 +292,7 @@ function SectionScene({ pluginManager, orbitRef }: { pluginManager: PluginManage
   )
 }
 
-function getConeRotation(axis: 'x' | 'y' | 'z'): [number, number, number] {
+function getConeRotation(axis: Axis): [number, number, number] {
   switch (axis) {
     case 'x': return [0, 0, -Math.PI / 2]
     case 'y': return [0, 0, 0]
@@ -375,13 +300,13 @@ function getConeRotation(axis: 'x' | 'y' | 'z'): [number, number, number] {
   }
 }
 
-/** 剖面线段组件：超薄圆柱体，屏幕空间恒定粗细 */
-function SectionLine({ start, end, color, isSelected, lineRefs }: {
+/** 剖面线段 */
+function SectionLine({ start, end, color, isSelected, onLineRef }: {
   start: THREE.Vector3
   end: THREE.Vector3
   color: string
   isSelected: boolean
-  lineRefs: React.MutableRefObject<Record<string, THREE.Mesh | null>>
+  onLineRef: (id: string, el: THREE.Mesh | null) => void
 }) {
   const mid = useMemo(() => new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5), [start, end])
   const length = useMemo(() => start.distanceTo(end), [start, end])
@@ -398,7 +323,7 @@ function SectionLine({ start, end, color, isSelected, lineRefs }: {
     <mesh
       ref={(el) => {
         if (el) el.raycast = () => {}
-        lineRefs.current[id] = el
+        onLineRef(id, el)
       }}
       position={mid}
       rotation={rotation}
@@ -410,14 +335,16 @@ function SectionLine({ start, end, color, isSelected, lineRefs }: {
   )
 }
 
-function SectionPlane({
-  axis, position, modelCenter, modelSize, color,
+/** 半透明剖面平面可视化 */
+function SectionPlaneVisual({
+  axis, position, modelCenter, modelSize, color, groupRef,
 }: {
-  axis: 'x' | 'y' | 'z'
+  axis: Axis
   position: number
   modelCenter: THREE.Vector3
   modelSize: THREE.Vector3
   color: string
+  groupRef?: (el: THREE.Group | null) => void
 }) {
   const radius = Math.max(modelSize.x, modelSize.y, modelSize.z) * 0.6
 
@@ -439,16 +366,6 @@ function SectionPlane({
     }
   }, [axis])
 
-  // 十字线（水平 + 垂直，两条独立线段）
-  const hLine = useMemo(() => [
-    new THREE.Vector3(-radius, 0, 0),
-    new THREE.Vector3(radius, 0, 0),
-  ], [radius])
-  const vLine = useMemo(() => [
-    new THREE.Vector3(0, -radius, 0),
-    new THREE.Vector3(0, radius, 0),
-  ], [radius])
-
   const circlePoints = useMemo(() => {
     const pts: THREE.Vector3[] = []
     const segments = 64
@@ -459,11 +376,8 @@ function SectionPlane({
     return pts
   }, [radius])
 
-  const lineMatProps = { color, transparent: true as const, depthTest: false }
-
   return (
-    <group position={positionVec} rotation={rotation} renderOrder={997}>
-      {/* 半透明圆形填充 */}
+    <group ref={groupRef} position={positionVec} rotation={rotation} renderOrder={997}>
       <mesh ref={(el) => { if (el) el.raycast = () => {} }} renderOrder={997}>
         <circleGeometry args={[radius, 64]} />
         <meshBasicMaterial
@@ -475,27 +389,7 @@ function SectionPlane({
           depthTest={false}
         />
       </mesh>
-      {/* 圆形轮廓 */}
-      <Line
-        points={circlePoints}
-        lineWidth={1.5}
-        {...lineMatProps}
-        opacity={0.5}
-      />
-      {/* 水平十字线 */}
-      <Line
-        points={hLine}
-        lineWidth={1}
-        {...lineMatProps}
-        opacity={0.35}
-      />
-      {/* 垂直十字线 */}
-      <Line
-        points={vLine}
-        lineWidth={1}
-        {...lineMatProps}
-        opacity={0.35}
-      />
+      <Line points={circlePoints} lineWidth={1.5} color={color} transparent depthTest={false} opacity={0.5} />
     </group>
   )
 }
@@ -503,8 +397,11 @@ function SectionPlane({
 // ─── MeasurementScene ──────────────────────────────────────────────────────────
 
 function MeasurementScene({ pluginManager }: { pluginManager: PluginManager }) {
-  const modelObject = useViewerStore((s) => s.modelObject)
-  const { camera, gl } = useThree()
+  const modelObject = useSceneStore((s) => s.modelObject)
+  const { camera, gl: glFromHook } = useThree()
+  // 使用 ref 保存 hook 返回的 Three.js 对象，通过 effect 同步
+  const glRef = useRef(glFromHook)
+  useEffect(() => { glRef.current = glFromHook })
 
   const plugin = pluginManager.getPlugin('measurement') as unknown as MeasurementPlugin | undefined
 
@@ -522,7 +419,7 @@ function MeasurementScene({ pluginManager }: { pluginManager: PluginManager }) {
   useEffect(() => {
     if (!plugin || !modelObject) return
 
-    const canvas = gl.domElement
+    const canvas = glRef.current.domElement
     const raycaster = new THREE.Raycaster()
     const mouse = new THREE.Vector2()
 
@@ -551,7 +448,7 @@ function MeasurementScene({ pluginManager }: { pluginManager: PluginManager }) {
       canvas.removeEventListener('click', onClick)
       canvas.removeEventListener('contextmenu', onContextMenu)
     }
-  }, [plugin, modelObject, camera, gl])
+  }, [plugin, modelObject, camera])
 
   useEffect(() => {
     if (!plugin) return
@@ -568,11 +465,19 @@ function MeasurementScene({ pluginManager }: { pluginManager: PluginManager }) {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [plugin])
 
-  useEffect(() => {
-    const canvas = gl.domElement
+  // 使用 useFrame 设置光标样式，避免修改 hook 返回值
+  useFrame(() => {
+    const canvas = glRef.current.domElement
     canvas.style.cursor = 'crosshair'
-    return () => { canvas.style.cursor = 'default' }
-  }, [gl])
+  })
+
+  // 卸载时恢复默认光标
+  useEffect(() => {
+    return () => {
+      const canvas = glRef.current.domElement
+      canvas.style.cursor = 'default'
+    }
+  }, [])
 
   if (!modelObject || !plugin) return null
 
@@ -598,12 +503,12 @@ function MeasurementPoint({ position, scale, isPending, camera }: {
   camera: THREE.Camera
 }) {
   const meshRef = useRef<THREE.Mesh>(null)
-  const baseRadius = Math.max(scale * 0.012, 0.015)
+  const baseRadius = Math.max(scale * 0.005, 0.006)
 
   useFrame(() => {
     if (!meshRef.current) return
     const dist = camera.position.distanceTo(position)
-    const screenRadius = baseRadius * dist * 0.25
+    const screenRadius = baseRadius * dist * 0.1
     meshRef.current.scale.setScalar(screenRadius / baseRadius)
   })
 
@@ -642,25 +547,5 @@ function MeasurementVisualization({ measurement, modelExtent, plugin, camera }: 
         </span>
       </Html>
     </group>
-  )
-}
-
-// ─── RotationControls ─────────────────────────────────────────────────────────
-
-function RotationControls({ target, orbitRef }: { target: THREE.Object3D; orbitRef: React.RefObject<any> }) {
-  const transformRef = useRef<any>(null)
-
-  useEffect(() => {
-    const controls = transformRef.current
-    if (!controls) return
-    const onDraggingChanged = (event: { value: boolean }) => {
-      if (orbitRef.current) orbitRef.current.enabled = !event.value
-    }
-    controls.addEventListener('dragging-changed', onDraggingChanged)
-    return () => { controls.removeEventListener('dragging-changed', onDraggingChanged) }
-  }, [orbitRef])
-
-  return (
-    <TransformControls ref={transformRef} object={target} mode="rotate" size={0.7} />
   )
 }

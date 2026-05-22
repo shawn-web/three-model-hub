@@ -1,6 +1,28 @@
 import * as THREE from 'three'
 
-export function applyEditData(model: THREE.Group, editData: any): void {
+/** 组件编辑数据结构 */
+interface ComponentEditRaw {
+  version?: number
+  backgroundColor?: string
+  autoRotate?: boolean
+  markers?: unknown[]
+  components?: Record<string, {
+    name?: string | null
+    description?: string | null
+    transform?: {
+      position: [number, number, number]
+      rotation: [number, number, number]
+      scale: [number, number, number]
+    }
+    material?: {
+      color?: string
+      opacity?: number | null
+    }
+    visible?: boolean
+  }>
+}
+
+export function applyEditData(model: THREE.Group, editData: ComponentEditRaw): void {
   // 兼容 version 1 格式：补充缺失的新字段
   if (!editData.version || editData.version === 1) {
     editData.backgroundColor = editData.backgroundColor || '#1a1a2e'
@@ -23,8 +45,8 @@ export function applyEditData(model: THREE.Group, editData: any): void {
   }
 
   // 应用组件编辑
-  for (const [key, editRaw] of Object.entries(editData.components)) {
-    const edit = editRaw as any
+  for (const [key, editRaw] of Object.entries(editData.components!)) {
+    const edit = editRaw
     let target: THREE.Object3D | null = model.getObjectByProperty('uuid', key) ?? null
     if (!target) {
       target = model.getObjectByName(key) ?? null

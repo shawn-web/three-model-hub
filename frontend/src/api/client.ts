@@ -11,6 +11,10 @@ import type { AxiosRequestConfig, AxiosResponse } from 'axios'
 
 /* ──────────────── GET 请求缓存 ──────────────── */
 
+interface InternalConfig {
+  __cacheHit?: AxiosResponse
+}
+
 interface HttpCacheEntry {
   response: AxiosResponse
   timestamp: number
@@ -54,7 +58,7 @@ apiClient.interceptors.request.use((config) => {
 
     if (entry && Date.now() - entry.timestamp < HTTP_CACHE_TTL) {
       // 标记为缓存命中，在响应拦截器中直接返回
-      ;(config as any).__cacheHit = entry.response
+      ;(config as InternalConfig).__cacheHit = entry.response
     }
   }
 
@@ -67,8 +71,8 @@ apiClient.interceptors.response.use(
     const method = (response.config.method || 'get').toLowerCase()
 
     // 如果是缓存命中，直接返回缓存的响应
-    if ((response.config as any).__cacheHit) {
-      return (response.config as any).__cacheHit
+    if ((response.config as InternalConfig).__cacheHit) {
+      return (response.config as InternalConfig).__cacheHit
     }
 
     // 缓存成功的 GET 响应

@@ -55,7 +55,7 @@ export function readJsonFile(file: File): Promise<EditData> {
     reader.onload = () => {
       try {
         resolve(JSON.parse(reader.result as string))
-      } catch (err) {
+      } catch {
         reject(new Error('Invalid JSON file'))
       }
     }

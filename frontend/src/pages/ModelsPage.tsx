@@ -16,6 +16,7 @@ import {
 import { ArrowUpload20, Edit20, Copy20, ArrowDownload20, Delete20, Eye20, Cube20, Search20 } from '../components/FluentIcon'
 import type { ColumnsType } from 'antd/es/table'
 import { getModels, uploadModel, deleteModel, updateModel, copyModel } from '../api/models'
+import { invalidateHttpCache } from '../api/client'
 
 /** 模型数据类型 */
 interface ModelItem {
@@ -41,7 +42,7 @@ export function ModelsPage() {
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
-  const [uploadPhase, setUploadPhase] = useState<'idle' | 'uploading' | 'processing'>('idle')
+  const [, setUploadPhase] = useState<'idle' | 'uploading' | 'processing'>('idle')
 
   /* 编辑弹窗状态 */
   const [editModalOpen, setEditModalOpen] = useState(false)
@@ -49,23 +50,29 @@ export function ModelsPage() {
   const [editForm] = Form.useForm()
 
   const pageSize = 20
+  const [refreshKey, setRefreshKey] = useState(0)
 
-  /** 加载模型列表 */
-  const loadModels = useCallback(async () => {
-    setLoading(true)
-    try {
-      const res = await getModels({ page, limit: pageSize, search: search || undefined })
-      setModels(res.items || [])
-      setTotal(res.total || 0)
-    } catch {
-      setModels([])
+  /** 加载模型列表（page/search 变化或手动刷新时触发） */
+  useEffect(() => {
+    let cancelled = false
+    const doLoad = async () => {
+      setLoading(true)
+      try {
+        const res = await getModels({ page, limit: pageSize, search: search || undefined })
+        if (cancelled) return
+        setModels(res.items || [])
+        setTotal(res.total || 0)
+      } catch {
+        if (!cancelled) setModels([])
+      }
+      if (!cancelled) setLoading(false)
     }
-    setLoading(false)
-  }, [page, search])
+    doLoad()
+    return () => { cancelled = true }
+  }, [page, search, refreshKey])
 
-  useEffect(() => { loadModels() }, [loadModels])
-
-  /** 上传模型 */
+  /** 手动触发刷新 */
+  const reloadModels = useCallback(() => setRefreshKey((k) => k + 1), [])
   const handleUpload = async (file: File) => {
     setUploading(true)
     setUploadPhase('uploading')
@@ -75,7 +82,8 @@ export function ModelsPage() {
         setUploadProgress(percent)
       })
       message.success('上传成功')
-      loadModels()
+      invalidateHttpCache('/models')
+      reloadModels()
     } catch (err) {
       console.error('上传失败:', err)
       message.error('上传失败，请重试')
@@ -91,10 +99,18 @@ export function ModelsPage() {
     try {
       await deleteModel(id)
       message.success('删除成功')
-      loadModels()
-    } catch (err) {
-      console.error('删除失败:', err)
-      message.error('删除失败')
+      invalidateHttpCache('/models')
+      reloadModels()
+    } catch (err: unknown) {
+      const resp = (err as { response?: { status?: number; data?: { message?: string } } })?.response
+      if (resp?.status === 400 && resp?.data?.message) {
+        Modal.error({
+          title: '无法删除模型',
+          content: resp.data.message,
+        })
+      } else {
+        message.error('删除失败')
+      }
     }
   }
 
@@ -103,7 +119,8 @@ export function ModelsPage() {
     try {
       await copyModel(id)
       message.success('复制成功')
-      loadModels()
+      invalidateHttpCache('/models')
+      reloadModels()
     } catch (err) {
       console.error('复制失败:', err)
       message.error('复制失败')
@@ -129,7 +146,8 @@ export function ModelsPage() {
       setEditModalOpen(false)
       setEditingModel(null)
       message.success('更新成功')
-      loadModels()
+      invalidateHttpCache('/models')
+      reloadModels()
     } catch (err) {
       console.error('更新失败:', err)
       message.error('更新失败')
@@ -297,7 +315,7 @@ export function ModelsPage() {
         onCancel={() => { setEditModalOpen(false); setEditingModel(null) }}
         okText="保存"
         cancelText="取消"
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={editForm} layout="vertical" className="mt-4">
           <Form.Item

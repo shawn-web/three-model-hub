@@ -66,13 +66,6 @@ export async function uploadModel(
   if (!fileUrl) throw new Error('文件上传失败：未获取到文件 URL')
   const fileKey = inner.fileName || inner.fileKey || fileUrl.split('/').pop() || ''
 
-  // 从返回的 URL 中提取 bucket（路径第一段），如 /huazhu/labs/models/... → bucket=huazhu
-  let fileBucket = ''
-  try {
-    const urlPath = new URL(fileUrl).pathname.replace(/^\//, '')
-    fileBucket = urlPath.split('/')[0] || ''
-  } catch { /* ignore */ }
-
   // 6. 创建模型记录
   const { data: model } = await apiClient.post('/models/create', {
     name: metadata.name,
@@ -81,7 +74,6 @@ export async function uploadModel(
     file_url: fileUrl,
     file_name: file.name,
     file_size: file.size,
-    file_bucket: fileBucket,
     file_key: fileKey,
     commit_message: '初始版本',
   })
