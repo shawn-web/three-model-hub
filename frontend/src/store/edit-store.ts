@@ -112,6 +112,8 @@ export interface EditState {
   xrayMode: boolean
   /** 高亮管理器引用（由 EditSceneSetup 设置） */
   highlightManager: SelectionHighlightManager | null
+  /** RRF invalidate 函数（由 Canvas 内部组件设置，外部修改材质后调用强制刷新） */
+  invalidateFn: (() => void) | null
 }
 
 /** 编辑器操作方法 */
@@ -212,6 +214,8 @@ export interface EditActions {
   setXrayMode: (enabled: boolean) => void
   /** 设置高亮管理器引用 */
   setHighlightManager: (mgr: SelectionHighlightManager | null) => void
+  /** 设置 RRF invalidate 函数 */
+  setInvalidateFn: (fn: (() => void) | null) => void
   /** 重置编辑器状态 */
   resetEdit: () => void
 }
@@ -267,6 +271,7 @@ const initialState: EditState = {
   sceneVersion: 0,
   xrayMode: false,
   highlightManager: null,
+  invalidateFn: null,
 }
 
 /** 编辑器状态管理 Store（支持时间旅行撤销/重做） */
@@ -413,6 +418,7 @@ export const useEditStore = create<EditState & EditActions>()(
       bumpSceneVersion: () => set((s) => ({ sceneVersion: s.sceneVersion + 1 })),
       setXrayMode: (enabled) => set({ xrayMode: enabled }),
       setHighlightManager: (mgr) => set({ highlightManager: mgr }),
+      setInvalidateFn: (fn) => set({ invalidateFn: fn }),
       resetEdit: () => set(initialState),
     }),
     {
