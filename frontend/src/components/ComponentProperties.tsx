@@ -230,6 +230,7 @@ export const ComponentProperties = forwardRef<ComponentPropertiesRef>(function C
   if (!selectedObj) return null
 
   return (
+    <>
     <div style={{ padding: '4px 8px' }}>
       <div style={{
         padding: '8px 4px 6px',
@@ -410,5 +411,6 @@ export const ComponentProperties = forwardRef<ComponentPropertiesRef>(function C
           }}
         />
       )}
+  </>
   )
 })

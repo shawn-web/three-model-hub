@@ -20,6 +20,11 @@ export function extractEditData(
       material: {
         color: edit.color,
         opacity: edit.opacity,
+        mapUrl: edit.mapUrl,
+        normalMapUrl: edit.normalMapUrl,
+        roughnessMapUrl: edit.roughnessMapUrl,
+        metalnessMapUrl: edit.metalnessMapUrl,
+        emissiveMapUrl: edit.emissiveMapUrl,
       },
       visible: edit.visible,
       name: edit.name,
