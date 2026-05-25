@@ -302,7 +302,8 @@ export function SceneTree() {
         title="编辑构件属性"
         open={editingId !== null}
         onCancel={() => setEditingId(null)}
-        width={360}
+        width={420}
+        styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}
         destroyOnHidden
         footer={[
           <Button key="cancel" size="small" onClick={() => setEditingId(null)}>
