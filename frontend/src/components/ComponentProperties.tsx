@@ -157,13 +157,11 @@ export const ComponentProperties = forwardRef<ComponentPropertiesRef>(function C
       scale: [sx, sy, sz],
     })
     // 保存材质
-    console.log('[ComponentProperties.save] hasMesh:', hasMesh, 'selectedObj:', selectedObj?.uuid, 'mapUrl:', mapUrl)
     if (hasMesh) {
       const meshes: THREE.Mesh[] = []
       selectedObj.traverse((child) => {
         if ((child as THREE.Mesh).isMesh) meshes.push(child as THREE.Mesh)
       })
-      console.log('[ComponentProperties.save] found meshes:', meshes.length)
       const loader = new THREE.TextureLoader()
       loader.setCrossOrigin('anonymous')
 
@@ -189,11 +187,10 @@ export const ComponentProperties = forwardRef<ComponentPropertiesRef>(function C
 
           for (const { url, mapKey, origKey } of texChannels) {
             if (url) {
-              console.log('[Texture] Loading', mapKey, 'from', url)
               if (!mat.userData[origKey]) mat.userData[origKey] = mat[mapKey]
               const tex = loader.load(
                 url,
-                () => { console.log('[Texture] Loaded OK:', mapKey); mat.needsUpdate = true },
+                () => { mat.needsUpdate = true },
                 undefined,
                 (err) => { console.error('[Texture] FAILED:', mapKey, url, err) },
               )
