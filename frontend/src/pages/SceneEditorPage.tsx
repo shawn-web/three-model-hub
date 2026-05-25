@@ -99,6 +99,14 @@ export function SceneEditorPage() {
   const setCameraState = useSceneStore((s) => s.setCameraState)
   const editModelObject = useSceneStore((s) => s.modelObject)
   const [sceneName, setSceneName] = useState('')
+
+  // 组件卸载时清理全局 store，防止切到其他场景时残留旧数据
+  useEffect(() => {
+    return () => {
+      useSceneStore.getState().resetScene()
+      useEditStore.getState().resetEdit()
+    }
+  }, [])
   const [sceneConfig, setSceneConfig] = useState<SceneConfig | null>(null)
   const [sceneModels, setSceneModels] = useState<SceneModelEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -282,6 +290,11 @@ export function SceneEditorPage() {
               scale: child.scale.toArray() as [number, number, number],
               color: override?.color ?? null,
               opacity: override?.opacity ?? null,
+              mapUrl: override?.mapUrl ?? null,
+              normalMapUrl: override?.normalMapUrl ?? null,
+              roughnessMapUrl: override?.roughnessMapUrl ?? null,
+              metalnessMapUrl: override?.metalnessMapUrl ?? null,
+              emissiveMapUrl: override?.emissiveMapUrl ?? null,
               visible: child.visible,
               name: child.name || null,
               description: desc || override?.description || null,
@@ -406,6 +419,11 @@ export function SceneEditorPage() {
               ...existing,
               ...(data.color != null && { color: data.color }),
               ...(data.opacity != null && { opacity: data.opacity }),
+              ...(data.mapUrl != null && { mapUrl: data.mapUrl }),
+              ...(data.normalMapUrl != null && { normalMapUrl: data.normalMapUrl }),
+              ...(data.roughnessMapUrl != null && { roughnessMapUrl: data.roughnessMapUrl }),
+              ...(data.metalnessMapUrl != null && { metalnessMapUrl: data.metalnessMapUrl }),
+              ...(data.emissiveMapUrl != null && { emissiveMapUrl: data.emissiveMapUrl }),
               ...(data.description != null && { description: data.description }),
               position: data.position,
               rotation: data.rotation,

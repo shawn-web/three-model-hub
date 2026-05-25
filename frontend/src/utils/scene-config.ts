@@ -26,6 +26,11 @@ interface ComponentEditRaw {
   scale?: [number, number, number]
   color?: string
   opacity?: number
+  mapUrl?: string | null
+  normalMapUrl?: string | null
+  roughnessMapUrl?: string | null
+  metalnessMapUrl?: string | null
+  emissiveMapUrl?: string | null
   visible?: boolean
   name?: string | null
   description?: string | null
@@ -158,7 +163,6 @@ function fullSceneImage(img: SceneMedia) {
     text: img.text,
     fontSize: img.fontSize,
     fontColor: img.fontColor,
-    iframeUrl: img.iframeUrl,
   }
 }
 
@@ -173,6 +177,11 @@ function serializeComponents(editData: Record<string, ComponentEditRaw | null>) 
       scale: data.scale,
       color: data.color,
       opacity: data.opacity,
+      mapUrl: data.mapUrl,
+      normalMapUrl: data.normalMapUrl,
+      roughnessMapUrl: data.roughnessMapUrl,
+      metalnessMapUrl: data.metalnessMapUrl,
+      emissiveMapUrl: data.emissiveMapUrl,
       visible: data.visible,
       name: data.name,
       description: data.description,
@@ -234,7 +243,7 @@ const sceneConfig = {
   //   popup      - 弹窗配置（action='popup' 时生效）
   //     title      弹窗标题
   //     content    弹窗文本内容
-  //     contentUrl iframe 嵌入链接（可选，会替代文本内容）
+  //     contentUrl 嵌入链接（可选，会替代文本内容）
   //     style      自定义样式 { width, background, textColor, borderRadius, fontSize }
   //   linkUrl    - 跳转链接（action='link' 时生效）
   //   linkTarget - '_blank' | '_self'
@@ -242,16 +251,15 @@ const sceneConfig = {
   markers: ${markersJson},
 
   // ========== 场景媒体 ==========
-  // 支持四种类型：image(图片)/video(视频)/text(文字标注)/iframe(网页嵌入)
-  // type       - 媒体类型 'image' | 'video' | 'text' | 'iframe'
+  // 支持三种类型：image(图片)/video(视频)/text(文字标注)
+  // type       - 媒体类型 'image' | 'video' | 'text'
   // url        - 资源 URL（图片/视频）
   // position   - 3D 坐标 [x, y, z]
   // scale      - 缩放 [x, y]，平面无厚度
-  // rotation   - 旋转（Z 轴弧度）
+  // rotation   - 旋转 [x, y, z] 欧拉角
   // billboard  - true = 始终面向相机，false = 嵌入场景
   // 视频专用：autoplay/muted/loop
   // 文字专用：text/fontSize/fontColor
-  // iframe专用：iframeUrl
   sceneImages: ${sceneImagesJson},
 
   // ========== 模型组件编辑 ==========
