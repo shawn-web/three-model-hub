@@ -78,18 +78,50 @@ export class SelectionHighlightManager {
     return this.highlightedMeshes.get(mesh) ?? mesh.material
   }
 
-  /** 同步更新原始材质的颜色/透明度（在属性面板保存时调用） */
-  syncToOriginalMaterial(mesh: THREE.Mesh, updates: { color?: string; opacity?: number }): void {
+  /** 同步更新原始材质的颜色/透明度/PBR贴图（在属性面板保存时调用） */
+  syncToOriginalMaterial(mesh: THREE.Mesh, updates: {
+    color?: string
+    opacity?: number
+    mapUrl?: string | null
+    normalMapUrl?: string | null
+    roughnessMapUrl?: string | null
+    metalnessMapUrl?: string | null
+    emissiveMapUrl?: string | null
+  }): void {
     const original = this.highlightedMeshes.get(mesh)
     if (!original) return
     const mats = Array.isArray(original) ? original : [original]
     for (const mat of mats) {
-      if (updates.color && 'color' in mat) {
-        (mat as OpacityMaterial).color.set(updates.color)
+      const m = mat as THREE.MeshStandardMaterial
+      if (updates.color && 'color' in m) {
+        m.color.set(updates.color)
       }
-      if (updates.opacity !== undefined && 'opacity' in mat) {
-        (mat as OpacityMaterial).transparent = true
-        ;(mat as OpacityMaterial).opacity = updates.opacity
+      if (updates.opacity !== undefined && 'opacity' in m) {
+        m.transparent = true
+        m.opacity = updates.opacity
+      }
+      const texChannels: Array<{
+        url: string | null | undefined
+        mapKey: keyof Pick<THREE.MeshStandardMaterial, 'map' | 'normalMap' | 'roughnessMap' | 'metalnessMap' | 'emissiveMap'>
+        origKey: string
+      }> = [
+        { url: updates.mapUrl, mapKey: 'map', origKey: '_originalMap' },
+        { url: updates.normalMapUrl, mapKey: 'normalMap', origKey: '_originalNormalMap' },
+        { url: updates.roughnessMapUrl, mapKey: 'roughnessMap', origKey: '_originalRoughnessMap' },
+        { url: updates.metalnessMapUrl, mapKey: 'metalnessMap', origKey: '_originalMetalnessMap' },
+        { url: updates.emissiveMapUrl, mapKey: 'emissiveMap', origKey: '_originalEmissiveMap' },
+      ]
+      for (const { url, mapKey, origKey } of texChannels) {
+        if (url === undefined) continue
+        if (url) {
+          if (!m.userData[origKey]) m.userData[origKey] = m[mapKey]
+          const tex = new THREE.TextureLoader().load(url)
+          if (mapKey === 'map') tex.colorSpace = THREE.SRGBColorSpace
+          m[mapKey] = tex
+        } else {
+          m[mapKey] = m.userData[origKey] ?? null
+        }
+        m.needsUpdate = true
       }
     }
   }
