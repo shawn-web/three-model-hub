@@ -303,6 +303,51 @@ export function SceneEditorPage() {
           console.log('[Restore] total entries:', Object.keys(restoredEditData).length)
           if (Object.keys(restoredEditData).length > 0) {
             store.loadEditData(restoredEditData)
+
+            // 将 editData 中的材质属性应用到 Three.js 材质上
+            const texLoader = new THREE.TextureLoader()
+            texLoader.setCrossOrigin('anonymous')
+            for (const [uuid, data] of Object.entries(restoredEditData)) {
+              const obj = sceneGroup.getObjectByProperty('uuid', uuid)
+              if (!obj) continue
+              obj.traverse((child) => {
+                if (!(child as THREE.Mesh).isMesh) return
+                const mesh = child as THREE.Mesh
+                const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+                for (const m of materials) {
+                  const mat = m as THREE.MeshStandardMaterial
+                  if (data.color) {
+                    if (!mat.userData._originalColor) mat.userData._originalColor = mat.color.getHexString()
+                    mat.color.set(data.color)
+                  }
+                  if (data.opacity != null) {
+                    if (mat.userData._originalOpacity === undefined) mat.userData._originalOpacity = mat.opacity
+                    mat.transparent = data.opacity < 1
+                    mat.opacity = data.opacity
+                  }
+                  const texChannels: Array<{
+                    url: string | null
+                    mapKey: keyof Pick<THREE.MeshStandardMaterial, 'map' | 'normalMap' | 'roughnessMap' | 'metalnessMap' | 'emissiveMap'>
+                    origKey: string
+                  }> = [
+                    { url: data.mapUrl, mapKey: 'map', origKey: '_originalMap' },
+                    { url: data.normalMapUrl, mapKey: 'normalMap', origKey: '_originalNormalMap' },
+                    { url: data.roughnessMapUrl, mapKey: 'roughnessMap', origKey: '_originalRoughnessMap' },
+                    { url: data.metalnessMapUrl, mapKey: 'metalnessMap', origKey: '_originalMetalnessMap' },
+                    { url: data.emissiveMapUrl, mapKey: 'emissiveMap', origKey: '_originalEmissiveMap' },
+                  ]
+                  for (const { url, mapKey, origKey } of texChannels) {
+                    if (url) {
+                      if (!mat.userData[origKey]) mat.userData[origKey] = mat[mapKey]
+                      const tex = texLoader.load(url)
+                      if (mapKey === 'map') tex.colorSpace = THREE.SRGBColorSpace
+                      mat[mapKey] = tex
+                    }
+                  }
+                  mat.needsUpdate = true
+                }
+              })
+            }
           }
 
           const enriched = sceneData.models.map((sm: Record<string, unknown>) => ({
