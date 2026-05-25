@@ -296,15 +296,12 @@ export class BatchSceneImageItemDto {
   height: number
 
   @IsOptional()
-  @IsObject()
   position?: Record<string, any>
 
   @IsOptional()
-  @IsObject()
   scale?: Record<string, any>
 
   @IsOptional()
-  @IsObject()
   rotation?: Record<string, any>
 
   @IsOptional()
