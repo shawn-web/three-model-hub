@@ -22,9 +22,10 @@ import type { SceneSetupConfig } from '../types/plugin-config'
 function useEditPluginInit() {
   const pluginManagerRef = useRef(new PluginManager())
   const [pluginManager, setPluginManager] = useState<PluginManager | null>(null)
-  const { scene, camera, gl } = useThree()
+  const { scene, camera, gl, invalidate } = useThree()
 
   useEffect(() => {
+    useEditStore.getState().setInvalidateFn(invalidate)
     const pm = pluginManagerRef.current
     const context = createViewerContext(
       scene, camera, gl,

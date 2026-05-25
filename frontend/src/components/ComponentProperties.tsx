@@ -157,11 +157,13 @@ export const ComponentProperties = forwardRef<ComponentPropertiesRef>(function C
       scale: [sx, sy, sz],
     })
     // 保存材质
+    console.log('[ComponentProperties.save] hasMesh:', hasMesh, 'selectedObj:', selectedObj?.uuid, 'mapUrl:', mapUrl)
     if (hasMesh) {
       const meshes: THREE.Mesh[] = []
       selectedObj.traverse((child) => {
         if ((child as THREE.Mesh).isMesh) meshes.push(child as THREE.Mesh)
       })
+      console.log('[ComponentProperties.save] found meshes:', meshes.length)
       const loader = new THREE.TextureLoader()
       loader.setCrossOrigin('anonymous')
 
@@ -187,12 +189,13 @@ export const ComponentProperties = forwardRef<ComponentPropertiesRef>(function C
 
           for (const { url, mapKey, origKey } of texChannels) {
             if (url) {
+              console.log('[Texture] Loading', mapKey, 'from', url)
               if (!mat.userData[origKey]) mat.userData[origKey] = mat[mapKey]
               const tex = loader.load(
                 url,
-                () => { mat.needsUpdate = true },
+                () => { console.log('[Texture] Loaded OK:', mapKey); mat.needsUpdate = true },
                 undefined,
-                (err) => { console.error(`[Texture] 加载 ${mapKey} 失败:`, url, err) },
+                (err) => { console.error('[Texture] FAILED:', mapKey, url, err) },
               )
               if (mapKey === 'map') tex.colorSpace = THREE.SRGBColorSpace
               mat[mapKey] = tex
@@ -222,6 +225,8 @@ export const ComponentProperties = forwardRef<ComponentPropertiesRef>(function C
         ...(emissiveMapUrl !== null ? { emissiveMapUrl } : {}),
       })
     }
+    // 强制 RRF 刷新画布以反映材质变化
+    useEditStore.getState().invalidateFn?.()
   }, [selectedComponentId, selectedObj, alias, description, posX, posY, posZ, rotX, rotY, rotZ, scaleX, scaleY, scaleZ, color, opacity, mapUrl, normalMapUrl, roughnessMapUrl, metalnessMapUrl, emissiveMapUrl, hasMesh, updateComponentName, updateComponentDescription, updateComponentTransform, updateComponentMaterial])
 
   useImperativeHandle(ref, () => ({ save }), [save])
