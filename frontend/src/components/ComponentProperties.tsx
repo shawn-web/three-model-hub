@@ -337,8 +337,6 @@ export const ComponentProperties = forwardRef<ComponentPropertiesRef>(function C
               size="small"
             />
           </div>
-        </>
-      )}
 
         <div style={{ marginTop: 8, borderTop: `1px solid ${token.colorBorderSecondary}`, paddingTop: 8 }}>
           <div style={{ fontSize: 11, color: token.colorTextTertiary, marginBottom: 4 }}>贴图设置</div>
@@ -375,6 +373,8 @@ export const ComponentProperties = forwardRef<ComponentPropertiesRef>(function C
             </div>
           ))}
         </div>
+        </>
+      )}
 
       <div style={{ marginTop: 8, borderTop: `1px solid ${token.colorBorderSecondary}`, paddingTop: 8 }}>
         <div style={{ fontSize: 11, color: token.colorTextTertiary, marginBottom: 4 }}>描述</div>
