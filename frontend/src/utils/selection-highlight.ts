@@ -112,13 +112,14 @@ export class SelectionHighlightManager {
         { url: updates.emissiveMapUrl, mapKey: 'emissiveMap', origKey: '_originalEmissiveMap' },
       ]
       for (const { url, mapKey, origKey } of texChannels) {
-        if (url === undefined) continue
+        if (url === undefined || url === null) continue
         if (url) {
           if (!m.userData[origKey]) m.userData[origKey] = m[mapKey]
           const tex = new THREE.TextureLoader().load(url)
           if (mapKey === 'map') tex.colorSpace = THREE.SRGBColorSpace
           m[mapKey] = tex
         } else {
+          // url === ''：用户主动清除了贴图
           m[mapKey] = m.userData[origKey] ?? null
         }
         m.needsUpdate = true
