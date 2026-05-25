@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, useImperativeHandle, forwardRef } from 'react'
-import { Input, Slider, ColorPicker, Empty, theme } from 'antd'
+import { Input, Slider, ColorPicker, Empty, theme, Button, Image } from 'antd'
+import { ResourcePicker } from './ResourcePicker'
 import * as THREE from 'three'
 import { useEditStore } from '../store/edit-store'
 
@@ -35,6 +36,12 @@ export const ComponentProperties = forwardRef<ComponentPropertiesRef>(function C
   const [scaleX, setScaleX] = useState('1')
   const [scaleY, setScaleY] = useState('1')
   const [scaleZ, setScaleZ] = useState('1')
+  const [mapUrl, setMapUrl] = useState<string | null>(null)
+  const [normalMapUrl, setNormalMapUrl] = useState<string | null>(null)
+  const [roughnessMapUrl, setRoughnessMapUrl] = useState<string | null>(null)
+  const [metalnessMapUrl, setMetalnessMapUrl] = useState<string | null>(null)
+  const [emissiveMapUrl, setEmissiveMapUrl] = useState<string | null>(null)
+  const [texturePickerTarget, setTexturePickerTarget] = useState<string | null>(null)
   const [hasMesh, setHasMesh] = useState(false)
 
   // 当选中构件变化时，从对象和 editData 恢复状态
@@ -54,6 +61,11 @@ export const ComponentProperties = forwardRef<ComponentPropertiesRef>(function C
       setScaleX('1')
       setScaleY('1')
       setScaleZ('1')
+      setMapUrl(null)
+      setNormalMapUrl(null)
+      setRoughnessMapUrl(null)
+      setMetalnessMapUrl(null)
+      setEmissiveMapUrl(null)
       setHasMesh(false)
       return
     }
@@ -100,6 +112,16 @@ export const ComponentProperties = forwardRef<ComponentPropertiesRef>(function C
       const mat = Array.isArray(mesh.material) ? mesh.material[0] as THREE.MeshStandardMaterial : mesh.material as THREE.MeshStandardMaterial
       setColor(mat.color.getStyle())
       setOpacity(Math.round((mat.opacity ?? 1) * 100))
+      if (data?.mapUrl !== undefined) setMapUrl(data.mapUrl)
+      else setMapUrl(null)
+      if (data?.normalMapUrl !== undefined) setNormalMapUrl(data.normalMapUrl)
+      else setNormalMapUrl(null)
+      if (data?.roughnessMapUrl !== undefined) setRoughnessMapUrl(data.roughnessMapUrl)
+      else setRoughnessMapUrl(null)
+      if (data?.metalnessMapUrl !== undefined) setMetalnessMapUrl(data.metalnessMapUrl)
+      else setMetalnessMapUrl(null)
+      if (data?.emissiveMapUrl !== undefined) setEmissiveMapUrl(data.emissiveMapUrl)
+      else setEmissiveMapUrl(null)
       setHasMesh(true)
     } else {
       setHasMesh(false)
@@ -135,19 +157,61 @@ export const ComponentProperties = forwardRef<ComponentPropertiesRef>(function C
       scale: [sx, sy, sz],
     })
     // 保存材质
-    if (hasMesh && selectedObj instanceof THREE.Mesh) {
-      const mat = Array.isArray(selectedObj.material) ? selectedObj.material[0] as THREE.MeshStandardMaterial : selectedObj.material as THREE.MeshStandardMaterial
-      mat.color.set(color)
-      mat.transparent = true
-      mat.opacity = opacity / 100
-      // 同步更新高亮前的原始材质，避免重新选中时颜色丢失
-      const mgr = useEditStore.getState().highlightManager
-      if (mgr) {
-        mgr.syncToOriginalMaterial(selectedObj, { color, opacity: opacity / 100 })
+    if (hasMesh) {
+      const meshes: THREE.Mesh[] = []
+      selectedObj.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) meshes.push(child as THREE.Mesh)
+      })
+      const loader = new THREE.TextureLoader()
+
+      for (const mesh of meshes) {
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+        for (const m of materials) {
+          const mat = m as THREE.MeshStandardMaterial
+          mat.color.set(color)
+          mat.transparent = true
+          mat.opacity = opacity / 100
+
+          const texChannels: Array<{
+            url: string | null
+            mapKey: keyof Pick<THREE.MeshStandardMaterial, 'map' | 'normalMap' | 'roughnessMap' | 'metalnessMap' | 'emissiveMap'>
+            origKey: string
+          }> = [
+            { url: mapUrl, mapKey: 'map', origKey: '_originalMap' },
+            { url: normalMapUrl, mapKey: 'normalMap', origKey: '_originalNormalMap' },
+            { url: roughnessMapUrl, mapKey: 'roughnessMap', origKey: '_originalRoughnessMap' },
+            { url: metalnessMapUrl, mapKey: 'metalnessMap', origKey: '_originalMetalnessMap' },
+            { url: emissiveMapUrl, mapKey: 'emissiveMap', origKey: '_originalEmissiveMap' },
+          ]
+
+          for (const { url, mapKey, origKey } of texChannels) {
+            if (url) {
+              if (!mat.userData[origKey]) mat.userData[origKey] = mat[mapKey]
+              const tex = loader.load(url)
+              if (mapKey === 'map') tex.colorSpace = THREE.SRGBColorSpace
+              mat[mapKey] = tex
+            } else {
+              mat[mapKey] = mat.userData[origKey] ?? null
+              delete mat.userData[origKey]
+            }
+            mat.needsUpdate = true
+          }
+        }
+
+        const mgr = useEditStore.getState().highlightManager
+        if (mgr) {
+          mgr.syncToOriginalMaterial(mesh, {
+            color, opacity: opacity / 100,
+            mapUrl, normalMapUrl, roughnessMapUrl, metalnessMapUrl, emissiveMapUrl,
+          })
+        }
       }
-      updateComponentMaterial(selectedComponentId, { color, opacity: opacity / 100 })
+      updateComponentMaterial(selectedComponentId, {
+        color, opacity: opacity / 100,
+        mapUrl, normalMapUrl, roughnessMapUrl, metalnessMapUrl, emissiveMapUrl,
+      })
     }
-  }, [selectedComponentId, selectedObj, alias, description, posX, posY, posZ, rotX, rotY, rotZ, scaleX, scaleY, scaleZ, color, opacity, hasMesh, updateComponentName, updateComponentDescription, updateComponentTransform, updateComponentMaterial])
+  }, [selectedComponentId, selectedObj, alias, description, posX, posY, posZ, rotX, rotY, rotZ, scaleX, scaleY, scaleZ, color, opacity, mapUrl, normalMapUrl, roughnessMapUrl, metalnessMapUrl, emissiveMapUrl, hasMesh, updateComponentName, updateComponentDescription, updateComponentTransform, updateComponentMaterial])
 
   useImperativeHandle(ref, () => ({ save }), [save])
 
@@ -276,6 +340,42 @@ export const ComponentProperties = forwardRef<ComponentPropertiesRef>(function C
         </>
       )}
 
+        <div style={{ marginTop: 8, borderTop: `1px solid ${token.colorBorderSecondary}`, paddingTop: 8 }}>
+          <div style={{ fontSize: 11, color: token.colorTextTertiary, marginBottom: 4 }}>贴图设置</div>
+          {([
+            { label: '漫反射贴图', value: mapUrl, onChange: setMapUrl, key: 'map' },
+            { label: '法线贴图', value: normalMapUrl, onChange: setNormalMapUrl, key: 'normalMap' },
+            { label: '粗糙度贴图', value: roughnessMapUrl, onChange: setRoughnessMapUrl, key: 'roughnessMap' },
+            { label: '金属度贴图', value: metalnessMapUrl, onChange: setMetalnessMapUrl, key: 'metalnessMap' },
+            { label: '自发光贴图', value: emissiveMapUrl, onChange: setEmissiveMapUrl, key: 'emissiveMap' },
+          ] as const).map(({ label, value, onChange, key }) => (
+            <div key={key} style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{ width: 70, fontSize: 11, color: token.colorTextSecondary, flexShrink: 0 }}>{label}</div>
+              {value ? (
+                <Image
+                  src={value}
+                  width={32}
+                  height={32}
+                  style={{ borderRadius: 4, objectFit: 'cover', flexShrink: 0 }}
+                  preview={{ mask: null as unknown as React.ReactNode }}
+                />
+              ) : (
+                <div style={{
+                  width: 32, height: 32, borderRadius: 4, flexShrink: 0,
+                  background: token.colorFillQuaternary,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={token.colorTextQuaternary} strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+                </div>
+              )}
+              <Button size="small" onClick={() => setTexturePickerTarget(key)}>选择</Button>
+              {value && (
+                <Button size="small" danger onClick={() => onChange(null)}>×</Button>
+              )}
+            </div>
+          ))}
+        </div>
+
       <div style={{ marginTop: 8, borderTop: `1px solid ${token.colorBorderSecondary}`, paddingTop: 8 }}>
         <div style={{ fontSize: 11, color: token.colorTextTertiary, marginBottom: 4 }}>描述</div>
         <Input.TextArea
@@ -288,5 +388,27 @@ export const ComponentProperties = forwardRef<ComponentPropertiesRef>(function C
         />
       </div>
     </div>
+      {texturePickerTarget && (
+        <ResourcePicker
+          open={texturePickerTarget !== null}
+          onClose={() => setTexturePickerTarget(null)}
+          typeFilter="image"
+          multiple={false}
+          allowUpload={true}
+          onSelect={(items) => {
+            if (items.length > 0) {
+              const url = items[0].url
+              switch (texturePickerTarget) {
+                case 'map': setMapUrl(url); break
+                case 'normalMap': setNormalMapUrl(url); break
+                case 'roughnessMap': setRoughnessMapUrl(url); break
+                case 'metalnessMap': setMetalnessMapUrl(url); break
+                case 'emissiveMap': setEmissiveMapUrl(url); break
+              }
+            }
+            setTexturePickerTarget(null)
+          }}
+        />
+      )}
   )
 })
