@@ -17,6 +17,11 @@ interface ComponentEditRaw {
     material?: {
       color?: string
       opacity?: number | null
+      mapUrl?: string | null
+      normalMapUrl?: string | null
+      roughnessMapUrl?: string | null
+      metalnessMapUrl?: string | null
+      emissiveMapUrl?: string | null
     }
     visible?: boolean
   }>
@@ -88,6 +93,28 @@ export function applyEditData(model: THREE.Group, editData: ComponentEditRaw): v
               mat.transparent = edit.material!.opacity < 1
               mat.opacity = edit.material!.opacity
               mat.needsUpdate = true
+            }
+            // 贴图恢复
+            const loader = new THREE.TextureLoader()
+            const texChannels: Array<{
+              url: string | null | undefined
+              mapKey: keyof Pick<THREE.MeshStandardMaterial, 'map' | 'normalMap' | 'roughnessMap' | 'metalnessMap' | 'emissiveMap'>
+              origKey: string
+            }> = [
+              { url: edit.material!.mapUrl, mapKey: 'map', origKey: '_originalMap' },
+              { url: edit.material!.normalMapUrl, mapKey: 'normalMap', origKey: '_originalNormalMap' },
+              { url: edit.material!.roughnessMapUrl, mapKey: 'roughnessMap', origKey: '_originalRoughnessMap' },
+              { url: edit.material!.metalnessMapUrl, mapKey: 'metalnessMap', origKey: '_originalMetalnessMap' },
+              { url: edit.material!.emissiveMapUrl, mapKey: 'emissiveMap', origKey: '_originalEmissiveMap' },
+            ]
+            for (const { url, mapKey, origKey } of texChannels) {
+              if (url !== null && url !== undefined) {
+                if (!mat.userData[origKey]) mat.userData[origKey] = mat[mapKey]
+                const tex = loader.load(url)
+                if (mapKey === 'map') tex.colorSpace = THREE.SRGBColorSpace
+                mat[mapKey] = tex
+                mat.needsUpdate = true
+              }
             }
           })
         }
