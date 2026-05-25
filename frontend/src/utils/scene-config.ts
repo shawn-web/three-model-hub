@@ -24,8 +24,8 @@ interface ComponentEditRaw {
   position?: [number, number, number]
   rotation?: [number, number, number]
   scale?: [number, number, number]
-  color?: string
-  opacity?: number
+  color?: string | null
+  opacity?: number | null
   mapUrl?: string | null
   normalMapUrl?: string | null
   roughnessMapUrl?: string | null
