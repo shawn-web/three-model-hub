@@ -7,6 +7,11 @@ export interface ComponentEdit {
   material: {
     color: string | null
     opacity: number | null
+    mapUrl: string | null
+    normalMapUrl: string | null
+    roughnessMapUrl: string | null
+    metalnessMapUrl: string | null
+    emissiveMapUrl: string | null
   }
   visible: boolean
   name: string | null
@@ -51,7 +56,7 @@ export interface MarkerData {
   images?: MarkerImage[]
 }
 
-export type SceneMediaType = 'image' | 'video' | 'text' | 'iframe'
+export type SceneMediaType = 'image' | 'video' | 'text'
 
 export interface SceneMedia {
   id: string
@@ -65,8 +70,8 @@ export interface SceneMedia {
   position?: [number, number, number]
   /** 缩放 (X, Y)，平面无厚度 */
   scale?: [number, number]
-  /** 旋转 (Z)，平面只需绕法线旋转 */
-  rotation?: number
+  /** 旋转 (X, Y, Z) 欧拉角，弧度 */
+  rotation?: [number, number, number]
   visible: boolean
   /** true = 始终面向相机（广告牌），false = 嵌入场景（固定朝向） */
   billboard?: boolean
@@ -78,8 +83,6 @@ export interface SceneMedia {
   text?: string
   fontSize?: number
   fontColor?: string
-  // iframe 专用
-  iframeUrl?: string
 }
 
 /** 兼容旧数据 */
