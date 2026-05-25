@@ -24,6 +24,11 @@ export interface EditComponentData {
   visible: boolean
   name: string | null
   description: string | null
+  mapUrl: string | null
+  normalMapUrl: string | null
+  roughnessMapUrl: string | null
+  metalnessMapUrl: string | null
+  emissiveMapUrl: string | null
   _deleted?: boolean
 }
 
@@ -130,7 +135,15 @@ export interface EditActions {
   /** 更新构件变换数据 */
   updateComponentTransform: (uuid: string, transform: Partial<{ position: [number, number, number]; rotation: [number, number, number]; scale: [number, number, number] }>) => void
   /** 更新构件材质数据 */
-  updateComponentMaterial: (uuid: string, material: { color?: string | null; opacity?: number | null }) => void
+  updateComponentMaterial: (uuid: string, material: {
+    color?: string | null
+    opacity?: number | null
+    mapUrl?: string | null
+    normalMapUrl?: string | null
+    roughnessMapUrl?: string | null
+    metalnessMapUrl?: string | null
+    emissiveMapUrl?: string | null
+  }) => void
   /** 更新构件可见性 */
   updateComponentVisibility: (uuid: string, visible: boolean) => void
   /** 更新构件名称 */
@@ -213,6 +226,11 @@ const defaultComponent = (): EditComponentData => ({
   visible: true,
   name: null,
   description: null,
+  mapUrl: null,
+  normalMapUrl: null,
+  roughnessMapUrl: null,
+  metalnessMapUrl: null,
+  emissiveMapUrl: null,
 })
 
 /** 初始状态 */
@@ -292,6 +310,11 @@ export const useEditStore = create<EditState & EditActions>()(
               ...existing,
               color: material.color !== undefined ? material.color : existing.color,
               opacity: material.opacity !== undefined ? material.opacity : existing.opacity,
+              mapUrl: material.mapUrl !== undefined ? material.mapUrl : existing.mapUrl,
+              normalMapUrl: material.normalMapUrl !== undefined ? material.normalMapUrl : existing.normalMapUrl,
+              roughnessMapUrl: material.roughnessMapUrl !== undefined ? material.roughnessMapUrl : existing.roughnessMapUrl,
+              metalnessMapUrl: material.metalnessMapUrl !== undefined ? material.metalnessMapUrl : existing.metalnessMapUrl,
+              emissiveMapUrl: material.emissiveMapUrl !== undefined ? material.emissiveMapUrl : existing.emissiveMapUrl,
             },
           },
           isDirty: true,
@@ -403,6 +426,7 @@ export const useEditStore = create<EditState & EditActions>()(
         && pastState.autoRotateSpeed === currentState.autoRotateSpeed
         && pastState.backgroundColor === currentState.backgroundColor
         && JSON.stringify(pastState.markers) === JSON.stringify(currentState.markers)
+        && JSON.stringify(pastState.sceneImages) === JSON.stringify(currentState.sceneImages)
         && pastState.ambientIntensity === currentState.ambientIntensity
         && pastState.lightIntensity === currentState.lightIntensity
         && pastState.lightColor === currentState.lightColor
