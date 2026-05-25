@@ -186,15 +186,19 @@ export const ComponentProperties = forwardRef<ComponentPropertiesRef>(function C
 
           for (const { url, mapKey, origKey } of texChannels) {
             if (url) {
+              // 设置了贴图 URL：保存原始贴图并加载新贴图
               if (!mat.userData[origKey]) mat.userData[origKey] = mat[mapKey]
               const tex = loader.load(url)
               if (mapKey === 'map') tex.colorSpace = THREE.SRGBColorSpace
               mat[mapKey] = tex
-            } else {
+              mat.needsUpdate = true
+            } else if (url === '') {
+              // 用户主动清除了贴图：恢复原始贴图
               mat[mapKey] = mat.userData[origKey] ?? null
               delete mat.userData[origKey]
+              mat.needsUpdate = true
             }
-            mat.needsUpdate = true
+            // url === null：用户未操作此通道，保持原样不动
           }
         }
 
@@ -208,7 +212,11 @@ export const ComponentProperties = forwardRef<ComponentPropertiesRef>(function C
       }
       updateComponentMaterial(selectedComponentId, {
         color, opacity: opacity / 100,
-        mapUrl, normalMapUrl, roughnessMapUrl, metalnessMapUrl, emissiveMapUrl,
+        ...(mapUrl !== null ? { mapUrl } : {}),
+        ...(normalMapUrl !== null ? { normalMapUrl } : {}),
+        ...(roughnessMapUrl !== null ? { roughnessMapUrl } : {}),
+        ...(metalnessMapUrl !== null ? { metalnessMapUrl } : {}),
+        ...(emissiveMapUrl !== null ? { emissiveMapUrl } : {}),
       })
     }
   }, [selectedComponentId, selectedObj, alias, description, posX, posY, posZ, rotX, rotY, rotZ, scaleX, scaleY, scaleZ, color, opacity, mapUrl, normalMapUrl, roughnessMapUrl, metalnessMapUrl, emissiveMapUrl, hasMesh, updateComponentName, updateComponentDescription, updateComponentTransform, updateComponentMaterial])
@@ -369,7 +377,7 @@ export const ComponentProperties = forwardRef<ComponentPropertiesRef>(function C
               )}
               <Button size="small" onClick={() => setTexturePickerTarget(key)}>选择</Button>
               {value && (
-                <Button size="small" danger onClick={() => onChange(null)}>×</Button>
+                <Button size="small" danger onClick={() => onChange('')}>×</Button>
               )}
             </div>
           ))}
