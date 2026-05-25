@@ -115,11 +115,12 @@ export class SelectionHighlightManager {
         if (url === undefined || url === null) continue
         if (url) {
           if (!m.userData[origKey]) m.userData[origKey] = m[mapKey]
-          const tex = new THREE.TextureLoader().load(url)
+          const loader = new THREE.TextureLoader()
+          loader.setCrossOrigin('anonymous')
+          const tex = loader.load(url)
           if (mapKey === 'map') tex.colorSpace = THREE.SRGBColorSpace
           m[mapKey] = tex
         } else {
-          // url === ''：用户主动清除了贴图
           m[mapKey] = m.userData[origKey] ?? null
         }
         m.needsUpdate = true
