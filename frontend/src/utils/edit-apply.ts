@@ -96,6 +96,7 @@ export function applyEditData(model: THREE.Group, editData: ComponentEditRaw): v
             }
             // 贴图恢复
             const loader = new THREE.TextureLoader()
+            loader.setCrossOrigin('anonymous')
             const texChannels: Array<{
               url: string | null | undefined
               mapKey: keyof Pick<THREE.MeshStandardMaterial, 'map' | 'normalMap' | 'roughnessMap' | 'metalnessMap' | 'emissiveMap'>

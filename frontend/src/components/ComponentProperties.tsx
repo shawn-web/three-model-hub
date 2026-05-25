@@ -163,6 +163,7 @@ export const ComponentProperties = forwardRef<ComponentPropertiesRef>(function C
         if ((child as THREE.Mesh).isMesh) meshes.push(child as THREE.Mesh)
       })
       const loader = new THREE.TextureLoader()
+      loader.setCrossOrigin('anonymous')
 
       for (const mesh of meshes) {
         const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
@@ -186,19 +187,21 @@ export const ComponentProperties = forwardRef<ComponentPropertiesRef>(function C
 
           for (const { url, mapKey, origKey } of texChannels) {
             if (url) {
-              // 设置了贴图 URL：保存原始贴图并加载新贴图
               if (!mat.userData[origKey]) mat.userData[origKey] = mat[mapKey]
-              const tex = loader.load(url)
+              const tex = loader.load(
+                url,
+                () => { mat.needsUpdate = true },
+                undefined,
+                (err) => { console.error(`[Texture] 加载 ${mapKey} 失败:`, url, err) },
+              )
               if (mapKey === 'map') tex.colorSpace = THREE.SRGBColorSpace
               mat[mapKey] = tex
               mat.needsUpdate = true
             } else if (url === '') {
-              // 用户主动清除了贴图：恢复原始贴图
               mat[mapKey] = mat.userData[origKey] ?? null
               delete mat.userData[origKey]
               mat.needsUpdate = true
             }
-            // url === null：用户未操作此通道，保持原样不动
           }
         }
 
