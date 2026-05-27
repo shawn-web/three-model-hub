@@ -26,6 +26,7 @@
     "react-easy-crop": "^5.5.7",
     "react-router-dom": "^7.15.1",
     "three": "^0.184.0",
+    "yet-another-react-lightbox": "^3.32.0",
     "zundo": "^2.3.0",
     "zustand": "^5.0.13"
   },

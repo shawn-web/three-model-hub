@@ -37,6 +37,10 @@ import {
   readVideoMeta,
 } from '../api/resources'
 import type { ResourceItem, ResourceType, ResourceGroup } from '../types/resource'
+import { VideoThumbnail } from '../components/VideoThumbnail'
+import Lightbox from 'yet-another-react-lightbox'
+import Video from 'yet-another-react-lightbox/plugins/video'
+import 'yet-another-react-lightbox/styles.css'
 
 /**
  * 资源管理页面
@@ -74,6 +78,22 @@ export function ResourcesPage() {
   const [moveModalOpen, setMoveModalOpen] = useState(false)
   const [movingResource, setMovingResource] = useState<ResourceItem | null>(null)
   const [moveForm] = Form.useForm()
+
+  // 预览
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [lightboxIndex, setLightboxIndex] = useState(0)
+
+  /** 将资源列表转为 Lightbox slides */
+  const lightboxSlides = resources.map((item) =>
+    item.type === 'video'
+      ? {
+          type: 'video' as const,
+          sources: [{ src: item.url, type: item.mime_type || 'video/mp4' }],
+          width: item.width || 1280,
+          height: item.height || 720,
+        }
+      : { src: item.url }
+  )
 
   /** 加载资源列表（依赖变化时触发） */
   const [resourcesRefreshKey, setResourcesRefreshKey] = useState(0)
@@ -427,14 +447,18 @@ export function ResourcesPage() {
               <Col key={item.id} xs={12} sm={8} md={8} lg={6}>
                 <Card
                   hoverable
-                  className="rounded-lg overflow-hidden"
+                  className="rounded-lg overflow-hidden cursor-pointer"
+                  onClick={() => {
+                    setLightboxIndex(resources.indexOf(item))
+                    setLightboxOpen(true)
+                  }}
                   cover={
                     <div className="h-40 flex items-center justify-center bg-[--ant-color-fill-quaternary] overflow-hidden">
                       {item.type === 'image' ? (
                         <img
                           src={item.url}
                           alt={item.name}
-                          className="w-full h-full object-cover"
+                          className="h-full object-contain mx-auto"
                           onError={(e) => {
                             const el = e.currentTarget
                             el.style.display = 'none'
@@ -442,18 +466,20 @@ export function ResourcesPage() {
                             if (fallback) fallback.style.display = 'flex'
                           }}
                         />
-                      ) : null}
+                      ) : (
+                        <VideoThumbnail
+                          url={item.url}
+                          className="w-full h-full object-cover"
+                          fallbackSize={40}
+                        />
+                      )}
                       <div
                         className="flex-col items-center gap-1"
-                        style={{ display: item.type === 'image' ? 'none' : 'flex' }}
+                        style={{ display: 'none' }}
                       >
                         <Video20 size={40} color="var(--ant-color-text-tertiary)" />
                         <span className="text-xs text-[--ant-color-text-tertiary]">
-                          {item.type === 'video'
-                            ? item.duration
-                              ? `${Math.round(item.duration)}s`
-                              : '视频'
-                            : '图片'}
+                          视频
                         </span>
                       </div>
                     </div>
@@ -543,6 +569,16 @@ export function ResourcesPage() {
           </Form.Item>
         </Form>
       </Modal>
+
+      {/* 资源预览 */}
+      <Lightbox
+        open={lightboxOpen}
+        close={() => setLightboxOpen(false)}
+        index={lightboxIndex}
+        slides={lightboxSlides}
+        plugins={[Video]}
+        video={{ controls: true, playsInline: true }}
+      />
     </div>
   )
 }
