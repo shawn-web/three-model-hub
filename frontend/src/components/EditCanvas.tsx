@@ -47,6 +47,7 @@ function useEditPluginInit() {
 
     plugins.forEach((p) => pm.register(p))
     pm.activate('navigation')
+    pm.activate('xray')
 
     // 使用 state 暴露 pluginManager，避免在渲染中访问 ref.current
     setPluginManager(pm)
@@ -54,7 +55,7 @@ function useEditPluginInit() {
     return () => {
       plugins.forEach((p) => pm.unregister(p.id))
     }
-  }, [scene, camera, gl])
+  }, [scene, camera, gl, invalidate])
 
   return pluginManager
 }

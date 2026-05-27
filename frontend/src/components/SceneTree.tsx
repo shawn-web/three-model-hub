@@ -299,7 +299,7 @@ export function SceneTree() {
       </div>
 
       <Modal
-        title="编辑构件属性"
+        title={`编辑构件属性${editingId ? ` - ${getNodeName(editingId)}` : ''}`}
         open={editingId !== null}
         onCancel={() => setEditingId(null)}
         width={420}

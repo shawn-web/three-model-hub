@@ -121,7 +121,7 @@ export class SelectionHighlightManager {
           if (mapKey === 'map') tex.colorSpace = THREE.SRGBColorSpace
           m[mapKey] = tex
         } else {
-          m[mapKey] = m.userData[origKey] ?? null
+          m[mapKey] = null
         }
         m.needsUpdate = true
       }

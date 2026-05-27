@@ -8,7 +8,8 @@ import {
   readVideoMeta,
 } from '../api/resources'
 import type { ResourceItem, ResourceType, ResourceGroup } from '../types/resource'
-import { Search20, ArrowUpload20, Video20 } from './FluentIcon'
+import { Search20, ArrowUpload20 } from './FluentIcon'
+import { VideoThumbnail } from './VideoThumbnail'
 import { Icon } from '@iconify/react'
 import { folderIcon } from './Icons'
 
@@ -357,17 +358,17 @@ function ResourcePickerContent({
                                 if (fallback) fallback.style.display = 'flex'
                               }}
                             />
-                          ) : null}
+                          ) : (
+                            <VideoThumbnail url={item.url} className="w-full h-full object-cover" fallbackSize={32} />
+                          )}
                           <div
                             style={{
-                              display: item.type === 'image' ? 'none' : 'flex',
+                              display: 'none',
                               flexDirection: 'column',
                               alignItems: 'center',
                               gap: 4,
                             }}
-                          >
-                            <Video20 size={32} color="var(--ant-color-text-tertiary)" />
-                          </div>
+                          />
                         </div>
                         <div style={{
                           padding: '6px 8px',

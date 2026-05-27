@@ -15,9 +15,12 @@ import * as THREE from 'three'
 import { useSceneStore } from '../store/scene-store'
 import { useEditStore } from '../store/edit-store'
 import { fitToView } from '../utils/fit-to-view'
+import { getMessageBus } from '../hooks/useMessageBus'
+import { MESSAGE_TYPES } from '../communication/protocol'
 import { SceneBackground } from './SceneBackground'
 import { SceneImageSprite } from './SceneImageSprite'
-import { MarkerSpriteShared } from './MarkerSpriteShared'
+import { MarkerSpriteShared, createDefaultMarkerImage } from './MarkerSpriteShared'
+import { getDefaultMarkerUrl } from '../utils/marker-defaults'
 import { PluginScene } from './PluginScene'
 import { LIGHT_DEFAULTS } from '../utils/lighting'
 import type { SceneSetupConfig } from '../types/plugin-config'
@@ -47,19 +50,24 @@ export function SceneSetup({ config, pluginManager }: SceneSetupProps) {
   // ── 场景数据 ──
   const modelObject = useSceneStore((s) => s.modelObject)
   const selectedComponentId = useSceneStore((s) => s.selectedComponentId)
-  const markers = useSceneStore((s) => s.markers)
-  const sceneImages = useSceneStore((s) => s.sceneImages)
+  const markers_scene = useSceneStore((s) => s.markers)
+  const sceneImages_scene = useSceneStore((s) => s.sceneImages)
 
   // ── 编辑模式特有状态（hooks 必须无条件调用） ──
   const editAddingMarker = useEditStore((s) => s.addingMarker)
   const editEditingMarkerId = useEditStore((s) => s.editingMarkerId)
   const editSelectedMarkerId = useEditStore((s) => s.selectedMarkerId)
   const editPlacingImageId = useEditStore((s) => s.placingImageId)
+  const sceneVersion = useEditStore((s) => s.sceneVersion)
+  const markers_edit = useEditStore((s) => s.markers)
+  const sceneImages_edit = useEditStore((s) => s.sceneImages)
   // 根据模式选择实际使用的值（hooks 必须无条件调用，故先调用再选择）
   const addingMarker = config.mode === 'edit' ? editAddingMarker : false
   const editingMarkerId = config.mode === 'edit' ? editEditingMarkerId : null
   const _selectedMarkerId = config.mode === 'edit' ? editSelectedMarkerId : null
   const _placingImageId = config.mode === 'edit' ? editPlacingImageId : null
+  const markers = config.mode === 'edit' ? markers_edit : markers_scene
+  const sceneImages = config.mode === 'edit' ? sceneImages_edit : sceneImages_scene
   // _selectedMarkerId 和 _placingImageId 预留给后续功能使用
   void addingMarker
   void editingMarkerId
@@ -126,11 +134,12 @@ export function SceneSetup({ config, pluginManager }: SceneSetupProps) {
     }
   }, [])
 
-  // ── fitToView 注册 ──
+  // ── fitToView 注册（支持可选方向参数） ──
   useEffect(() => {
-    useSceneStore.getState().setFitToViewFn(() => {
+    useSceneStore.getState().setFitToViewFn((direction) => {
       if (!modelObject || !orbitRef.current) return
-      fitToView(cameraRef.current as THREE.PerspectiveCamera, orbitRef.current, modelObject)
+      const dir = direction ? new THREE.Vector3(direction.x, direction.y, direction.z) : undefined
+      fitToView(cameraRef.current as THREE.PerspectiveCamera, orbitRef.current, modelObject, { direction: dir })
     })
     return () => useSceneStore.getState().setFitToViewFn(null)
   }, [modelObject])
@@ -145,7 +154,7 @@ export function SceneSetup({ config, pluginManager }: SceneSetupProps) {
     }
   }, [pluginManager])
 
-  // ── 相机初始化 ──
+  // ── 相机初始化（无保存配置时默认等轴测视角） ──
   useEffect(() => {
     if (!modelObject || !orbitRef.current) return
     const cam = cameraRef.current as THREE.PerspectiveCamera
@@ -159,7 +168,8 @@ export function SceneSetup({ config, pluginManager }: SceneSetupProps) {
       }
       orbitRef.current.update()
     } else {
-      fitToView(cam, orbitRef.current, modelObject)
+      const isometricDir = new THREE.Vector3(1, 1, 1).normalize()
+      fitToView(cam, orbitRef.current, modelObject, { direction: isometricDir })
     }
   }, [modelObject]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -183,7 +193,6 @@ export function SceneSetup({ config, pluginManager }: SceneSetupProps) {
 
   // ── 选中时平滑过渡相机到构件 ──
   useEffect(() => {
-    if (config.mode !== 'edit') return
     if (!selectedObj || !orbitRef.current || !modelObject) return
     const cam = cameraRef.current as THREE.PerspectiveCamera
     const controls = orbitRef.current
@@ -223,6 +232,7 @@ export function SceneSetup({ config, pluginManager }: SceneSetupProps) {
     if (selectedComponentId || !modelObject || !orbitRef.current) return
     const cam = cameraRef.current as THREE.PerspectiveCamera
     const controls = orbitRef.current
+    // 回到适配全模型视角
     const box = new THREE.Box3().setFromObject(modelObject)
     const center = box.getCenter(new THREE.Vector3())
     const size = box.getSize(new THREE.Vector3())
@@ -232,7 +242,7 @@ export function SceneSetup({ config, pluginManager }: SceneSetupProps) {
     const direction = new THREE.Vector3().subVectors(cam.position, controls.target).normalize()
     const targetPos = center.clone().add(direction.multiplyScalar(cameraZ))
     cameraAnim.current = { targetPos, targetLookAt: center, progress: 0 }
-  }, [selectedComponentId, modelObject])
+  }, [selectedComponentId, modelObject, config.mode, config.camera.savedConfig])
 
   useFrame((_, delta) => {
     const anim = cameraAnim.current
@@ -261,12 +271,18 @@ export function SceneSetup({ config, pluginManager }: SceneSetupProps) {
   // ═══════════════════════════════════════════════════════════════
 
   const handleDoubleClick = useCallback((event: ThreeEvent<MouseEvent>) => {
-    if (config.mode !== 'edit' || !modelObject) return
+    if (!modelObject) return
     event.stopPropagation()
 
     const target = event.object
     if (target === modelObject) {
-      useEditStore.getState().selectComponent(null)
+      useSceneStore.getState().selectComponent(null)
+      return
+    }
+
+    if (config.mode === 'view') {
+      const currentId = useSceneStore.getState().selectedComponentId
+      useSceneStore.getState().selectComponent(target.uuid === currentId ? null : target.uuid)
       return
     }
 
@@ -293,56 +309,61 @@ export function SceneSetup({ config, pluginManager }: SceneSetupProps) {
     }
   }, [config.mode, modelObject, selectedComponentId])
 
-  const handleClick = useCallback((event: ThreeEvent<MouseEvent>) => {
+  // 放置模式使用 mousedown 触发，避免拖动模型后松手时误放置到错误位置
+  const handlePointerDown = useCallback((event: ThreeEvent<MouseEvent>) => {
     if (config.mode !== 'edit' || !modelObject) return
     event.stopPropagation()
 
     const editState = useEditStore.getState()
 
-    // 标记放置模式
     if (editState.addingMarker || editState.editingMarkerId) {
       const p = event.point
-      const defaultIcon = localStorage.getItem('markerDefaultIcon') ||
-        'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><circle cx="16" cy="16" r="14" fill="red"/></svg>')
+      const defaultIcon = getDefaultMarkerUrl() || createDefaultMarkerImage()
 
       if (editState.editingMarkerId) {
         const existing = editState.markers.find((m) => m.id === editState.editingMarkerId)
-        const iconUrl = existing?.iconUrl ?? defaultIcon
-        useSceneStore.getState().updateMarker(editState.editingMarkerId, {
-          position: { x: p.x, y: p.y, z: p.z },
-          iconUrl,
-        } as Parameters<ReturnType<typeof useSceneStore.getState>['updateMarker']>[1])
+        const imageUrl = existing?.imageUrl ?? defaultIcon
+        useEditStore.getState().updateMarker(editState.editingMarkerId, {
+          position: [p.x, p.y, p.z],
+          imageUrl,
+        })
         editState.setEditingMarkerId(null)
         editState.setSelectedMarkerId(null)
         editState.setIsDirty(true)
       } else {
         markerCounter++
         const id = `marker-${Date.now()}-${markerCounter}`
-        useSceneStore.getState().addMarker({
+        useEditStore.getState().addMarker({
           id,
-          position: { x: p.x, y: p.y, z: p.z },
+          position: [p.x, p.y, p.z],
           name: `标点 ${markerCounter}`,
-          iconUrl: defaultIcon,
+          imageUrl: defaultIcon,
+          width: 1,
+          height: 1,
           action: 'popup',
-        } as Parameters<ReturnType<typeof useSceneStore.getState>['addMarker']>[0])
+        })
         editState.setAddingMarker(false)
         editState.setIsDirty(true)
       }
       return
     }
 
-    // 图像放置模式
     if (editState.placingImageId) {
       const p = event.point
-      useSceneStore.getState().updateSceneImage(editState.placingImageId, {
-        position: { x: p.x, y: p.y, z: p.z },
-      } as Parameters<ReturnType<typeof useSceneStore.getState>['updateSceneImage']>[1])
+      useEditStore.getState().updateSceneImage(editState.placingImageId, {
+        position: [p.x, p.y, p.z],
+      })
       editState.setPlacingImageId(null)
       editState.setIsDirty(true)
-      return
     }
+  }, [config.mode, modelObject])
 
-    // 变换模式选择
+  const handleClick = useCallback((event: ThreeEvent<MouseEvent>) => {
+    if (config.mode !== 'edit' || !modelObject) return
+    event.stopPropagation()
+
+    const editState = useEditStore.getState()
+
     if (editState.transformMode && event.object !== modelObject) {
       const target = event.object
       let targetId: string
@@ -438,9 +459,11 @@ export function SceneSetup({ config, pluginManager }: SceneSetupProps) {
       {modelObject && (
         <group ref={modelGroupRef}>
           <primitive
+            key={sceneVersion}
             object={modelObject}
+            onPointerDown={config.mode === 'edit' ? handlePointerDown : undefined}
             onClick={config.mode === 'edit' ? handleClick : undefined}
-            onDoubleClick={config.mode === 'edit' ? handleDoubleClick : undefined}
+            onDoubleClick={handleDoubleClick}
           />
         </group>
       )}
@@ -461,7 +484,21 @@ export function SceneSetup({ config, pluginManager }: SceneSetupProps) {
 
       {/* 场景图像 */}
       {modelObject && sceneImages.map((media) => (
-        <SceneImageSprite key={media.id} image={media} />
+        <SceneImageSprite key={media.id} image={media} onClick={(id) => {
+          if (config.mode === 'edit') {
+            const store = useEditStore.getState()
+            store.setPlacingImageId(null)
+            store.setSelectedImageId(store.selectedImageId === id ? null : id)
+          } else {
+            getMessageBus().send(MESSAGE_TYPES.MEDIA_CLICKED, {
+              id: media.id,
+              type: media.type,
+              name: media.name,
+              url: 'url' in media ? media.url : undefined,
+              text: 'text' in media ? media.text : undefined,
+            })
+          }
+        }} />
       ))}
     </>
   )

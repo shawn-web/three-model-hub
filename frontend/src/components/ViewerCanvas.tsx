@@ -91,9 +91,9 @@ const ViewerSceneContent = React.memo(function ViewerSceneContent({ onPluginMana
   const ambientIntensity = isModelPreview ? LIGHT_DEFAULTS.ambientIntensity : (sceneAmbientIntensity ?? LIGHT_DEFAULTS.ambientIntensity)
   const lightIntensity = isModelPreview ? 1.0 : (sceneLightIntensity ?? 1.0)
   const lightColor = isModelPreview ? LIGHT_DEFAULTS.lightColor : (sceneLightColor ?? LIGHT_DEFAULTS.lightColor)
-  const autoRotate = useViewerStore((s) => s.sceneConfig?.autoRotate ?? false)
-  const autoRotateAxis = useViewerStore((s) => s.sceneConfig?.autoRotateAxis ?? 'y')
-  const autoRotateSpeed = useViewerStore((s) => s.sceneConfig?.autoRotateSpeed ?? 2)
+  const autoRotate = useSceneStore((s) => s.autoRotate)
+  const autoRotateAxis = useSceneStore((s) => s.autoRotateAxis)
+  const autoRotateSpeed = useSceneStore((s) => s.autoRotateSpeed)
 
   const config: SceneSetupConfig = {
     mode: 'view',

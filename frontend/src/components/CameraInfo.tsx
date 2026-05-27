@@ -33,6 +33,8 @@ export function CameraInfo() {
         const dy = pos.y - target.y
         const dz = pos.z - target.z
         const distance = Math.sqrt(dx * dx + dy * dy + dz * dz)
+        // 数据异常时不更新（如模型刚加载时相机未就绪）
+        if (!isFinite(distance)) return
         // 水平方位角
         const azimuth = Math.atan2(dx, dz) * (180 / Math.PI)
         // 极角（仰角）
@@ -54,7 +56,7 @@ export function CameraInfo() {
 
   if (!cameraInfoVisible || !cameraData) return null
 
-  const fmt = (v: number) => v.toFixed(2)
+  const fmt = (v: number) => isFinite(v) ? v.toFixed(2) : '---'
 
   return (
     <div style={{

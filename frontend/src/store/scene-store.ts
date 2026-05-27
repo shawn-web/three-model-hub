@@ -31,9 +31,10 @@ export interface SceneState {
   autoRotateAxis: 'x' | 'y' | 'z'
   autoRotateSpeed: number
   cameraInfoVisible: boolean
+  viewCubeVisible: boolean
   getCameraState: (() => CameraStateData) | null
   setCameraState: ((state: CameraStateInput) => void) | null
-  fitToViewFn: (() => void) | null
+  fitToViewFn: ((direction?: { x: number; y: number; z: number }) => void) | null
   highlightManager: SelectionHighlightManager | null
 }
 
@@ -58,9 +59,10 @@ export interface SceneActions {
   setAutoRotateAxis: (axis: 'x' | 'y' | 'z') => void
   setAutoRotateSpeed: (speed: number) => void
   setCameraInfoVisible: (visible: boolean) => void
+  setViewCubeVisible: (visible: boolean) => void
   setGetCameraState: (fn: SceneState['getCameraState']) => void
   setSetCameraState: (fn: SceneState['setCameraState']) => void
-  setFitToViewFn: (fn: (() => void) | null) => void
+  setFitToViewFn: (fn: ((direction?: { x: number; y: number; z: number }) => void) | null) => void
   setHighlightManager: (mgr: SelectionHighlightManager | null) => void
   resetScene: () => void
 }
@@ -79,6 +81,7 @@ const initialState: SceneState = {
   autoRotateAxis: 'y',
   autoRotateSpeed: 2,
   cameraInfoVisible: false,
+  viewCubeVisible: true,
   getCameraState: null,
   setCameraState: null,
   fitToViewFn: null,
@@ -115,6 +118,7 @@ export const useSceneStore = create<SceneState & SceneActions>()((set) => ({
   setAutoRotateAxis: (axis) => set({ autoRotateAxis: axis }),
   setAutoRotateSpeed: (speed) => set({ autoRotateSpeed: speed }),
   setCameraInfoVisible: (visible) => set({ cameraInfoVisible: visible }),
+  setViewCubeVisible: (visible) => set({ viewCubeVisible: visible }),
 
   setGetCameraState: (fn) => set({ getCameraState: fn }),
   setSetCameraState: (fn) => set({ setCameraState: fn }),

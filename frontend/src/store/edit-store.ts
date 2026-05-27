@@ -76,6 +76,8 @@ export interface EditState {
   selectedMarkerId: string | null
   /** 场景媒体列表 */
   sceneImages: SceneMedia[]
+  /** 当前选中的媒体 ID */
+  selectedImageId: string | null
   /** 正在点击定位的媒体 ID */
   placingImageId: string | null
   /** 网格是否可见 */
@@ -194,6 +196,8 @@ export interface EditActions {
   updateSceneImage: (id: string, updates: Partial<SceneMedia>) => void
   /** 批量设置场景媒体列表 */
   setSceneImages: (images: SceneMedia[]) => void
+  /** 设置选中的媒体 ID */
+  setSelectedImageId: (id: string | null) => void
   /** 设置正在点击定位的媒体 ID */
   setPlacingImageId: (id: string | null) => void
   setGridVisible: (visible: boolean) => void
@@ -260,6 +264,7 @@ const initialState: EditState = {
   editingMarkerId: null,
   selectedMarkerId: null,
   sceneImages: [],
+  selectedImageId: null,
   placingImageId: null,
   gridVisible: false,
   activeTab: 'scene',
@@ -407,6 +412,7 @@ export const useEditStore = create<EditState & EditActions>()(
         isDirty: true,
       })),
       setSceneImages: (images) => set({ sceneImages: images }),
+      setSelectedImageId: (id) => set({ selectedImageId: id }),
       setPlacingImageId: (id) => set({ placingImageId: id }),
       setGridVisible: (visible) => set({ gridVisible: visible }),
       setActiveTab: (tab) => set({ activeTab: tab }),

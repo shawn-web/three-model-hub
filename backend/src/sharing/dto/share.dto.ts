@@ -1,9 +1,23 @@
+import { IsOptional, IsString, IsNumber, Min, IsIn } from 'class-validator'
+
 /**
  * 创建分享链接 DTO
  */
 export class CreateShareLinkDto {
+  @IsOptional()
+  @IsString()
   scene_id?: string
+
+  @IsOptional()
+  @IsString()
   model_id?: string
+
+  @IsOptional()
+  @IsIn(['view', 'download'])
   permission?: 'view' | 'download'
-  expires_hours?: number  // 过期小时数，null 表示永不过期
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  expires_hours?: number
 }

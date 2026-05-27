@@ -45,6 +45,8 @@ interface ExternalConfigData {
   autoRotate?: boolean
   autoRotateAxis?: string
   autoRotateSpeed?: number
+  gridVisible?: boolean
+  viewCubeVisible?: boolean
   toolbarVisible?: boolean
   treeVisible?: boolean
   hiddenTools?: string[]
@@ -56,19 +58,28 @@ interface ExternalConfigData {
   components?: Record<string, unknown>
 }
 
-/** Viewer store 接口（applyExternalConfig 使用） */
+/** Viewer store 接口（UI 专用字段） */
 interface ViewerStoreApi {
   sceneConfig?: Record<string, unknown>
-  markers: MarkerData[]
-  modelObject?: THREE.Group | null
   setSceneConfig: (config: Record<string, unknown>) => void
   setToolbarVisible: (visible: boolean) => void
   setTreeVisible: (visible: boolean) => void
   setHiddenTools: (tools: string[]) => void
   setRotationMode: (mode: boolean) => void
-  setCameraState: ((state: unknown) => void) | null
+}
+
+/** Scene store 接口（渲染专用字段） */
+interface SceneStoreApi {
+  modelObject: THREE.Group | null
+  markers: MarkerData[]
   setMarkers: (markers: MarkerData[]) => void
-  setSceneImages?: (images: SceneMedia[]) => void
+  setSceneImages: (images: SceneMedia[]) => void
+  setAutoRotate: (value: boolean) => void
+  setAutoRotateAxis: (axis: 'x' | 'y' | 'z') => void
+  setAutoRotateSpeed: (speed: number) => void
+  setGridVisible: (visible: boolean) => void
+  setViewCubeVisible: (visible: boolean) => void
+  setCameraState: ((state: unknown) => void) | null
 }
 
 import type * as THREE from 'three'
@@ -116,6 +127,7 @@ export function collectSceneConfig(store: EditState & {
     // UI 可见性
     toolbarVisible: true,
     treeVisible: true,
+    viewCubeVisible: true,
 
     // 相机
     camera: cameraState ? {
@@ -137,6 +149,7 @@ function fullMarker(m: MarkerData) {
     action: m.action,
     state: m.state,
     popup: m.popup,
+    iframe: m.iframe,
     linkUrl: m.linkUrl,
     linkTarget: m.linkTarget,
     images: m.images,
@@ -238,13 +251,20 @@ const sceneConfig = {
   //   imageUrl   - 标点图标 URL
   //   width      - 图标宽度
   //   height     - 图标高度
-  //   action     - 点击行为 'none' | 'popup' | 'link'
+  //   action     - 点击行为 'none' | 'popup' | 'iframe' | 'link'
   //   state      - 当前状态（匹配 images 中的 state 切换图标）
   //   popup      - 弹窗配置（action='popup' 时生效）
   //     title      弹窗标题
   //     content    弹窗文本内容
   //     contentUrl 嵌入链接（可选，会替代文本内容）
   //     style      自定义样式 { width, background, textColor, borderRadius, fontSize }
+  //   iframe     - iframe 弹窗配置（action='iframe' 时生效）
+  //     url        iframe 地址
+  //     width      弹窗宽度（px）
+  //     height     弹窗高度（px）
+  //     showCloseButton    是否显示关闭按钮
+  //     closeButtonImage   关闭按钮图片 URL
+  //     closeButtonPosition 关闭按钮位置
   //   linkUrl    - 跳转链接（action='link' 时生效）
   //   linkTarget - '_blank' | '_self'
   //   images     - 多图片数组，每项可带 state 标签用于状态切换
@@ -272,8 +292,9 @@ const sceneConfig = {
   models: ${modelsJson},
 
   // ========== UI 可见性 ==========
-  toolbarVisible: true,     // 是否显示工具栏
-  treeVisible: true,        // 是否显示模型树
+  toolbarVisible: ${config.toolbarVisible},     // 是否显示工具栏
+  treeVisible: ${config.treeVisible},           // 是否显示模型树
+  viewCubeVisible: ${config.viewCubeVisible},   // 是否显示右上角导航立方体
   hiddenTools: [],           // 隐藏的工具列表，如 ['section', 'measurement']
 
   // ========== 相机位置 ==========
@@ -298,78 +319,65 @@ export function downloadConfigFile(content: string, sceneName: string) {
 }
 
 /**
- * 解析 postMessage 传入的配置，返回需要在 viewer store 上执行的更新操作
+ * 解析 postMessage 传入的配置，分别写入 viewer-store（UI 数据）和 scene-store（渲染数据）
  */
-export function applyExternalConfig(data: ExternalConfigData, store: ViewerStoreApi) {
-  // 场景背景和灯光
-  if (data.background || data.ambientIntensity != null || data.lightIntensity != null || data.lightColor) {
-    const prev = store.sceneConfig || {}
-    store.setSceneConfig({
-      ...prev,
-      ...(data.background != null ? { background: data.background } : {}),
-      ...(data.ambientIntensity != null ? { ambientIntensity: data.ambientIntensity } : {}),
-      ...(data.lightIntensity != null ? { lightIntensity: data.lightIntensity } : {}),
-      ...(data.lightColor != null ? { lightColor: data.lightColor } : {}),
-    })
-  }
+export function applyExternalConfig(data: ExternalConfigData, viewerStore: ViewerStoreApi, sceneStore: SceneStoreApi) {
+  // ── sceneConfig（背景/灯光）→ viewer-store ──
+  const prev = viewerStore.sceneConfig || {}
+  const merged: Record<string, unknown> = { ...prev }
+  if (data.background != null) merged.background = data.background
+  if (data.ambientIntensity != null) merged.ambientIntensity = data.ambientIntensity
+  if (data.lightIntensity != null) merged.lightIntensity = data.lightIntensity
+  if (data.lightColor != null) merged.lightColor = data.lightColor
+  if (data.autoRotate != null) merged.autoRotate = data.autoRotate
+  if (data.autoRotateAxis) merged.autoRotateAxis = data.autoRotateAxis
+  if (data.autoRotateSpeed != null) merged.autoRotateSpeed = data.autoRotateSpeed
+  if (data.gridVisible != null) merged.gridVisible = data.gridVisible
+  if (data.viewCubeVisible != null) merged.viewCubeVisible = data.viewCubeVisible
+  viewerStore.setSceneConfig(merged)
 
-  // 自动旋转
-  if (data.autoRotate != null || data.autoRotateAxis || data.autoRotateSpeed != null) {
-    const prev = store.sceneConfig || {}
-    store.setSceneConfig({
-      ...prev,
-      ...(data.autoRotate != null ? { autoRotate: data.autoRotate } : {}),
-      ...(data.autoRotateAxis ? { autoRotateAxis: data.autoRotateAxis } : {}),
-      ...(data.autoRotateSpeed != null ? { autoRotateSpeed: data.autoRotateSpeed } : {}),
-    })
-  }
+  // ── 渲染字段 → scene-store ──
+  if (data.autoRotate != null) sceneStore.setAutoRotate(data.autoRotate)
+  if (data.autoRotateAxis) sceneStore.setAutoRotateAxis(data.autoRotateAxis as 'x' | 'y' | 'z')
+  if (data.autoRotateSpeed != null) sceneStore.setAutoRotateSpeed(data.autoRotateSpeed)
+  if (data.gridVisible != null) sceneStore.setGridVisible(data.gridVisible)
+  if (data.viewCubeVisible != null) sceneStore.setViewCubeVisible(data.viewCubeVisible)
+  if (data.camera && sceneStore.setCameraState) sceneStore.setCameraState(data.camera)
 
-  // UI 可见性
-  if (data.toolbarVisible != null) store.setToolbarVisible(data.toolbarVisible)
-  if (data.treeVisible != null) store.setTreeVisible(data.treeVisible)
-  if (data.hiddenTools) store.setHiddenTools(data.hiddenTools)
-  if (data.rotationMode != null) store.setRotationMode(data.rotationMode)
-
-  // 相机位置
-  if (data.camera && store.setCameraState) {
-    store.setCameraState(data.camera)
-  }
-
-  // 标点配置：按 id 合并，外部字段覆盖本地
+  // ── 标点：按 id 合并 → scene-store ──
   if (data.markers && Array.isArray(data.markers)) {
-    const currentMarkers = store.markers
-    const merged = currentMarkers.map((m: MarkerData) => {
-      const external = data.markers.find((em) => em.id === m.id)
-      if (!external) return m
-      return { ...m, ...external }
+    const currentMarkers = sceneStore.markers
+    const mergedMarkers = currentMarkers.map((m: MarkerData) => {
+      const external = data.markers!.find((em) => em.id === m.id)
+      return external ? { ...m, ...external } : m
     })
     for (const em of data.markers) {
-      if (!merged.find((m: MarkerData) => m.id === em.id)) {
-        merged.push(em)
-      }
+      if (!mergedMarkers.find((m: MarkerData) => m.id === em.id)) mergedMarkers.push(em)
     }
-    store.setMarkers(merged)
+    sceneStore.setMarkers(mergedMarkers)
   }
 
-  // 场景图片
+  // ── 场景图片 → scene-store ──
   if (data.sceneImages && Array.isArray(data.sceneImages)) {
-    store.setMarkers(store.markers) // 保留 markers 不变
-    // 如果 viewer store 有 sceneImages 支持
-    if (store.setSceneImages) {
-      store.setSceneImages(data.sceneImages)
-    }
+    sceneStore.setSceneImages(data.sceneImages)
   }
 
-  // 模型可见性
+  // ── UI 可见性 → viewer-store ──
+  if (data.toolbarVisible != null) viewerStore.setToolbarVisible(data.toolbarVisible)
+  if (data.treeVisible != null) viewerStore.setTreeVisible(data.treeVisible)
+  if (data.hiddenTools) viewerStore.setHiddenTools(data.hiddenTools)
+  if (data.rotationMode != null) viewerStore.setRotationMode(data.rotationMode)
+
+  // ── 模型可见性 → Three.js 直接操作 ──
   if (data.models && Array.isArray(data.models)) {
-    const modelObject = store.modelObject
+    const modelObject = sceneStore.modelObject
     if (modelObject) {
       for (const modelConfig of data.models) {
         if (modelConfig.visible != null && modelConfig.transform) {
-          // 查找并更新模型可见性
+          const visible = modelConfig.visible
           modelObject.traverse((child: THREE.Object3D) => {
             if (child.userData?.modelId === modelConfig.modelId) {
-              child.visible = modelConfig.visible
+              child.visible = visible
             }
           })
         }
@@ -377,15 +385,53 @@ export function applyExternalConfig(data: ExternalConfigData, store: ViewerStore
     }
   }
 
-  // 组件变换和材质
-  if (data.components && modelComponentUpdater) {
-    modelComponentUpdater(data.components, store)
+  // ── 组件变换和材质 → Three.js 直接操作 ──
+  if (data.components) {
+    applyComponentTransforms(sceneStore.modelObject, data.components)
   }
 }
 
-/** 组件变换更新（延迟绑定） */
-let modelComponentUpdater: ((components: Record<string, unknown>, store: ViewerStoreApi) => void) | null = null
+/** 将组件配置（position/rotation/scale/color/opacity/贴图）应用到 Three.js 模型对象 */
+function applyComponentTransforms(modelObject: THREE.Group | null, components: Record<string, unknown>) {
+  if (!modelObject) return
+  for (const [uuid, dataRaw] of Object.entries(components)) {
+    const data = dataRaw as Record<string, unknown>
+    const target = modelObject.getObjectByProperty('uuid', uuid) ?? modelObject.getObjectByName(uuid)
+    if (!target) continue
 
-export function setModelComponentUpdater(fn: (components: Record<string, unknown>, store: ViewerStoreApi) => void) {
-  modelComponentUpdater = fn
+    if (data.position) target.position.set(...(data.position as [number, number, number]))
+    if (data.rotation) target.rotation.set(...(data.rotation as [number, number, number]))
+    if (data.scale) target.scale.set(...(data.scale as [number, number, number]))
+    if (data.visible !== undefined) target.visible = data.visible as boolean
+
+    if (data.color || data.opacity != null || data.mapUrl !== undefined || data.normalMapUrl !== undefined) {
+      target.traverse((child) => {
+        if (!(child instanceof THREE.Mesh)) return
+        const mats = Array.isArray(child.material) ? child.material : [child.material]
+        for (const m of mats) {
+          if (!(m instanceof THREE.MeshStandardMaterial)) continue
+          if (data.color) m.color.set(data.color as string)
+          if (data.opacity != null) { m.transparent = true; m.opacity = data.opacity as number; m.needsUpdate = true }
+          const texLoader = new THREE.TextureLoader()
+          texLoader.setCrossOrigin('anonymous')
+          const channels: Array<{ url: unknown; key: keyof Pick<THREE.MeshStandardMaterial, 'map' | 'normalMap' | 'roughnessMap' | 'metalnessMap' | 'emissiveMap'> }> = [
+            { url: data.mapUrl, key: 'map' },
+            { url: data.normalMapUrl, key: 'normalMap' },
+            { url: data.roughnessMapUrl, key: 'roughnessMap' },
+            { url: data.metalnessMapUrl, key: 'metalnessMap' },
+            { url: data.emissiveMapUrl, key: 'emissiveMap' },
+          ]
+          for (const { url, key } of channels) {
+            if (url) {
+              const tex = texLoader.load(url as string)
+              if (key === 'map') tex.colorSpace = THREE.SRGBColorSpace
+              m[key] = tex; m.needsUpdate = true
+            } else if (url === '') {
+              m[key] = null; m.needsUpdate = true
+            }
+          }
+        }
+      })
+    }
+  }
 }

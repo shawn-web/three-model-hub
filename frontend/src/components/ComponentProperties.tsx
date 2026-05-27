@@ -1,8 +1,39 @@
-import { useCallback, useEffect, useState, useImperativeHandle, forwardRef } from 'react'
-import { Input, Slider, ColorPicker, Empty, theme, Button, Image } from 'antd'
+import { useCallback, useEffect, useMemo, useState, useImperativeHandle, forwardRef } from 'react'
+import { Input, Slider, ColorPicker, Empty, theme, Button, Image, Tooltip } from 'antd'
 import { ResourcePicker } from './ResourcePicker'
 import * as THREE from 'three'
 import { useEditStore } from '../store/edit-store'
+
+/** 计算构件的网格统计信息（顶点数、面数） */
+function getMeshStats(obj: THREE.Object3D): { vertices: number; faces: number; meshCount: number } {
+  let vertices = 0
+  let faces = 0
+  let meshCount = 0
+  obj.traverse((child) => {
+    if (!(child as THREE.Mesh).isMesh) return
+    const mesh = child as THREE.Mesh
+    meshCount++
+    const geo = mesh.geometry
+    if (geo.index) {
+      faces += geo.index.count / 3
+    } else if (geo.attributes.position) {
+      faces += geo.attributes.position.count / 3
+    }
+    if (geo.attributes.position) {
+      vertices += geo.attributes.position.count
+    }
+  })
+  return { vertices: Math.round(vertices), faces: Math.round(faces), meshCount }
+}
+
+/** 计算构件包围盒尺寸 */
+function getBoundingBoxSize(obj: THREE.Object3D): { x: number; y: number; z: number } | null {
+  const box = new THREE.Box3().setFromObject(obj)
+  if (box.isEmpty()) return null
+  const size = new THREE.Vector3()
+  box.getSize(size)
+  return { x: size.x, y: size.y, z: size.z }
+}
 
 export interface ComponentPropertiesRef {
   save: () => void
@@ -43,6 +74,17 @@ export const ComponentProperties = forwardRef<ComponentPropertiesRef>(function C
   const [emissiveMapUrl, setEmissiveMapUrl] = useState<string | null>(null)
   const [texturePickerTarget, setTexturePickerTarget] = useState<string | null>(null)
   const [hasMesh, setHasMesh] = useState(false)
+
+  // 构件信息（网格统计、包围盒）
+  const meshStats = useMemo(() => {
+    if (!selectedObj) return null
+    return getMeshStats(selectedObj)
+  }, [selectedObj])
+
+  const boundingSize = useMemo(() => {
+    if (!selectedObj) return null
+    return getBoundingBoxSize(selectedObj)
+  }, [selectedObj])
 
   // 当选中构件变化时，从对象和 editData 恢复状态
   useEffect(() => {
@@ -162,6 +204,8 @@ export const ComponentProperties = forwardRef<ComponentPropertiesRef>(function C
       selectedObj.traverse((child) => {
         if ((child as THREE.Mesh).isMesh) meshes.push(child as THREE.Mesh)
       })
+      console.log('[ComponentProperties.save] meshes:', meshes.length,
+        'mapUrl:', mapUrl, 'normalMapUrl:', normalMapUrl)
       const loader = new THREE.TextureLoader()
       loader.setCrossOrigin('anonymous')
 
@@ -190,7 +234,22 @@ export const ComponentProperties = forwardRef<ComponentPropertiesRef>(function C
               if (!mat.userData[origKey]) mat.userData[origKey] = mat[mapKey]
               const tex = loader.load(
                 url,
-                () => { mat.needsUpdate = true },
+                () => {
+                  console.log('[Texture] loaded:', mapKey, url)
+                  mat.needsUpdate = true
+                  useEditStore.getState().invalidateFn?.()
+                  // 贴图加载完成后重新应用高亮（确保克隆材质也显示新贴图）
+                  const mgr2 = useEditStore.getState().highlightManager
+                  const modelObj2 = useEditStore.getState().modelObject
+                  if (mgr2 && modelObj2) {
+                    mgr2.syncToOriginalMaterial(mesh, {
+                      color, opacity: opacity / 100,
+                      mapUrl, normalMapUrl, roughnessMapUrl, metalnessMapUrl, emissiveMapUrl,
+                    })
+                    mgr2.applyHighlight(modelObj2, null)
+                    mgr2.applyHighlight(modelObj2, selectedComponentId)
+                  }
+                },
                 undefined,
                 (err) => { console.error('[Texture] FAILED:', mapKey, url, err) },
               )
@@ -198,13 +257,14 @@ export const ComponentProperties = forwardRef<ComponentPropertiesRef>(function C
               mat[mapKey] = tex
               mat.needsUpdate = true
             } else if (url === '') {
-              mat[mapKey] = mat.userData[origKey] ?? null
+              mat[mapKey] = null
               delete mat.userData[origKey]
               mat.needsUpdate = true
             }
           }
         }
 
+        // 同步更新原始材质（如果有高亮管理器）
         const mgr = useEditStore.getState().highlightManager
         if (mgr) {
           mgr.syncToOriginalMaterial(mesh, {
@@ -222,7 +282,13 @@ export const ComponentProperties = forwardRef<ComponentPropertiesRef>(function C
         ...(emissiveMapUrl !== null ? { emissiveMapUrl } : {}),
       })
     }
-    // 强制 RRF 刷新画布以反映材质变化
+    // 重新应用高亮（颜色/透明度等同步变更）
+    const mgr = useEditStore.getState().highlightManager
+    const modelObj = useEditStore.getState().modelObject
+    if (mgr && modelObj) {
+      mgr.applyHighlight(modelObj, null)
+      mgr.applyHighlight(modelObj, selectedComponentId)
+    }
     useEditStore.getState().invalidateFn?.()
   }, [selectedComponentId, selectedObj, alias, description, posX, posY, posZ, rotX, rotY, rotZ, scaleX, scaleY, scaleZ, color, opacity, mapUrl, normalMapUrl, roughnessMapUrl, metalnessMapUrl, emissiveMapUrl, hasMesh, updateComponentName, updateComponentDescription, updateComponentTransform, updateComponentMaterial])
 
@@ -245,6 +311,58 @@ export const ComponentProperties = forwardRef<ComponentPropertiesRef>(function C
   return (
     <>
     <div style={{ padding: '4px 8px' }}>
+      {/* 构件信息卡片 */}
+      <div style={{
+        padding: '10px 12px',
+        marginBottom: 8,
+        borderRadius: 8,
+        background: token.colorFillQuaternary,
+        border: `1px solid ${token.colorBorderSecondary}`,
+      }}>
+        {/* 名称行 */}
+        <div style={{ fontSize: 14, fontWeight: 600, color: token.colorText, marginBottom: 6 }}>
+          {alias || selectedObj.name || '未命名构件'}
+        </div>
+
+        {/* 信息行 */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, color: token.colorTextSecondary }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <span style={{ color: token.colorTextTertiary, width: 40, flexShrink: 0 }}>类型</span>
+            <span>{selectedObj.type}</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <span style={{ color: token.colorTextTertiary, width: 40, flexShrink: 0 }}>UUID</span>
+            <Tooltip title={selectedComponentId}>
+              <span style={{ fontFamily: 'monospace', fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {selectedComponentId}
+              </span>
+            </Tooltip>
+          </div>
+          {selectedObj.name && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <span style={{ color: token.colorTextTertiary, width: 40, flexShrink: 0 }}>原名</span>
+              <span>{selectedObj.name}</span>
+            </div>
+          )}
+          {meshStats && meshStats.meshCount > 0 && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <span style={{ color: token.colorTextTertiary, width: 40, flexShrink: 0 }}>网格</span>
+              <span>{meshStats.meshCount} 个 · {meshStats.vertices.toLocaleString()} 顶点 · {meshStats.faces.toLocaleString()} 面</span>
+            </div>
+          )}
+          {boundingSize && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <span style={{ color: token.colorTextTertiary, width: 40, flexShrink: 0 }}>尺寸</span>
+              <span>{boundingSize.x.toFixed(2)} × {boundingSize.y.toFixed(2)} × {boundingSize.z.toFixed(2)}</span>
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <span style={{ color: token.colorTextTertiary, width: 40, flexShrink: 0 }}>子级</span>
+            <span>{selectedObj.children.length} 个子节点</span>
+          </div>
+        </div>
+      </div>
+
       <div style={{
         padding: '8px 4px 6px',
         fontSize: 12,
@@ -264,11 +382,6 @@ export const ComponentProperties = forwardRef<ComponentPropertiesRef>(function C
           placeholder="输入别名..."
           maxLength={100}
         />
-      </div>
-
-      <div style={{ marginTop: 4 }}>
-        <div style={{ fontSize: 11, color: token.colorTextTertiary, marginBottom: 2 }}>类型</div>
-        <div style={{ fontSize: 12, color: token.colorText }}>{selectedObj.type}</div>
       </div>
 
       <div style={{ marginTop: 8, borderTop: `1px solid ${token.colorBorderSecondary}`, paddingTop: 8 }}>

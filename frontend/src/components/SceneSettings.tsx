@@ -3,6 +3,7 @@ import { Select, ColorPicker, Input, Button, Slider, Switch, theme } from 'antd'
 import type { Color } from 'antd/es/color-picker'
 import { useEditStore } from '../store/edit-store'
 import { ResourcePicker } from './ResourcePicker'
+import { SectionTitle } from './EditPanel'
 import type { ResourceItem } from '../types/resource'
 
 type BackgroundType = 'color' | 'image' | 'skybox'
@@ -63,16 +64,8 @@ export function SceneSettings() {
   }, [setBackgroundConfig])
 
   return (
-    <div style={{ padding: '4px 8px' }}>
-      <div style={{
-        padding: '8px 4px 6px',
-        fontSize: 12,
-        fontWeight: 600,
-        color: token.colorTextSecondary,
-        borderBottom: `1px solid ${token.colorBorderSecondary}`,
-      }}>
-        场景设置
-      </div>
+    <>
+      <SectionTitle title="场景设置" />
 
       {/* 背景设置 */}
       <div style={{ marginTop: 8 }}>
@@ -166,7 +159,7 @@ export function SceneSettings() {
               setLightIntensity(v as number)
               useEditStore.getState().setIsDirty(true)
             }}
-            styles={{ track: { background: '#4a9eff' } }}
+            styles={{ track: { background: token.colorPrimary } }}
           />
         </div>
 
@@ -223,12 +216,12 @@ export function SceneSettings() {
                 onChange={(v) => {
                   setAutoRotateSpeed(v as number)
                 }}
-                styles={{ track: { background: '#4a9eff' } }}
+                styles={{ track: { background: token.colorPrimary } }}
               />
             </div>
           </>
         )}
       </div>
-    </div>
+    </>
   )
 }

@@ -6,7 +6,7 @@ import { App as AntdApp } from 'antd'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <AntdApp>
+    <AntdApp className='w-full h-full'>
       <RouterApp />
     </AntdApp>
   </React.StrictMode>

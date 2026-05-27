@@ -10,15 +10,7 @@ import {
   CreateResourceGroupDto,
   UpdateResourceGroupDto,
 } from './dto/resource.dto'
-
-interface MulterFile {
-  fieldname: string
-  originalname: string
-  encoding: string
-  mimetype: string
-  size: number
-  buffer: Buffer
-}
+import { MulterFile } from '../common/types'
 
 /**
  * 资源管理服务
@@ -41,8 +33,8 @@ export class ResourcesService {
     group_id?: string
     search?: string
   }) {
-    const page = query.page || 1
-    const limit = Math.min(query.limit || 20, 100)
+    const page = Math.max(query.page || 1, 1)
+    const limit = Math.min(Math.max(query.limit || 20, 1), 100)
     const offset = (page - 1) * limit
 
     const qb = this.resourceRepo.createQueryBuilder('r')

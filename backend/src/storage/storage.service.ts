@@ -60,6 +60,11 @@ export class StorageService {
 
     const formData = new FormData()
 
+    // 文件服务不支持中文文件名，非 ASCII 时生成纯 ASCII 安全名称（保留扩展名）
+    const safeFileName = /[^\x00-\x7F]/.test(fileName)
+      ? `file_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${path.extname(fileName).toLowerCase()}`
+      : fileName
+
     // 根据文件扩展名设置正确的 MIME 类型（文件服务会校验）
     const ext = path.extname(fileName).toLowerCase()
     const mimeTypes: Record<string, string> = {
@@ -70,7 +75,7 @@ export class StorageService {
       '.pdf': 'application/pdf',
     }
     const contentType = mimeTypes[ext] || 'application/octet-stream'
-    formData.append('file', fileBuffer, { filename: fileName, contentType })
+    formData.append('file', fileBuffer, { filename: safeFileName, contentType })
     formData.append('path', uploadPath)
 
     let response: any

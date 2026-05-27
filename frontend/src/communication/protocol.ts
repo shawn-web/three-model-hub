@@ -72,6 +72,14 @@ export interface ProgressPayload {
   percent: number
 }
 
+export interface MediaClickedPayload {
+  id: string
+  type: string
+  name: string
+  url?: string
+  text?: string
+}
+
 // Message type constants
 export const MESSAGE_TYPES = {
   LOAD_MODEL: 'load-model',
@@ -87,6 +95,7 @@ export const MESSAGE_TYPES = {
   PICK_RESULT: 'pick-result',
   TOOL_ACTIVATED: 'tool-activated',
   PROGRESS: 'progress',
+  MEDIA_CLICKED: 'media-clicked',
 } as const
 
 export type MessageType = typeof MESSAGE_TYPES[keyof typeof MESSAGE_TYPES]

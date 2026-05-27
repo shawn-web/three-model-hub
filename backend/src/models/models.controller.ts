@@ -11,14 +11,13 @@ import {
   UploadedFile,
   Res,
   ParseUUIDPipe,
+  BadRequestException,
 } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { Response } from 'express'
 import { ModelsService } from './models.service'
 import { CreateModelDto, UpdateModelDto, CreateVersionDto, CreateFromUrlDto } from './dto/model.dto'
-
-/** 上传文件类型 */
-type UploadedFile = { buffer: Buffer; originalname: string; size: number; mimetype: string }
+import { MulterFile } from '../common/types'
 
 /**
  * 模型管理控制器
@@ -64,10 +63,10 @@ export class ModelsController {
   @Post('upload')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 500 * 1024 * 1024 } }))
   async create(
-    @UploadedFile() file: UploadedFile,
+    @UploadedFile() file: MulterFile,
     @Body() dto: CreateModelDto,
   ) {
-    if (!file) throw new Error('请选择要上传的文件')
+    if (!file) throw new BadRequestException('请选择要上传的文件')
     return this.modelsService.create(file, dto)
   }
 
@@ -89,10 +88,10 @@ export class ModelsController {
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 500 * 1024 * 1024 } }))
   async uploadVersion(
     @Param('id', ParseUUIDPipe) id: string,
-    @UploadedFile() file: UploadedFile,
+    @UploadedFile() file: MulterFile,
     @Body() dto: CreateVersionDto,
   ) {
-    if (!file) throw new Error('请选择要上传的文件')
+    if (!file) throw new BadRequestException('请选择要上传的文件')
     return this.modelsService.uploadVersion(id, file, dto.commit_message)
   }
 

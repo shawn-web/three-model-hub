@@ -109,7 +109,26 @@
       "Bash(xargs grep -l \"SceneSettings\")",
       "Bash(xargs grep -l \"screenshot\\\\|capture\")",
       "Bash(./node_modules/.bin/tsc)",
-      "Bash(taskkill.exe //PID 34228 //F)"
+      "Bash(taskkill.exe //PID 34228 //F)",
+      "Skill(systematic-debugging)",
+      "Bash(npx typeorm *)",
+      "Bash(xargs grep -l \"PluginScene\\\\|EditSceneSetup\")",
+      "Bash(xxd D:/other/threeMode/frontend/public/skybox/test.jpg)",
+      "Skill(superpowers:systematic-debugging)",
+      "Skill(superpowers:verification-before-completion)",
+      "Bash(xargs grep -l \"IsUUID\\\\|@IsString\\\\|@IsOptional\")",
+      "Bash(xargs grep -l \"type.*=.*interface\\\\|interface.*=.*\\\\|type.*=\")",
+      "Bash(xargs grep -l \"image\\\\|background\\\\|texture\\\\|图片\\\\|背景\")",
+      "Bash(pnpm exec *)",
+      "Bash(timeout 15 pnpm dev)",
+      "Bash(npx eslint *)",
+      "Bash(grep -oP '\\\\s+\\\\S+$')",
+      "Bash(pnpm tsc *)",
+      "Bash(pnpm lint *)",
+      "Bash(docker compose *)",
+      "mcp__plugin_context7_context7__query-docs",
+      "Bash(grep -n \"^\\\\.env$\" D:/other/threeMode/.gitignore)",
+      "Bash(git status *)"
     ]
   }
 }

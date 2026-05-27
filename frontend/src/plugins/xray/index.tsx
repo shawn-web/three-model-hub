@@ -3,6 +3,7 @@ import { useEffect, useMemo, type FC } from 'react'
 import * as THREE from 'three'
 import { useThree } from '@react-three/fiber'
 import { useSceneStore } from '../../store/scene-store'
+import { useEditStore } from '../../store/edit-store'
 import { SelectionHighlightManager } from '../../utils/selection-highlight'
 import type { ViewerPlugin, ViewerContext } from '../types'
 
@@ -33,14 +34,16 @@ function XRayScene() {
   const modelObject = useSceneStore((s) => s.modelObject)
   const selectedComponentId = useSceneStore((s) => s.selectedComponentId)
   const xrayMode = useSceneStore((s) => s.xrayMode)
-  const setHighlightManager = useSceneStore((s) => s.setHighlightManager)
+  const setHighlightManagerScene = useSceneStore((s) => s.setHighlightManager)
+  const setHighlightManagerEdit = useEditStore((s) => s.setHighlightManager)
 
   const manager = useMemo(() => new SelectionHighlightManager(), [])
 
   useEffect(() => {
-    setHighlightManager(manager)
-    return () => { setHighlightManager(null); manager.clearAll() }
-  }, [manager, setHighlightManager])
+    setHighlightManagerScene(manager)
+    setHighlightManagerEdit(manager)
+    return () => { setHighlightManagerScene(null); setHighlightManagerEdit(null); manager.clearAll() }
+  }, [manager, setHighlightManagerScene, setHighlightManagerEdit])
 
   useEffect(() => {
     if (!modelObject) return

@@ -48,17 +48,17 @@ export function ViewerPage() {
   const getCameraState = useSceneStore((s) => s.getCameraState)
   const setCameraState = useSceneStore((s) => s.setCameraState)
   const modelObject = useSceneStore((s) => s.modelObject)
+  const viewCubeVisible = useSceneStore((s) => s.viewCubeVisible)
   const [pluginManager, setPluginManager] = useState<PluginManager | null>(null)
   const [error, setError] = useState<string | null>(null)
   const loadedRef = useRef(false)
 
   /** 作为场景加载（多模型） */
   const loadAsScene = useCallback(async (sceneData: SceneDataResp) => {
-    const store = useViewerStore.getState()
-    store.setModelLoadingProgress(0)
-    store.setModelLoading(true)
-    useSceneStore.getState().setModelLoading(true)
-    store.setSceneConfig(sceneData.config)
+    const sceneStore = useSceneStore.getState()
+    sceneStore.setModelLoadingProgress(0)
+    sceneStore.setModelLoading(true)
+    useViewerStore.getState().setSceneConfig(sceneData.config)
 
     const getModelUrl = async (modelId: string): Promise<string> => {
       const modelInfo = await getModel(modelId)
@@ -73,7 +73,7 @@ export function ViewerPage() {
       getModelUrl,
       (loaded, total, _name, overallPercent) => {
         const progress = overallPercent ?? Math.round((loaded / total) * 100)
-        useViewerStore.getState().setModelLoadingProgress(progress)
+        useSceneStore.getState().setModelLoadingProgress(progress)
       },
     )
 
@@ -87,16 +87,11 @@ export function ViewerPage() {
       }
     }
 
-    store.setModelObject(sceneGroup)
-    useSceneStore.getState().setModelObject(sceneGroup)
-    store.setMarkers(sceneData.markers || [])
-    useSceneStore.getState().setMarkers(sceneData.markers || [])
-    store.setSceneImages(sceneData.images || [])
-    useSceneStore.getState().setSceneImages(sceneData.images || [])
-    store.setModelLoadingProgress(100)
-    useSceneStore.getState().setModelLoadingProgress(100)
+    sceneStore.setModelObject(sceneGroup)
+    sceneStore.setMarkers(sceneData.markers || [])
+    sceneStore.setSceneImages(sceneData.images || [])
+    sceneStore.setModelLoadingProgress(100)
     setTimeout(() => {
-      useViewerStore.getState().setModelLoading(false)
       useSceneStore.getState().setModelLoading(false)
     }, 300)
 
@@ -111,31 +106,25 @@ export function ViewerPage() {
     if (!model?.file_url) {
       throw new Error('模型没有可用的文件 URL')
     }
-    const store = useViewerStore.getState()
-    store.setModelLoadingProgress(0)
-    store.setModelLoading(true)
-    useSceneStore.getState().setModelLoading(true)
+    const sceneStore = useSceneStore.getState()
+    sceneStore.setModelLoadingProgress(0)
+    sceneStore.setModelLoading(true)
     try {
       const loader = new GlbLoader()
       const modelObj = await loader.load(model.file_url, (percent) => {
-        store.setModelLoadingProgress(percent)
+        useSceneStore.getState().setModelLoadingProgress(percent)
       })
-      store.setModelObject(modelObj)
-      useSceneStore.getState().setModelObject(modelObj)
-      store.setModelUrl(model.file_url)
-      useSceneStore.getState().setModelUrl(model.file_url)
-      store.setModelLoadingProgress(100)
-      useSceneStore.getState().setModelLoadingProgress(100)
+      sceneStore.setModelObject(modelObj)
+      sceneStore.setModelUrl(model.file_url)
+      sceneStore.setModelLoadingProgress(100)
       setTimeout(() => {
-        useViewerStore.getState().setModelLoading(false)
         useSceneStore.getState().setModelLoading(false)
       }, 300)
       messageBus.send(MESSAGE_TYPES.MODEL_LOADED, {
         metadata: { name: modelObj.name },
       })
     } catch (err) {
-      store.setModelLoading(false)
-      useSceneStore.getState().setModelLoading(false)
+      sceneStore.setModelLoading(false)
       throw err
     }
   }, [messageBus])
@@ -184,40 +173,53 @@ export function ViewerPage() {
     }
 
     loadData()
+  }, [sceneId, typeHint, messageBus, searchParams, loadAsModel, loadAsScene])
 
-    // 监听外部 postMessage 配置（iframe 嵌入场景时使用）
+  // 独立的消息监听，不受 loadedRef 影响
+  useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       const data = event.data
       if (!data || data.type !== 'scene-config') return
-      const store = useViewerStore.getState()
-      applyExternalConfig(data, store)
+      applyExternalConfig(data, useViewerStore.getState(), useSceneStore.getState())
     }
 
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
-  }, [sceneId, typeHint, messageBus, searchParams, loadAsModel, loadAsScene])
+  }, [])
 
   const handleFitView = useCallback(() => {
     const store = useSceneStore.getState()
     const modelObject = store.modelObject
-    const getCameraState = store.getCameraState
     const setCameraState = store.setCameraState
-    if (!modelObject || !getCameraState || !setCameraState) return
+    if (!modelObject || !setCameraState) return
 
-    const cam = getCameraState()
     const box = new THREE.Box3().setFromObject(modelObject)
+    // 处理空包围盒
+    if (box.isEmpty() || !isFinite(box.min.x) || !isFinite(box.max.x)) {
+      const dir = new THREE.Vector3(1, 1, 1).normalize()
+      setCameraState({
+        position: { x: dir.x * 10, y: dir.y * 10, z: dir.z * 10 },
+        target: { x: 0, y: 0, z: 0 },
+      })
+      return
+    }
+
+    const getCameraState = store.getCameraState
+    const cam = getCameraState?.()
     const center = box.getCenter(new THREE.Vector3())
     const size = box.getSize(new THREE.Vector3())
     const maxDim = Math.max(size.x, size.y, size.z)
-    const fov = cam.fov * (Math.PI / 180)
+    const fov = (cam?.fov || 50) * (Math.PI / 180)
     const cameraZ = Math.abs(maxDim / (2 * Math.tan(fov / 2))) * 1.2
 
-    const direction = new THREE.Vector3()
-      .subVectors(
-        new THREE.Vector3(cam.position.x, cam.position.y, cam.position.z),
-        new THREE.Vector3(cam.target.x, cam.target.y, cam.target.z)
-      )
-      .normalize()
+    const direction = cam
+      ? new THREE.Vector3()
+          .subVectors(
+            new THREE.Vector3(cam.position.x, cam.position.y, cam.position.z),
+            new THREE.Vector3(cam.target.x, cam.target.y, cam.target.z)
+          )
+          .normalize()
+      : new THREE.Vector3(1, 1, 1).normalize()
 
     const newPos = new THREE.Vector3().copy(center).add(direction.multiplyScalar(cameraZ))
     setCameraState({
@@ -255,7 +257,7 @@ export function ViewerPage() {
       <ViewerCanvas onPluginManagerReady={setPluginManager} />
       {!modelLoading && modelObject && (
         <>
-          <ViewCube getCameraState={getCameraState} setCameraState={setCameraState} modelObject={modelObject} />
+          {viewCubeVisible && <ViewCube getCameraState={getCameraState} setCameraState={setCameraState} modelObject={modelObject} />}
           {pluginManager && <Toolbar pluginManager={pluginManager} onFitView={handleFitView} />}
         </>
       )}

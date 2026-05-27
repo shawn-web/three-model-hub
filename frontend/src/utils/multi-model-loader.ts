@@ -242,6 +242,11 @@ export interface SceneModelData {
       position?: [number, number, number]
       rotation?: [number, number, number]
       scale?: [number, number, number]
+      mapUrl?: string | null
+      normalMapUrl?: string | null
+      roughnessMapUrl?: string | null
+      metalnessMapUrl?: string | null
+      emissiveMapUrl?: string | null
     }>
   } | null
   /** 是否可见 */
@@ -407,6 +412,38 @@ export async function loadSceneModels(
             if (override.opacity != null) {
               m.transparent = true
               m.opacity = override.opacity
+            }
+            // 应用 PBR 贴图覆盖
+            const texLoader = new THREE.TextureLoader()
+            texLoader.setCrossOrigin('anonymous')
+            const texChannels: Array<{
+              url: string | null | undefined
+              mapKey: keyof Pick<THREE.MeshStandardMaterial, 'map' | 'normalMap' | 'roughnessMap' | 'metalnessMap' | 'emissiveMap'>
+            }> = [
+              { url: override.mapUrl, mapKey: 'map' },
+              { url: override.normalMapUrl, mapKey: 'normalMap' },
+              { url: override.roughnessMapUrl, mapKey: 'roughnessMap' },
+              { url: override.metalnessMapUrl, mapKey: 'metalnessMap' },
+              { url: override.emissiveMapUrl, mapKey: 'emissiveMap' },
+            ]
+            for (const { url, mapKey } of texChannels) {
+              if (url) {
+                const tex = texLoader.load(
+                  url,
+                  () => {
+                    m.needsUpdate = true
+                    console.log('[MultiModelLoader] texture loaded:', mapKey, url)
+                  },
+                  undefined,
+                  (err) => { console.error('[MultiModelLoader] texture FAILED:', mapKey, url, err) },
+                )
+                if (mapKey === 'map') tex.colorSpace = THREE.SRGBColorSpace
+                m[mapKey] = tex
+                m.needsUpdate = true
+              } else if (url === '') {
+                m[mapKey] = null
+                m.needsUpdate = true
+              }
             }
           })
         })

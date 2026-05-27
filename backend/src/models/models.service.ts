@@ -6,10 +6,8 @@ import { ModelVersion } from './entities/model-version.entity'
 import { SceneModel } from '../scenes/entities/scene-model.entity'
 import { Scene } from '../scenes/entities/scene.entity'
 import { StorageService } from '../storage/storage.service'
+import { MulterFile } from '../common/types'
 import { CreateModelDto, UpdateModelDto, CreateFromUrlDto } from './dto/model.dto'
-
-/** 上传文件类型 */
-type UploadedFile = { buffer: Buffer; originalname: string; size: number; mimetype: string }
 
 /**
  * 模型管理服务
@@ -37,8 +35,8 @@ export class ModelsService {
     search?: string
     tag?: string
   }) {
-    const page = query.page || 1
-    const limit = Math.min(query.limit || 20, 100)
+    const page = Math.max(query.page || 1, 1)
+    const limit = Math.min(Math.max(query.limit || 20, 1), 100)
     const offset = (page - 1) * limit
 
     const qb = this.modelRepo.createQueryBuilder('model')
@@ -96,8 +94,8 @@ export class ModelsService {
       file_format: fileFormat,
       file_key: dto.file_key,
       version_count: 1,
-    } as any)
-    const savedModel = await this.modelRepo.save(model as any) as Model
+    })
+    const savedModel = await this.modelRepo.save(model)
 
     const version = this.versionRepo.create({
       model_id: savedModel.id,
@@ -107,7 +105,7 @@ export class ModelsService {
       file_key: dto.file_key,
       commit_message: dto.commit_message || '初始版本',
     })
-    await this.versionRepo.save(version as any)
+    await this.versionRepo.save(version)
 
     return savedModel
   }
@@ -117,7 +115,7 @@ export class ModelsService {
    * 将文件转发到文件服务，并在数据库中创建记录
    */
   async create(
-    file: UploadedFile,
+    file: MulterFile,
     dto: CreateModelDto,
   ): Promise<Model> {
     const uploadResult = await this.storageService.uploadFile(
@@ -138,8 +136,8 @@ export class ModelsService {
       file_format: fileFormat,
       file_key: uploadResult.fileKey,
       version_count: 1,
-    } as any)
-    const savedModel = await this.modelRepo.save(model as any) as Model
+    })
+    const savedModel = await this.modelRepo.save(model)
 
     const version = this.versionRepo.create({
       model_id: savedModel.id,
@@ -150,7 +148,7 @@ export class ModelsService {
       file_key: uploadResult.fileKey,
       commit_message: dto.commit_message || '初始版本',
     })
-    await this.versionRepo.save(version as any)
+    await this.versionRepo.save(version)
 
     return savedModel
   }
@@ -202,7 +200,6 @@ export class ModelsService {
       }
     }
 
-    // 远程文件全部删除成功，删除数据库记录
     await this.modelRepo.remove(model)
   }
 
@@ -223,7 +220,7 @@ export class ModelsService {
    */
   async uploadVersion(
     modelId: string,
-    file: UploadedFile,
+    file: MulterFile,
     commitMessage?: string,
   ): Promise<ModelVersion> {
     const model = await this.findOne(modelId)
@@ -346,10 +343,10 @@ export class ModelsService {
     const result: Record<string, any> = {}
     const allKeys = new Set([...Object.keys(m1 || {}), ...Object.keys(m2 || {})])
     for (const key of allKeys) {
-      const v1 = m1?.[key]
-      const v2 = m2?.[key]
-      if (v1 !== v2) {
-        result[key] = { from: v1, to: v2 }
+      const val1 = m1?.[key]
+      const val2 = m2?.[key]
+      if (val1 !== val2) {
+        result[key] = { from: val1, to: val2 }
       }
     }
     return result

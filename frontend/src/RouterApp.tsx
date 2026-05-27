@@ -5,6 +5,7 @@ import { ModelsPage } from './pages/ModelsPage'
 import { ScenesPage } from './pages/ScenesPage'
 import { SceneEditorPage } from './pages/SceneEditorPage'
 import { ViewerPage } from './pages/ViewerPage'
+import { IframePage } from './pages/IframePage'
 import { ResourcesPage } from './pages/ResourcesPage'
 
 /**
@@ -26,6 +27,7 @@ export function RouterApp() {
 
         {/* 全屏预览页（不带导航栏） */}
         <Route path="/view/:sceneId" element={<ViewerPage />} />
+        <Route path="/iframe" element={<IframePage />} />
       </Routes>
     </BrowserRouter>
   )

@@ -1,15 +1,7 @@
 import { Controller, Post, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { UploadService } from './upload.service'
-
-interface MulterFile {
-  fieldname: string
-  originalname: string
-  encoding: string
-  mimetype: string
-  size: number
-  buffer: Buffer
-}
+import { MulterFile } from '../common/types'
 
 @Controller('upload')
 export class UploadController {

@@ -43,7 +43,17 @@
 ### 获取单个模型
 `GET /api/models/:id`
 
-### 上传模型
+### 获取上传配置
+`GET /api/models/upload/config`
+
+返回模型上传所需的配置信息（文件大小限制、支持格式等）。
+
+### 创建模型记录
+`POST /api/models/create`
+
+**请求体：** `{ name, description?, file_url, file_name, file_size, file_format }`
+
+### 上传模型文件
 `POST /api/models/upload`
 
 **请求：** `multipart/form-data`
@@ -118,7 +128,7 @@
 ### 更新场景
 `PUT /api/scenes/:id`
 
-**请求体：** `{ name?, description?, scene_config? }`
+**请求体：** `{ name?, description?, scene_config?, markers? }`
 
 ### 删除场景
 `DELETE /api/scenes/:id`
@@ -126,7 +136,14 @@
 ### 场景模型管理
 - `POST /api/scenes/:id/models` — 添加模型到场景
 - `PUT /api/scenes/:id/models/:mid` — 更新场景中的模型
+- `PUT /api/scenes/:id/models/batch` — 批量更新场景模型
 - `DELETE /api/scenes/:id/models/:mid` — 从场景移除模型
+
+### 场景图片管理
+- `POST /api/scenes/:id/images` — 添加场景图片
+- `PUT /api/scenes/:id/images/batch` — 批量保存场景图片
+- `PUT /api/scenes/:id/images/:iid` — 更新单个场景图片
+- `DELETE /api/scenes/:id/images/:iid` — 删除场景图片
 
 ---
 
@@ -206,6 +223,63 @@
 
 ### 删除批注
 `DELETE /api/scenes/:sceneId/annotations/:id`
+
+---
+
+## 资源管理 `/api/resources`
+
+### 获取资源列表
+`GET /api/resources`
+
+**查询参数：**
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| page | number | 否 | 页码，默认 1 |
+| limit | number | 否 | 每页数量，默认 20 |
+| type | string | 否 | 资源类型过滤 |
+| group_id | string | 否 | 分组 ID 过滤 |
+
+### 图片代理
+`GET /api/resources/proxy-image`
+
+**查询参数：** `url`（代理访问外部图片资源）
+
+### 上传资源
+`POST /api/resources/upload`
+
+**请求：** `multipart/form-data`
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| file | File | 是 | 资源文件 |
+| name | string | 是 | 资源名称 |
+| type | string | 是 | 资源类型 |
+| group_id | string | 否 | 所属分组 |
+
+### 更新资源
+`PATCH /api/resources/:id`
+
+### 删除资源
+`DELETE /api/resources/:id`
+
+### 分组管理
+- `GET /api/resources/groups` — 获取分组列表
+- `POST /api/resources/groups` — 创建分组
+- `PATCH /api/resources/groups/:id` — 更新分组
+- `DELETE /api/resources/groups/:id` — 删除分组
+
+---
+
+## 文件上传 `/api/upload`
+
+### 通用文件上传
+`POST /api/upload`
+
+**请求：** `multipart/form-data`
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| file | File | 是 | 上传的文件 |
+
+文件通过 `StorageService` 转发到外部文件服务，返回文件 URL。
 
 ---
 
