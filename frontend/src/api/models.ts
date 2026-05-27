@@ -33,8 +33,14 @@ export async function uploadModel(
   const { data: config } = await apiClient.get('/models/upload/config')
 
   // 2. 直传文件服务（不传 bucket，由文件服务自行管理）
+  // 文件服务不支持中文文件名，非 ASCII 时生成纯 ASCII 安全名称
+  const ext = file.name.includes('.') ? '.' + file.name.split('.').pop() : ''
+  const safeName = /[^\x00-\x7F]/.test(file.name)
+    ? `model_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`
+    : file.name
+  const safeFile = new File([file], safeName, { type: file.type })
   const formData = new FormData()
-  formData.append('file', file)
+  formData.append('file', safeFile)
   formData.append('path', config.path)
 
   // 判断用代理路径还是直连（开发环境用 Vite 代理 /hz-file-upload，避免 CORS）

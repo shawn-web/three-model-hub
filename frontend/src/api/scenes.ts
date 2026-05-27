@@ -97,7 +97,7 @@ export async function batchSaveSceneImages(
     height: number
     position?: [number, number, number]
     scale?: [number, number]
-    rotation?: number
+    rotation?: [number, number, number]
     visible: boolean
     billboard?: boolean
     autoplay?: boolean
@@ -106,7 +106,6 @@ export async function batchSaveSceneImages(
     text?: string
     fontSize?: number
     fontColor?: string
-    iframeUrl?: string
   }>,
 ) {
   const { data } = await apiClient.put(`/scenes/${sceneId}/images/batch`, { images })

@@ -7,16 +7,33 @@
  * - 属性：选中构件的属性编辑 + 标点管理
  */
 import { useCallback } from 'react'
-import { Tabs, theme as antdTheme, Button } from 'antd'
+import { Tabs, theme as antdTheme, Button, Popconfirm } from 'antd'
 import type { TabsProps } from 'antd'
 import { Icon } from '@iconify/react'
 import { layersIcon, gitBranchIcon, slidersIcon, trash2Icon, plusIcon } from './Icons'
 import { SceneTree } from './SceneTree'
 import { SceneSettings } from './SceneSettings'
 import { SceneImagePanel } from './SceneImagePanel'
-import { MarkerList } from '../pages/SceneEditorPage'
+import { MarkerList } from './MarkerList'
 import { useEditStore } from '../store/edit-store'
 import type { MarkerData } from '../types/edit-data'
+
+/** 分区标题 */
+export function SectionTitle({ title }: { title: string }) {
+  const { token } = antdTheme.useToken()
+  return (
+    <div style={{
+      fontSize: 12,
+      fontWeight: 600,
+      color: token.colorTextSecondary,
+      padding: '8px 4px 4px',
+      borderBottom: `1px solid ${token.colorBorderSecondary}`,
+      marginBottom: 8,
+    }}>
+      {title}
+    </div>
+  )
+}
 
 /** 场景模型条目（从 API 返回并附加 resolvedName） */
 interface SceneModelItem {
@@ -129,6 +146,7 @@ function SceneTab({ sceneModels, onRemoveModel, onOpenAddModal, onSelectModel }:
 }) {
   const modelObject = useEditStore((s) => s.modelObject)
   const selectedComponentId = useEditStore((s) => s.selectedComponentId)
+  const { token } = antdTheme.useToken()
 
   /** 判断场景模型是否被选中 */
   const isModelSelected = useCallback((sceneModelId: string) => {
@@ -140,7 +158,7 @@ function SceneTab({ sceneModels, onRemoveModel, onOpenAddModal, onSelectModel }:
   }, [modelObject, selectedComponentId])
 
   return (
-    <div style={{ overflow: 'auto', padding: '8px 12px' }}>
+    <div style={{ overflow: 'auto', padding: 8 }}>
       {/* 场景设置 */}
       <SceneSettings />
 
@@ -153,19 +171,28 @@ function SceneTab({ sceneModels, onRemoveModel, onOpenAddModal, onSelectModel }:
             <div
               key={sm.id}
               className="flex items-center justify-between py-1 px-2 group cursor-pointer rounded"
-              style={selected ? { background: 'rgba(74,158,255,0.12)' } : undefined}
+              style={selected ? { background: 'token.colorPrimaryBg' } : undefined}
               onClick={() => onSelectModel?.(sm.id)}
             >
               <span
                 className={`text-xs flex-1 truncate ${selected ? 'font-semibold' : ''}`}
-                style={selected ? { color: '#4a9eff' } : undefined}
+                style={selected ? { color: token.colorPrimary } : undefined}
                 title={sm.resolvedName || sm.display_name || `模型 ${i + 1}`}
               >
                 {sm.resolvedName || sm.display_name || `模型 ${i + 1}`}
               </span>
-              <Button type="text" size="small" danger onClick={(e) => { e.stopPropagation(); onRemoveModel(sm.id) }} className="opacity-0 group-hover:opacity-100">
-                <Icon icon={trash2Icon} width={14} />
-              </Button>
+              <Popconfirm
+                title="确认删除"
+                description={`确定删除模型 "${sm.resolvedName || sm.display_name || `模型 ${i + 1}`}" 吗？`}
+                onConfirm={(e) => { e?.stopPropagation(); onRemoveModel(sm.id) }}
+                onCancel={(e) => e?.stopPropagation()}
+                okText="确定"
+                cancelText="取消"
+              >
+                <Button type="text" size="small" danger onClick={(e) => e.stopPropagation()} className="opacity-0 group-hover:opacity-100">
+                  <Icon icon={trash2Icon} width={14} />
+                </Button>
+              </Popconfirm>
             </div>
           )
         })}
@@ -177,23 +204,6 @@ function SceneTab({ sceneModels, onRemoveModel, onOpenAddModal, onSelectModel }:
       {/* 媒体管理 */}
       <SectionTitle title="媒体管理" />
       <SceneImagePanel />
-    </div>
-  )
-}
-
-/** 分区标题 */
-function SectionTitle({ title }: { title: string }) {
-  const { token } = antdTheme.useToken()
-  return (
-    <div style={{
-      fontSize: 12,
-      fontWeight: 600,
-      color: token.colorTextSecondary,
-      padding: '8px 4px 4px',
-      borderBottom: `1px solid ${token.colorBorderSecondary}`,
-      marginBottom: 8,
-    }}>
-      {title}
     </div>
   )
 }

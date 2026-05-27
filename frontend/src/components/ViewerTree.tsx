@@ -5,9 +5,15 @@ import { Icon } from '@iconify/react'
 import { panelLeftIcon, panelLeftCloseIcon } from './Icons'
 import * as THREE from 'three'
 import { useViewerStore } from '../store/viewer-store'
+import { useSceneStore } from '../store/scene-store'
 
-interface MarkerObject3D extends THREE.Object3D {
-  isMarker?: boolean
+/** 判断对象是否应在树形结构中显示 */
+function shouldShowInTree(object: THREE.Object3D): boolean {
+  if ((object as THREE.Object3D & { isMarker?: boolean }).isMarker) return false
+  if (object.type === 'GridHelper' || object.type === 'BoxHelper') return false
+  if (object.type.endsWith('Light')) return false
+  if (object.type === 'ShadowMaterial') return false
+  return true
 }
 
 /** 将 THREE.Object3D 层级结构转换为 antd Tree 数据 */
@@ -21,7 +27,7 @@ function buildTreeData(object: THREE.Object3D, isRoot: boolean = false): TreeDat
 
   if (object.children.length > 0) {
     node.children = object.children
-      .filter((child) => !(child as MarkerObject3D).isMarker)
+      .filter(shouldShowInTree)
       .map((child) => buildTreeData(child, false)[0])
       .filter(Boolean)
   }
@@ -36,7 +42,7 @@ function buildTreeData(object: THREE.Object3D, isRoot: boolean = false): TreeDat
 export function ViewerTree() {
   const modelObject = useViewerStore((s) => s.modelObject)
   const treeVisible = useViewerStore((s) => s.treeVisible)
-  const selectedComponentId = useViewerStore((s) => s.selectedComponentId)
+  const selectedComponentId = useSceneStore((s) => s.selectedComponentId)
   const [collapsed, setCollapsed] = useState(false)
   const [checkedKeys, setCheckedKeys] = useState<React.Key[]>([])
   const containerRef = useRef<HTMLDivElement>(null)
@@ -98,7 +104,7 @@ export function ViewerTree() {
 
   const handleSelect: TreeProps['onSelect'] = useCallback((keys) => {
     const key = keys[0] as string | undefined
-    useViewerStore.getState().setSelectedComponentId(key ?? null)
+    useSceneStore.getState().selectComponent(key ?? null)
   }, [])
 
   const handleCheck: TreeProps['onCheck'] = useCallback((checked) => {

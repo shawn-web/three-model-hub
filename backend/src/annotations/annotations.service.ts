@@ -42,7 +42,9 @@ export class AnnotationsService {
   async create(sceneId: string, dto: CreateAnnotationDto): Promise<Annotation> {
     const annotation = this.annotationRepo.create({
       scene_id: sceneId,
-      ...dto,
+      position: { x: dto.x, y: dto.y, z: dto.z },
+      text: dto.text,
+      author: dto.author,
     })
     return this.annotationRepo.save(annotation)
   }
@@ -52,7 +54,15 @@ export class AnnotationsService {
    */
   async update(id: string, dto: UpdateAnnotationDto): Promise<Annotation> {
     const annotation = await this.findOne(id)
-    Object.assign(annotation, dto)
+    if (dto.x !== undefined || dto.y !== undefined || dto.z !== undefined) {
+      annotation.position = {
+        x: dto.x ?? annotation.position.x,
+        y: dto.y ?? annotation.position.y,
+        z: dto.z ?? annotation.position.z,
+      }
+    }
+    if (dto.text !== undefined) annotation.text = dto.text
+    if (dto.author !== undefined) annotation.author = dto.author
     return this.annotationRepo.save(annotation)
   }
 

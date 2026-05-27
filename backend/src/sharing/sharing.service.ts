@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { Repository } from 'typeorm'
 import * as crypto from 'crypto'
@@ -18,7 +18,7 @@ export class SharingService {
   /** 创建分享链接 */
   async create(dto: CreateShareLinkDto): Promise<ShareLink> {
     if (!dto.scene_id && !dto.model_id) {
-      throw new Error('必须指定 scene_id 或 model_id')
+      throw new BadRequestException('必须指定 scene_id 或 model_id')
     }
 
     const token = crypto.randomBytes(16).toString('hex')
@@ -33,8 +33,8 @@ export class SharingService {
       model_id: dto.model_id || null,
       permission: dto.permission || 'view',
       expires_at: expiresAt,
-    } as any)
-    return this.shareRepo.save(link as any) as any
+    })
+    return this.shareRepo.save(link)
   }
 
   /** 通过 token 获取分享内容 */
@@ -65,7 +65,7 @@ export class SharingService {
       throw new NotFoundException('分享链接不存在')
     }
     link.is_active = false
-    await this.shareRepo.save(link as any)
+    await this.shareRepo.save(link)
   }
 
   /** 获取场景的所有分享链接 */

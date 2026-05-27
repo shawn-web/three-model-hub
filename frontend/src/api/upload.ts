@@ -14,8 +14,14 @@ export async function uploadFile(file: File): Promise<{ url: string }> {
   const { data: config } = await apiClient.get('/models/upload/config')
 
   // 2. 用原生 axios 直传（自动处理 multipart/form-data Content-Type）
+  // 文件服务不支持中文文件名，非 ASCII 时生成纯 ASCII 安全名称
+  const ext = file.name.includes('.') ? '.' + file.name.split('.').pop() : ''
+  const safeName = /[^\x00-\x7F]/.test(file.name)
+    ? `file_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`
+    : file.name
+  const safeFile = new File([file], safeName, { type: file.type })
   const formData = new FormData()
-  formData.append('file', file)
+  formData.append('file', safeFile)
   formData.append('path', config.path)
 
   const uploadUrl = config.url.replace(/^https?:\/\/[^/]+/, '') || config.url

@@ -42,7 +42,13 @@ export class ViewpointsService {
   async create(sceneId: string, dto: CreateViewpointDto): Promise<Viewpoint> {
     const viewpoint = this.viewpointRepo.create({
       scene_id: sceneId,
-      ...dto,
+      name: dto.name,
+      camera_position: { x: dto.camera_position_x, y: dto.camera_position_y, z: dto.camera_position_z },
+      camera_target: { x: dto.camera_target_x, y: dto.camera_target_y, z: dto.camera_target_z },
+      camera_up: dto.camera_up_x !== undefined
+        ? { x: dto.camera_up_x, y: dto.camera_up_y, z: dto.camera_up_z }
+        : undefined,
+      fov: dto.fov,
     })
     return this.viewpointRepo.save(viewpoint)
   }
@@ -52,7 +58,29 @@ export class ViewpointsService {
    */
   async update(id: string, dto: UpdateViewpointDto): Promise<Viewpoint> {
     const viewpoint = await this.findOne(id)
-    Object.assign(viewpoint, dto)
+    if (dto.name !== undefined) viewpoint.name = dto.name
+    if (dto.camera_position_x !== undefined || dto.camera_position_y !== undefined || dto.camera_position_z !== undefined) {
+      viewpoint.camera_position = {
+        x: dto.camera_position_x ?? viewpoint.camera_position.x,
+        y: dto.camera_position_y ?? viewpoint.camera_position.y,
+        z: dto.camera_position_z ?? viewpoint.camera_position.z,
+      }
+    }
+    if (dto.camera_target_x !== undefined || dto.camera_target_y !== undefined || dto.camera_target_z !== undefined) {
+      viewpoint.camera_target = {
+        x: dto.camera_target_x ?? viewpoint.camera_target.x,
+        y: dto.camera_target_y ?? viewpoint.camera_target.y,
+        z: dto.camera_target_z ?? viewpoint.camera_target.z,
+      }
+    }
+    if (dto.camera_up_x !== undefined || dto.camera_up_y !== undefined || dto.camera_up_z !== undefined) {
+      viewpoint.camera_up = {
+        x: dto.camera_up_x ?? viewpoint.camera_up?.x ?? 0,
+        y: dto.camera_up_y ?? viewpoint.camera_up?.y ?? 1,
+        z: dto.camera_up_z ?? viewpoint.camera_up?.z ?? 0,
+      }
+    }
+    if (dto.fov !== undefined) viewpoint.fov = dto.fov
     return this.viewpointRepo.save(viewpoint)
   }
 

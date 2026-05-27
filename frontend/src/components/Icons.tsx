@@ -27,7 +27,6 @@ import crosshairIcon from '@iconify-icons/lucide/crosshair'
 import imagePlusIcon from '@iconify-icons/lucide/image-plus'
 import videoIcon from '@iconify-icons/lucide/video'
 import typeIcon from '@iconify-icons/lucide/type'
-import globeIcon from '@iconify-icons/lucide/globe'
 import plusIcon from '@iconify-icons/lucide/plus'
 import xIcon from '@iconify-icons/lucide/x'
 import folderIcon from '@iconify-icons/lucide/folder'
@@ -74,7 +73,7 @@ export function IconSave({ size = 18, color = 'currentColor' }: IconProps) {
 export {
   fileCode2Icon, cameraIcon, imageIcon, uploadIcon, undo2Icon,
   settingsIcon, trash2Icon, mapPinIcon, panelLeftIcon, panelLeftCloseIcon,
-  crosshairIcon, imagePlusIcon, videoIcon, typeIcon, globeIcon,
+  crosshairIcon, imagePlusIcon, videoIcon, typeIcon,
   plusIcon, xIcon, folderIcon, layersIcon, gitBranchIcon, slidersIcon,
   homeIcon, maximizeIcon, moveIcon, rotateCwIcon, scalingIcon,
   eyeIcon,

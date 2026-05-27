@@ -17,6 +17,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express'
 import type { Response } from 'express'
 import axios from 'axios'
+import * as dns from 'dns'
 import { ResourcesService } from './resources.service'
 import { ResourceType } from './entities/resource.entity'
 import {
@@ -24,15 +25,7 @@ import {
   CreateResourceGroupDto,
   UpdateResourceGroupDto,
 } from './dto/resource.dto'
-
-interface MulterFile {
-  fieldname: string
-  originalname: string
-  encoding: string
-  mimetype: string
-  size: number
-  buffer: Buffer
-}
+import { MulterFile } from '../common/types'
 
 /**
  * 资源管理控制器
@@ -57,6 +50,16 @@ export class ResourcesController {
     }
 
     try {
+      // DNS 解析检查，防止 SSRF 访问内网地址
+      const urlObj = new URL(url)
+      const addresses = await dns.promises.resolve4(urlObj.hostname)
+      for (const addr of addresses) {
+        if (isPrivateIP(addr)) {
+          res.status(400).json({ message: '不允许访问内网地址' })
+          return
+        }
+      }
+
       const response = await axios.get(url, {
         responseType: 'arraybuffer',
         timeout: 30000,
@@ -168,4 +171,20 @@ export class ResourcesController {
     await this.resourcesService.removeGroup(id)
     return { success: true }
   }
+}
+
+/** 检查 IP 是否为内网/保留地址 */
+function isPrivateIP(ip: string): boolean {
+  const parts = ip.split('.').map(Number)
+  // 10.0.0.0/8
+  if (parts[0] === 10) return true
+  // 172.16.0.0/12
+  if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true
+  // 192.168.0.0/16
+  if (parts[0] === 192 && parts[1] === 168) return true
+  // 127.0.0.0/8
+  if (parts[0] === 127) return true
+  // 0.0.0.0
+  if (parts[0] === 0) return true
+  return false
 }

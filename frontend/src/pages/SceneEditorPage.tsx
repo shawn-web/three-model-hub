@@ -28,10 +28,9 @@ import {
   message,
   Modal,
   Empty,
-  Upload,
 } from 'antd'
 import { Icon } from '@iconify/react'
-import { fileCode2Icon, cameraIcon, imageIcon, uploadIcon, undo2Icon, moveIcon, settingsIcon, trash2Icon, mapPinIcon } from '../components/Icons'
+import { fileCode2Icon, cameraIcon, imageIcon } from '../components/Icons'
 import { Save20, Eye20, Building20, ArrowLeft20 } from '../components/FluentIcon'
 import { captureAsThumbnail, downloadScreenshot } from '../utils/screenshot'
 import { EditCanvas } from '../components/EditCanvas'
@@ -48,8 +47,6 @@ import { getScene, getSceneData, updateScene, addModelToScene, removeSceneModel,
 import { getModel, getModels } from '../api/models'
 import { loadSceneModels, loadGLBWithCache, getNodePath } from '../utils/multi-model-loader'
 import { uploadFile } from '../api/upload'
-import { getDefaultMarkerUrl, setDefaultMarkerUrl, resetDefaultMarkerUrl } from '../utils/marker-defaults'
-import { createDefaultMarkerImage } from '../components/MarkerSpriteShared'
 import { invalidateHttpCache } from '../api/client'
 
 const { Sider, Content } = Layout
@@ -98,6 +95,7 @@ export function SceneEditorPage() {
   const getCameraState = useSceneStore((s) => s.getCameraState)
   const setCameraState = useSceneStore((s) => s.setCameraState)
   const editModelObject = useSceneStore((s) => s.modelObject)
+  const viewCubeVisible = useSceneStore((s) => s.viewCubeVisible)
   const [sceneName, setSceneName] = useState('')
 
   // 组件卸载时清理全局 store，防止切到其他场景时残留旧数据
@@ -187,6 +185,7 @@ export function SceneEditorPage() {
           const store = useEditStore.getState()
           store.setModelLoadingProgress(0)
           store.setModelLoading(true)
+          useSceneStore.getState().setModelLoading(true)
 
           // 元数据加载完成，关闭 loading 让主布局渲染，这样才能显示模型加载进度
           setLoading(false)
@@ -214,11 +213,11 @@ export function SceneEditorPage() {
           store.setModelLoadingProgress(100)
           store.setModelObject(sceneGroup)
           useSceneStore.getState().setModelObject(sceneGroup)
-          useSceneStore.getState().setModelLoading(false)
 
           // 延迟关闭 loading，确保 "渲染中..." 状态可见且 Three.js 完成首帧渲染
           setTimeout(() => {
             useEditStore.getState().setModelLoading(false)
+            useSceneStore.getState().setModelLoading(false)
           }, 300)
 
           // 根据 material_overrides 中 _deleted 标记，移除已删除的构件
@@ -339,9 +338,20 @@ export function SceneEditorPage() {
                   for (const { url, mapKey, origKey } of texChannels) {
                     if (url) {
                       if (!mat.userData[origKey]) mat.userData[origKey] = mat[mapKey]
-                      const tex = texLoader.load(url)
+                      console.log('[Restore] loading texture:', mapKey, url, 'for obj:', uuid)
+                      const tex = texLoader.load(
+                        url,
+                        () => {
+                          mat.needsUpdate = true
+                          console.log('[Restore] texture loaded:', mapKey, url)
+                        },
+                        undefined,
+                        (err) => { console.error('[Restore] texture FAILED:', mapKey, url, err) },
+                      )
                       if (mapKey === 'map') tex.colorSpace = THREE.SRGBColorSpace
                       mat[mapKey] = tex
+                    } else if (url === '') {
+                      mat[mapKey] = null
                     }
                   }
                   mat.needsUpdate = true
@@ -666,8 +676,6 @@ export function SceneEditorPage() {
       const store = useEditStore.getState()
       if (store.modelObject) {
         store.modelObject.add(wrapper)
-        // 通知 scene-store 模型变化（同一个对象引用，但触发重渲染）
-        useSceneStore.getState().setModelObject(store.modelObject)
       } else {
         const newGroup = new THREE.Group()
         newGroup.name = 'SceneModels'
@@ -686,10 +694,10 @@ export function SceneEditorPage() {
         },
       ])
 
-      // 添加模型后自动聚焦到模型
+      // 添加模型后自动聚焦到模型（等轴测视角）
       setTimeout(() => {
-        const s = useEditStore.getState()
-        if (s.fitToViewFn) s.fitToViewFn()
+        const s = useSceneStore.getState()
+        if (s.fitToViewFn) s.fitToViewFn({ x: 1, y: 1, z: 1 })
       }, 200)
 
       message.success('模型已添加')
@@ -715,6 +723,7 @@ export function SceneEditorPage() {
         if (childToRemove) {
           store.modelObject.remove(childToRemove)
         }
+        store.bumpSceneVersion()
       }
 
       setSceneModels((prev) => prev.filter((sm) => sm.id !== sceneModelId))
@@ -761,7 +770,7 @@ export function SceneEditorPage() {
               onOpenAddModal={handleOpenAddModal}
               onAddModel={handleAddModel}
               onSelectModel={handleFocusModel}
-              onEditMarker={(m) => { setEditingMarker(m); setMarkerConfigOpen(true) }}
+              onEditMarker={(m) => { setEditingMarker(m); setMarkerConfigOpen(true); useEditStore.getState().setSelectedMarkerId(m.id) }}
             />
           </div>
 
@@ -782,7 +791,7 @@ export function SceneEditorPage() {
         {!modelLoading && editModelObject && (
           <>
             <EditToolbar onFitView={handleFitView} />
-            <ViewCube getCameraState={getCameraState} setCameraState={setCameraState} modelObject={editModelObject} />
+            {viewCubeVisible && <ViewCube getCameraState={getCameraState} setCameraState={setCameraState} modelObject={editModelObject} />}
           </>
         )}
         <CameraInfo />
@@ -891,113 +900,6 @@ export function SceneEditorPage() {
         await handleSetThumbnail(dataUrl)
       }}
     />
-    </>
-  )
-}
-
-/** 标点列表组件：显示所有标点，支持配置、重定位和删除 */
-export function MarkerList({ onEditMarker }: { onEditMarker: (marker: MarkerData) => void }) {
-  const markers = useEditStore((s) => s.markers)
-  const removeMarker = useEditStore((s) => s.removeMarker)
-  const setAddingMarker = useEditStore((s) => s.setAddingMarker)
-  const addingMarker = useEditStore((s) => s.addingMarker)
-  const selectedMarkerId = useEditStore((s) => s.selectedMarkerId)
-  const setSelectedMarkerId = useEditStore((s) => s.setSelectedMarkerId)
-  const setEditingMarkerId = useEditStore((s) => s.setEditingMarkerId)
-  const [customDefault, setCustomDefault] = useState<string | null>(getDefaultMarkerUrl())
-
-  const actionLabel: Record<string, string> = { popup: '弹窗', link: '链接', none: '' }
-
-  const handleUploadDefault = useCallback(async (file: File) => {
-    try {
-      const result = await uploadFile(file)
-      setDefaultMarkerUrl(result.url)
-      setCustomDefault(result.url)
-      message.success('默认标点图标已更新')
-    } catch {
-      message.error('上传失败')
-    }
-    return false
-  }, [])
-
-  const handleResetDefault = useCallback(() => {
-    resetDefaultMarkerUrl()
-    setCustomDefault(null)
-    message.success('已还原为默认图标')
-  }, [])
-
-  return (
-    <>
-      {/* 默认图标设置 */}
-      <div className="flex items-center justify-between py-1 px-2 border-b border-[var(--ant-color-border-secondary)] mb-1">
-        <div className="flex items-center gap-2">
-          <img
-            src={customDefault || createDefaultMarkerImage()}
-            alt="默认图标"
-            style={{ width: 18, height: 18, objectFit: 'contain', borderRadius: 2 }}
-          />
-          <span className="text-xs text-[#aaa]">默认图标</span>
-        </div>
-        <div className="flex gap-1">
-          <Upload
-            accept="image/*"
-            showUploadList={false}
-            beforeUpload={(file) => { handleUploadDefault(file); return false }}
-          >
-            <Button type="text" size="small" title="修改默认图标">
-              <Icon icon={uploadIcon} width={12} />
-            </Button>
-          </Upload>
-          {customDefault && (
-            <Button type="text" size="small" onClick={handleResetDefault} title="还原默认图标">
-              <Icon icon={undo2Icon} width={12} />
-            </Button>
-          )}
-        </div>
-      </div>
-      {markers.length === 0 && (
-        <div style={{ textAlign: 'center', color: '#999', fontSize: 12, padding: '8px 0' }}>
-          暂无标点
-        </div>
-      )}
-      {markers.map((m) => (
-        <div
-          key={m.id}
-          className={`flex items-center justify-between py-1 px-2 group rounded cursor-pointer ${m.id === selectedMarkerId ? 'bg-[rgba(74,158,255,0.12)]' : 'hover:bg-[var(--ant-color-bg-text-hover)]'}`}
-          onClick={() => setSelectedMarkerId(m.id)}
-        >
-          <div className="text-xs flex-1 truncate">
-            <span>{m.name}</span>
-            <span style={{ color: '#aaa', marginLeft: 4 }}>{m.width}×{m.height}</span>
-            {actionLabel[m.action || 'none'] && (
-              <span style={{ color: '#4a9eff', marginLeft: 4, fontSize: 10 }}>
-                {actionLabel[m.action]}
-              </span>
-            )}
-          </div>
-          <div className="flex gap-1 opacity-0 group-hover:opacity-100">
-            <Button type="text" size="small" onClick={() => { setEditingMarkerId(m.id) }} title="重定位">
-              <Icon icon={moveIcon} width={14} />
-            </Button>
-            <Button type="text" size="small" onClick={() => onEditMarker(m)} title="配置">
-              <Icon icon={settingsIcon} width={14} />
-            </Button>
-            <Button type="text" size="small" danger onClick={() => removeMarker(m.id)}>
-              <Icon icon={trash2Icon} width={14} />
-            </Button>
-          </div>
-        </div>
-      ))}
-      <Button
-        type="dashed"
-        icon={<Icon icon={mapPinIcon} width={14} />}
-        block
-        size="small"
-        className="mt-2"
-        onClick={() => setAddingMarker(!addingMarker)}
-      >
-        {addingMarker ? '取消添加' : '添加标点'}
-      </Button>
     </>
   )
 }

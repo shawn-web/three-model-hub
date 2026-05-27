@@ -21,10 +21,16 @@ export interface ComponentEdit {
 /** 标点弹窗自定义样式 */
 export interface MarkerPopupStyle {
   width?: number
+  height?: number
   background?: string
   textColor?: string
   borderRadius?: number
   fontSize?: number
+  padding?: number
+  borderColor?: string
+  shadow?: boolean
+  titleAlign?: 'left' | 'center' | 'right'
+  contentAlign?: 'left' | 'center' | 'right'
 }
 
 export interface MarkerPopup {
@@ -32,6 +38,22 @@ export interface MarkerPopup {
   content: string
   contentUrl?: string
   style?: MarkerPopupStyle
+}
+
+/** 纯 iframe 弹窗配置 */
+export interface MarkerIframe {
+  /** iframe 地址 */
+  url: string
+  /** 弹窗宽度（px），默认 400 */
+  width?: number
+  /** 弹窗高度（px），默认 300 */
+  height?: number
+  /** 是否显示关闭按钮，默认 true */
+  showCloseButton?: boolean
+  /** 关闭按钮图片 URL，未设置时使用默认符号 */
+  closeButtonImage?: string
+  /** 关闭按钮位置，默认 'top-right' */
+  closeButtonPosition?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
 }
 
 export interface MarkerImage {
@@ -48,12 +70,21 @@ export interface MarkerData {
   width: number
   height: number
   name: string
-  action: 'popup' | 'link' | 'none'
+  action: 'popup' | 'link' | 'iframe' | 'none'
   state?: string
   popup?: MarkerPopup
+  iframe?: MarkerIframe
   linkUrl?: string
   linkTarget?: '_blank' | '_self'
   images?: MarkerImage[]
+  /** 图标不透明度 (0~1)，默认 1 */
+  opacity?: number
+  /** 图标形状裁切 */
+  shape?: 'original' | 'circle' | 'rounded'
+  /** 偏移高度：标点沿 Y 轴上移的距离 */
+  offset?: number
+  /** 固定大小：不随相机距离缩放 */
+  fixedSize?: boolean
 }
 
 export type SceneMediaType = 'image' | 'video' | 'text'

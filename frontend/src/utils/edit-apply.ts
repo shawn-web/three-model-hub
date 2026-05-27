@@ -109,11 +109,14 @@ export function applyEditData(model: THREE.Group, editData: ComponentEditRaw): v
               { url: edit.material!.emissiveMapUrl, mapKey: 'emissiveMap', origKey: '_originalEmissiveMap' },
             ]
             for (const { url, mapKey, origKey } of texChannels) {
-              if (url !== null && url !== undefined) {
+              if (url) {
                 if (!mat.userData[origKey]) mat.userData[origKey] = mat[mapKey]
                 const tex = loader.load(url)
                 if (mapKey === 'map') tex.colorSpace = THREE.SRGBColorSpace
                 mat[mapKey] = tex
+                mat.needsUpdate = true
+              } else if (url === '') {
+                mat[mapKey] = null
                 mat.needsUpdate = true
               }
             }

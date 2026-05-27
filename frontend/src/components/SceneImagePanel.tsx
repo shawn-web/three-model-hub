@@ -1,28 +1,29 @@
 /**
  * 场景媒体配置面板
  *
- * 支持四种媒体类型：图片、视频、文字标注、网页嵌入
+ * 支持三种媒体类型：图片、视频、文字标注
  * - 批量添加媒体到场景
  * - 编辑媒体属性（名称、尺寸、位置、缩放等）
  * - 控制媒体可见性
  * - 重定位媒体位置
  */
 import { useState, useCallback } from 'react'
-import { Button, message, Input, InputNumber, Switch, Space, Card, Popconfirm, Dropdown, ColorPicker, theme as antdTheme } from 'antd'
+import { Button, message, Input, InputNumber, Switch, Dropdown, ColorPicker, Popconfirm, Tooltip, theme as antdTheme } from 'antd'
 import type { Color } from 'antd/es/color-picker'
 import { Icon } from '@iconify/react'
-import { imagePlusIcon, videoIcon, typeIcon, globeIcon, plusIcon, crosshairIcon, moveIcon, trash2Icon } from './Icons'
+import { imagePlusIcon, videoIcon, typeIcon, plusIcon, crosshairIcon, moveIcon, trash2Icon } from './Icons'
 import * as THREE from 'three'
 import { useEditStore } from '../store/edit-store'
+import { useSceneStore } from '../store/scene-store'
 import { ResourcePicker } from './ResourcePicker'
+import { VideoThumbnail } from './VideoThumbnail'
 import type { SceneMedia, SceneMediaType } from '../types/edit-data'
 import type { ResourceItem } from '../types/resource'
 
-const MEDIA_TYPE_CONFIG: Record<SceneMediaType, { label: string; icon: typeof imagePlusIcon }> = {
-  image: { label: '图片', icon: imagePlusIcon },
-  video: { label: '视频', icon: videoIcon },
-  text: { label: '文字标注', icon: typeIcon },
-  iframe: { label: '网页嵌入', icon: globeIcon },
+const MEDIA_TYPE_CONFIG: Record<SceneMediaType, { label: string; icon: typeof imagePlusIcon; color: string }> = {
+  image: { label: '图片', icon: imagePlusIcon, color: '#4a9eff' },
+  video: { label: '视频', icon: videoIcon, color: '#f5a623' },
+  text: { label: '文字', icon: typeIcon, color: '#7c5cfc' },
 }
 
 /** 场景媒体面板 */
@@ -35,10 +36,7 @@ export function SceneImagePanel() {
   const { token } = antdTheme.useToken()
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pickerType, setPickerType] = useState<'image' | 'video'>('image')
-  const [iframeInput, setIframeInput] = useState('')
-  const [iframeModalOpen, setIframeModalOpen] = useState(false)
 
-  /** 从资源选择器添加图片/视频 */
   const handleResourceSelect = useCallback((resources: ResourceItem[]) => {
     for (const res of resources) {
       const sceneMedia: SceneMedia = {
@@ -50,7 +48,7 @@ export function SceneImagePanel() {
         height: res.height || 512,
         position: [0, 0, 0],
         scale: [1, 1],
-        rotation: 0,
+        rotation: [0, 0, 0],
         visible: true,
         ...(pickerType === 'video' ? { autoplay: true, muted: true, loop: true } : {}),
       }
@@ -62,7 +60,6 @@ export function SceneImagePanel() {
     }
   }, [addSceneImage, pickerType])
 
-  /** 添加文字标注 */
   const handleAddText = useCallback(() => {
     const media: SceneMedia = {
       id: `media-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -83,37 +80,10 @@ export function SceneImagePanel() {
     message.success('已添加文字标注，请在模型上点击放置')
   }, [addSceneImage])
 
-  /** 添加网页嵌入 */
-  const handleAddIframe = useCallback(() => {
-    if (!iframeInput.trim()) {
-      message.warning('请输入网页地址')
-      return
-    }
-    const media: SceneMedia = {
-      id: `media-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      type: 'iframe',
-      name: '网页嵌入',
-      iframeUrl: iframeInput.trim(),
-      width: 512,
-      height: 384,
-      position: [0, 0, 0],
-      scale: [1, 1],
-      rotation: 0,
-      visible: true,
-    }
-    addSceneImage(media)
-    useEditStore.getState().setPlacingImageId(media.id)
-    setIframeModalOpen(false)
-    setIframeInput('')
-    message.success('已添加网页嵌入，请在模型上点击放置')
-  }, [addSceneImage, iframeInput])
-
-  /** 移除媒体 */
   const handleRemove = useCallback((id: string) => {
     removeSceneImage(id)
   }, [removeSceneImage])
 
-  /** 更新媒体属性 */
   const handleUpdate = useCallback((id: string, updates: Partial<SceneMedia>) => {
     updateSceneImage(id, updates)
   }, [updateSceneImage])
@@ -122,7 +92,6 @@ export function SceneImagePanel() {
     { key: 'image', label: '图片', icon: <Icon icon={imagePlusIcon} width={14} /> },
     { key: 'video', label: '视频', icon: <Icon icon={videoIcon} width={14} /> },
     { key: 'text', label: '文字标注', icon: <Icon icon={typeIcon} width={14} /> },
-    { key: 'iframe', label: '网页嵌入', icon: <Icon icon={globeIcon} width={14} /> },
   ]
 
   const handleAddMenu = useCallback(({ key }: { key: string }) => {
@@ -134,21 +103,13 @@ export function SceneImagePanel() {
       setPickerOpen(true)
     } else if (key === 'text') {
       handleAddText()
-    } else if (key === 'iframe') {
-      setIframeModalOpen(true)
     }
   }, [handleAddText])
 
   return (
-    <div style={{ padding: '4px 8px' }}>
+    <div className="space-y-1.5">
       <Dropdown menu={{ items: addMenuItems, onClick: handleAddMenu }} trigger={['click']}>
-        <Button
-          type="dashed"
-          icon={<Icon icon={plusIcon} width={14} />}
-          block
-          size="small"
-          style={{ marginBottom: 8 }}
-        >
+        <Button type="dashed" icon={<Icon icon={plusIcon} width={14} />} block size="small">
           添加媒体
         </Button>
       </Dropdown>
@@ -162,35 +123,8 @@ export function SceneImagePanel() {
         allowUpload
       />
 
-      {/* iframe 输入弹窗 */}
-      {iframeModalOpen && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 1000,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(0,0,0,0.45)',
-        }} onClick={() => setIframeModalOpen(false)}>
-          <div style={{
-            background: token.colorBgElevated, borderRadius: 8, padding: 20, width: 400,
-            boxShadow: `0 6px 16px 0 rgba(0,0,0,0.08), 0 3px 6px -4px rgba(0,0,0,0.12), 0 9px 28px 8px rgba(0,0,0,0.05)`,
-          }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ fontWeight: 600, marginBottom: 12, color: token.colorText }}>添加网页嵌入</div>
-            <Input
-              placeholder="请输入网页地址 (URL)"
-              value={iframeInput}
-              onChange={(e) => setIframeInput(e.target.value)}
-              style={{ marginBottom: 12 }}
-              onPressEnter={handleAddIframe}
-            />
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <Button size="small" onClick={() => setIframeModalOpen(false)}>取消</Button>
-              <Button size="small" type="primary" onClick={handleAddIframe}>添加</Button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {sceneImages.length === 0 && (
-        <div style={{ textAlign: 'center', color: '#999', fontSize: 12, padding: '12px 0' }}>
+        <div className="text-center text-xs py-3" style={{ color: token.colorTextQuaternary }}>
           暂无媒体，点击上方按钮添加
         </div>
       )}
@@ -199,8 +133,8 @@ export function SceneImagePanel() {
         <MediaCard
           key={img.id}
           media={img}
-          editing={editingId === img.id}
-          onEdit={() => setEditingId(editingId === img.id ? null : img.id)}
+          expanded={editingId === img.id}
+          onToggle={() => setEditingId(editingId === img.id ? null : img.id)}
           onRemove={() => handleRemove(img.id)}
           onUpdate={(updates) => handleUpdate(img.id, updates)}
         />
@@ -209,161 +143,201 @@ export function SceneImagePanel() {
   )
 }
 
-/** 媒体类型图标 */
-function MediaTypeIcon({ type }: { type: SceneMediaType }) {
-  const config = MEDIA_TYPE_CONFIG[type]
-  return <Icon icon={config.icon} width={14} style={{ opacity: 0.6 }} />
-}
-
 /** 媒体卡片 */
 function MediaCard({
   media,
-  editing,
-  onEdit,
+  expanded,
+  onToggle,
   onRemove,
   onUpdate,
 }: {
   media: SceneMedia
-  editing: boolean
-  onEdit: () => void
+  expanded: boolean
+  onToggle: () => void
   onRemove: () => void
   onUpdate: (updates: Partial<SceneMedia>) => void
 }) {
-  const typeLabel = MEDIA_TYPE_CONFIG[media.type]?.label || media.type
+  const { token } = antdTheme.useToken()
+  const cfg = MEDIA_TYPE_CONFIG[media.type]
+  const isPlacing = useEditStore((s) => s.placingImageId) === media.id
+  const isSelected = useEditStore((s) => s.selectedImageId) === media.id
+  const setSelectedImageId = useEditStore((s) => s.setSelectedImageId)
+
+  const handleSelect = useCallback(() => {
+    setSelectedImageId(isSelected ? null : media.id)
+  }, [isSelected, media.id, setSelectedImageId])
+
+  /** 定位相机到媒体位置 */
+  const handleLocate = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    const pos = media.position
+    if (!pos) return
+    const sceneStore = useSceneStore.getState()
+    const setCameraState = sceneStore.setCameraState
+    const getCameraState = sceneStore.getCameraState
+    if (!setCameraState || !getCameraState) return
+    const cam = getCameraState()
+    const dir = new THREE.Vector3(
+      cam.position.x - cam.target.x,
+      cam.position.y - cam.target.y,
+      cam.position.z - cam.target.z,
+    ).normalize()
+    const model = useEditStore.getState().modelObject
+    let distance = 5
+    if (model) {
+      const box = new THREE.Box3().setFromObject(model)
+      const size = new THREE.Vector3()
+      box.getSize(size)
+      distance = Math.max(size.length() * 0.6, 3)
+    }
+    setCameraState({
+      position: { x: pos[0] + dir.x * distance, y: pos[1] + dir.y * distance, z: pos[2] + dir.z * distance },
+      target: { x: pos[0], y: pos[1], z: pos[2] },
+    })
+  }, [media.position])
+
+  const handleRelocate = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    useEditStore.getState().setPlacingImageId(media.id)
+    message.info('请在模型上点击放置')
+  }, [media.id])
+
+  const handleToggle = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    onToggle()
+  }, [onToggle])
 
   return (
-    <Card
-      size="small"
-      style={{ marginBottom: 6, borderRadius: 6 }}
-      styles={{ body: { padding: 8 } }}
-      title={
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-          <MediaTypeIcon type={media.type} />
-          {media.type === 'image' && media.url && (
-            <img
-              src={media.url}
-              alt={media.name}
-              style={{ width: 24, height: 24, objectFit: 'cover', borderRadius: 3 }}
-            />
-          )}
-          {media.type === 'text' && (
-            <span style={{ maxWidth: 60, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#888', fontSize: 11 }}>
-              {media.text}
-            </span>
-          )}
-          {media.type === 'iframe' && (
-            <Icon icon={globeIcon} width={14} style={{ opacity: 0.5 }} />
-          )}
-          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {media.name}
-          </span>
-          <span style={{ fontSize: 10, color: '#aaa', border: '1px solid #ddd', borderRadius: 3, padding: '0 4px' }}>
-            {typeLabel}
-          </span>
-          <Switch
-            size="small"
-            checked={media.visible}
-            onChange={(v) => onUpdate({ visible: v })}
-          />
-        </div>
-      }
-      extra={
-        <Space size={4}>
-          {/* 定位到媒体 */}
-          <Button type="text" size="small" onClick={() => {
-            const store = useEditStore.getState()
-            const pos = media.position
-            if (!pos) return
-            const setCameraState = store.setCameraState
-            const getCameraState = store.getCameraState
-            if (!setCameraState || !getCameraState) return
-            const cam = getCameraState()
-            const dir = new THREE.Vector3(
-              cam.position.x - cam.target.x,
-              cam.position.y - cam.target.y,
-              cam.position.z - cam.target.z,
-            ).normalize()
-            // 根据模型包围盒计算合理观察距离
-            const model = store.modelObject
-            let distance = 5
-            if (model) {
-              const box = new THREE.Box3().setFromObject(model)
-              const size = new THREE.Vector3()
-              box.getSize(size)
-              const modelDiag = size.length()
-              distance = Math.max(modelDiag * 0.6, 3)
-            }
-            setCameraState({
-              position: {
-                x: pos[0] + dir.x * distance,
-                y: pos[1] + dir.y * distance,
-                z: pos[2] + dir.z * distance,
-              },
-              target: { x: pos[0], y: pos[1], z: pos[2] },
-            })
-          }} title="定位到媒体">
-            <Icon icon={crosshairIcon} width={14} />
-          </Button>
-          {/* 重定位 */}
-          <Button type="text" size="small" onClick={() => {
-            useEditStore.getState().setPlacingImageId(media.id)
-            message.info('请在模型上点击放置')
-          }} title="重定位">
-            <Icon icon={moveIcon} width={14} />
-          </Button>
-          <Button type="text" size="small" onClick={onEdit}>
-            <Icon icon={editing ? 'lucide:chevron-up' : 'lucide:chevron-down'} width={14} />
-          </Button>
-          <Popconfirm title="确定删除此媒体?" onConfirm={onRemove} okText="删除" cancelText="取消">
-            <Button type="text" size="small" danger>
-              <Icon icon={trash2Icon} width={14} />
-            </Button>
-          </Popconfirm>
-        </Space>
-      }
+    <div
+      className="rounded-lg transition-all duration-150 border cursor-pointer"
+      style={{
+        background: isSelected
+          ? token.colorPrimaryBg
+          : expanded
+            ? token.colorFillQuaternary
+            : token.colorBgElevated,
+        borderColor: isPlacing
+          ? token.colorPrimary
+          : isSelected
+            ? token.colorPrimaryBorder
+            : expanded
+              ? token.colorBorderSecondary
+              : token.colorBorderSecondary,
+        opacity: media.visible ? 1 : 0.55,
+      }}
+      onClick={handleSelect}
     >
-      {editing && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
-          <div>
-            <label style={{ color: '#888', marginBottom: 2, display: 'block' }}>名称</label>
-            <Input
-              size="small"
-              value={media.name}
-              onChange={(e) => onUpdate({ name: e.target.value })}
-            />
-          </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <div style={{ flex: 1 }}>
-              <label style={{ color: '#888', marginBottom: 2, display: 'block' }}>宽度</label>
-              <InputNumber
-                size="small"
-                value={media.width}
-                min={1}
-                style={{ width: '100%' }}
-                onChange={(v) => v != null && onUpdate({ width: v })}
-              />
+      {/* 卡片头部 */}
+      <div className="flex items-center gap-2.5 p-2.5">
+        {/* 缩略图区域 */}
+        <div
+          className="shrink-0 rounded-md overflow-hidden flex items-center justify-center"
+          style={{ width: 40, height: 40, background: token.colorFillSecondary }}
+        >
+          {media.type === 'image' && media.url ? (
+            <img src={media.url} alt={media.name} className="w-full h-full object-cover" />
+          ) : media.type === 'video' && media.url ? (
+            <VideoThumbnail url={media.url} className="w-full h-full object-cover" fallbackSize={20} />
+          ) : media.type === 'text' ? (
+            <div className="flex items-center justify-center w-full h-full" style={{ background: cfg.color + '22' }}>
+              <Icon icon={typeIcon} width={18} style={{ color: cfg.color }} />
             </div>
-            <div style={{ flex: 1 }}>
-              <label style={{ color: '#888', marginBottom: 2, display: 'block' }}>高度</label>
-              <InputNumber
-                size="small"
-                value={media.height}
-                min={1}
-                style={{ width: '100%' }}
-                onChange={(v) => v != null && onUpdate({ height: v })}
-              />
+          ) : (
+            <Icon icon={cfg.icon} width={18} style={{ opacity: 0.35 }} />
+          )}
+        </div>
+
+        {/* 名称与类型 */}
+        <div className="flex-1 min-w-0">
+          <div className="text-xs truncate font-medium" style={{ color: token.colorText }}>
+            {media.name}
+          </div>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span
+              className="text-[10px] px-1.5 py-px rounded-full leading-tight"
+              style={{ background: cfg.color + '22', color: cfg.color, fontWeight: 500 }}
+            >
+              {cfg.label}
+            </span>
+            {media.width && media.height ? (
+              <span className="text-[10px]" style={{ color: token.colorTextQuaternary }}>
+                {media.width}×{media.height}
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        {/* 可见性开关 */}
+        <Switch
+          size="small"
+          checked={media.visible}
+          onChange={(v) => onUpdate({ visible: v })}
+          onClick={(_, e) => e.stopPropagation()}
+        />
+      </div>
+
+      {/* 操作按钮栏 */}
+      <div
+        className="flex items-center gap-0.5 px-2 pb-2 border-t border-dashed"
+        style={{ borderColor: token.colorBorderSecondary }}
+      >
+        <div className="flex-1" />
+        <Tooltip title="定位到媒体">
+          <Button type="text" size="small" className="!w-6 !h-6 !min-w-0 flex items-center justify-center" onClick={handleLocate}>
+            <Icon icon={crosshairIcon} width={14} style={{ opacity: 0.55 }} />
+          </Button>
+        </Tooltip>
+        <Tooltip title="重定位位置">
+          <Button type="text" size="small" className="!w-6 !h-6 !min-w-0 flex items-center justify-center" onClick={handleRelocate}>
+            <Icon icon={moveIcon} width={14} style={{ opacity: 0.55 }} />
+          </Button>
+        </Tooltip>
+        <Tooltip title={expanded ? '收起属性' : '编辑属性'}>
+          <Button type="text" size="small" className="!w-6 !h-6 !min-w-0 flex items-center justify-center" onClick={handleToggle}>
+            <Icon icon={expanded ? 'lucide:chevron-up' : 'lucide:chevron-down'} width={14} style={{ opacity: 0.55 }} />
+          </Button>
+        </Tooltip>
+        <Popconfirm title="确定删除此媒体?" onConfirm={onRemove} okText="删除" cancelText="取消" placement="bottomRight">
+          <Button type="text" size="small" className="!w-6 !h-6 !min-w-0 flex items-center justify-center" danger onClick={(e) => e.stopPropagation()}>
+            <Icon icon={trash2Icon} width={14} style={{ opacity: 0.55 }} />
+          </Button>
+        </Popconfirm>
+      </div>
+
+      {/* 展开的编辑区域 */}
+      {expanded && (
+        <div
+          className="px-2.5 pb-2.5 space-y-2 text-xs border-t"
+          style={{ borderColor: token.colorBorderSecondary }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="pt-2.5">
+            <label className="block mb-1" style={{ color: token.colorTextSecondary }}>名称</label>
+            <Input size="small" value={media.name} onChange={(e) => onUpdate({ name: e.target.value })} />
+          </div>
+
+          <div className="flex gap-1.5">
+            <div className="flex-1">
+              <label className="block mb-1" style={{ color: token.colorTextSecondary }}>宽度</label>
+              <InputNumber size="small" value={media.width} min={1} className="!w-full" onChange={(v) => v != null && onUpdate({ width: v })} />
+            </div>
+            <div className="flex-1">
+              <label className="block mb-1" style={{ color: token.colorTextSecondary }}>高度</label>
+              <InputNumber size="small" value={media.height} min={1} className="!w-full" onChange={(v) => v != null && onUpdate({ height: v })} />
             </div>
           </div>
+
           <div>
-            <label style={{ color: '#888', marginBottom: 2, display: 'block' }}>位置 (X, Y, Z)</label>
-            <div style={{ display: 'flex', gap: 4 }}>
-              {([0, 1, 2] as const).map((idx) => (
+            <label className="block mb-1" style={{ color: token.colorTextSecondary }}>位置 (X, Y, Z)</label>
+            <div className="flex gap-1">
+              {(['X', 'Y', 'Z'] as const).map((axis, idx) => (
                 <InputNumber
-                  key={idx}
+                  key={axis}
                   size="small"
                   value={media.position?.[idx] ?? 0}
                   step={0.1}
-                  style={{ flex: 1 }}
+                  className="!flex-1"
+                  prefix={<span className="text-[10px] opacity-40">{axis}</span>}
                   onChange={(v) => {
                     const pos: [number, number, number] = [...(media.position || [0, 0, 0])]
                     pos[idx] = v ?? 0
@@ -373,17 +347,19 @@ function MediaCard({
               ))}
             </div>
           </div>
+
           <div>
-            <label style={{ color: '#888', marginBottom: 2, display: 'block' }}>缩放 (X, Y)</label>
-            <div style={{ display: 'flex', gap: 4 }}>
-              {([0, 1] as const).map((idx) => (
+            <label className="block mb-1" style={{ color: token.colorTextSecondary }}>缩放 (X, Y)</label>
+            <div className="flex gap-1">
+              {(['X', 'Y'] as const).map((axis, idx) => (
                 <InputNumber
-                  key={idx}
+                  key={axis}
                   size="small"
                   value={media.scale?.[idx] ?? 1}
                   step={0.1}
                   min={0.01}
-                  style={{ flex: 1 }}
+                  className="!flex-1"
+                  prefix={<span className="text-[10px] opacity-40">{axis}</span>}
                   onChange={(v) => {
                     const sc: [number, number] = [...(media.scale || [1, 1])]
                     sc[idx] = v ?? 1
@@ -393,68 +369,72 @@ function MediaCard({
               ))}
             </div>
           </div>
+
           <div>
-            <label style={{ color: '#888', marginBottom: 2, display: 'block' }}>旋转 (Z)</label>
-            <InputNumber
-              size="small"
-              value={media.rotation ?? 0}
-              step={0.1}
-              style={{ width: '100%' }}
-              onChange={(v) => onUpdate({ rotation: v ?? 0 })}
-            />
+            <label className="block mb-1" style={{ color: token.colorTextSecondary }}>旋转 (X, Y, Z)</label>
+            <div className="flex gap-1">
+              {(['X', 'Y', 'Z'] as const).map((axis, idx) => {
+                const cur = Array.isArray(media.rotation)
+                  ? (media.rotation[idx] ?? 0)
+                  : (typeof media.rotation === 'number' ? (idx === 2 ? media.rotation : 0) : 0)
+                return (
+                  <InputNumber
+                    key={axis}
+                    size="small"
+                    value={cur}
+                    step={0.1}
+                    className="!flex-1"
+                    prefix={<span className="text-[10px] opacity-40">{axis}</span>}
+                    onChange={(v) => {
+                      const r = Array.isArray(media.rotation)
+                        ? ([...media.rotation] as [number, number, number])
+                        : (typeof media.rotation === 'number' ? [0, 0, media.rotation] as [number, number, number] : [0, 0, 0] as [number, number, number])
+                      r[idx] = v ?? 0
+                      onUpdate({ rotation: r })
+                    }}
+                  />
+                )
+              })}
+            </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <label style={{ color: '#888' }}>始终面向相机</label>
-            <Switch
-              size="small"
-              checked={media.billboard !== false}
-              onChange={(v) => onUpdate({ billboard: v })}
-            />
+
+          <div className="flex items-center justify-between">
+            <span style={{ color: token.colorTextSecondary }}>始终面向相机</span>
+            <Switch size="small" checked={media.billboard !== false} onChange={(v) => onUpdate({ billboard: v })} />
           </div>
 
           {/* 视频专用属性 */}
           {media.type === 'video' && (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <label style={{ color: '#888' }}>自动播放</label>
+            <div className="space-y-2 pt-1 border-t" style={{ borderColor: token.colorBorderSecondary }}>
+              <div className="flex items-center justify-between">
+                <span style={{ color: token.colorTextSecondary }}>自动播放</span>
                 <Switch size="small" checked={media.autoplay !== false} onChange={(v) => onUpdate({ autoplay: v })} />
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <label style={{ color: '#888' }}>静音</label>
+              <div className="flex items-center justify-between">
+                <span style={{ color: token.colorTextSecondary }}>静音</span>
                 <Switch size="small" checked={media.muted !== false} onChange={(v) => onUpdate({ muted: v })} />
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <label style={{ color: '#888' }}>循环</label>
+              <div className="flex items-center justify-between">
+                <span style={{ color: token.colorTextSecondary }}>循环</span>
                 <Switch size="small" checked={media.loop !== false} onChange={(v) => onUpdate({ loop: v })} />
               </div>
-            </>
+            </div>
           )}
 
           {/* 文字标注专用属性 */}
           {media.type === 'text' && (
-            <>
+            <div className="space-y-2 pt-1 border-t" style={{ borderColor: token.colorBorderSecondary }}>
               <div>
-                <label style={{ color: '#888', marginBottom: 2, display: 'block' }}>文字内容</label>
-                <Input
-                  size="small"
-                  value={media.text || ''}
-                  onChange={(e) => onUpdate({ text: e.target.value })}
-                />
+                <label className="block mb-1" style={{ color: token.colorTextSecondary }}>文字内容</label>
+                <Input size="small" value={media.text || ''} onChange={(e) => onUpdate({ text: e.target.value })} />
               </div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ color: '#888', marginBottom: 2, display: 'block' }}>字号</label>
-                  <InputNumber
-                    size="small"
-                    value={media.fontSize ?? 24}
-                    min={8}
-                    max={200}
-                    style={{ width: '100%' }}
-                    onChange={(v) => v != null && onUpdate({ fontSize: v })}
-                  />
+              <div className="flex gap-1.5">
+                <div className="flex-1">
+                  <label className="block mb-1" style={{ color: token.colorTextSecondary }}>字号</label>
+                  <InputNumber size="small" value={media.fontSize ?? 24} min={8} max={200} className="!w-full" onChange={(v) => v != null && onUpdate({ fontSize: v })} />
                 </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ color: '#888', marginBottom: 2, display: 'block' }}>文字颜色</label>
+                <div>
+                  <label className="block mb-1" style={{ color: token.colorTextSecondary }}>文字颜色</label>
                   <ColorPicker
                     size="small"
                     value={media.fontColor ?? '#ffffff'}
@@ -465,22 +445,10 @@ function MediaCard({
                   />
                 </div>
               </div>
-            </>
-          )}
-
-          {/* iframe 专用属性 */}
-          {media.type === 'iframe' && (
-            <div>
-              <label style={{ color: '#888', marginBottom: 2, display: 'block' }}>网页地址</label>
-              <Input
-                size="small"
-                value={media.iframeUrl || ''}
-                onChange={(e) => onUpdate({ iframeUrl: e.target.value })}
-              />
             </div>
           )}
         </div>
       )}
-    </Card>
+    </div>
   )
 }

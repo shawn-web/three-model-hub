@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
-import { Repository } from 'typeorm'
+import { Repository, DataSource } from 'typeorm'
 import { Scene } from './entities/scene.entity'
 import { SceneModel } from './entities/scene-model.entity'
 import { SceneImage } from './entities/scene-image.entity'
@@ -28,12 +28,13 @@ export class ScenesService {
     private sceneModelRepo: Repository<SceneModel>,
     @InjectRepository(SceneImage)
     private sceneImageRepo: Repository<SceneImage>,
+    private dataSource: DataSource,
   ) {}
 
   /** 获取场景列表 */
   async findAll(query: { page?: number; limit?: number; search?: string }) {
-    const page = query.page || 1
-    const limit = Math.min(query.limit || 20, 100)
+    const page = Math.max(query.page || 1, 1)
+    const limit = Math.min(Math.max(query.limit || 20, 1), 100)
     const offset = (page - 1) * limit
 
     const qb = this.sceneRepo.createQueryBuilder('scene')
@@ -111,8 +112,8 @@ export class ScenesService {
       visible: dto.visible !== undefined ? dto.visible : true,
       sort_order: dto.sort_order || 0,
       display_name: dto.display_name || null,
-    } as any)
-    return this.sceneModelRepo.save(sceneModel as any) as any
+    })
+    return this.sceneModelRepo.save(sceneModel)
   }
 
   /**
@@ -153,24 +154,33 @@ export class ScenesService {
   }
 
   /**
-   * 批量更新场景中的模型配置
+   * 批量更新场景中的模型配置（事务 + 批量查询）
    */
   async batchUpdateModels(sceneId: string, items: BatchSceneModelItemDto[]): Promise<void> {
     await this.findOne(sceneId)
 
-    for (const item of items) {
-      const sceneModel = await this.sceneModelRepo.findOne({
-        where: { id: item.id, scene_id: sceneId },
-      })
-      if (!sceneModel) continue
+    const itemIds = items.map((item) => item.id)
+    const sceneModels = await this.sceneModelRepo
+      .createQueryBuilder('sm')
+      .where('sm.id IN (:...ids)', { ids: itemIds })
+      .andWhere('sm.scene_id = :sceneId', { sceneId })
+      .getMany()
 
-      if (item.transform !== undefined) sceneModel.transform = item.transform
-      if (item.material_overrides !== undefined) sceneModel.material_overrides = item.material_overrides
-      if (item.visible !== undefined) sceneModel.visible = item.visible
-      if (item.display_name !== undefined) sceneModel.display_name = item.display_name
+    const modelMap = new Map(sceneModels.map((sm) => [sm.id, sm]))
 
-      await this.sceneModelRepo.save(sceneModel)
-    }
+    await this.dataSource.transaction(async (manager) => {
+      for (const item of items) {
+        const sceneModel = modelMap.get(item.id)
+        if (!sceneModel) continue
+
+        if (item.transform !== undefined) sceneModel.transform = item.transform
+        if (item.material_overrides !== undefined) sceneModel.material_overrides = item.material_overrides
+        if (item.visible !== undefined) sceneModel.visible = item.visible
+        if (item.display_name !== undefined) sceneModel.display_name = item.display_name
+
+        await manager.save(SceneModel, sceneModel)
+      }
+    })
   }
 
   /**
@@ -299,40 +309,39 @@ export class ScenesService {
   }
 
   /**
-   * 批量保存场景图片（替换所有）
-   * 先删除该场景的所有图片，再重新创建
+   * 批量保存场景图片（事务：先删除再重建）
    */
   async batchSaveImages(sceneId: string, items: BatchSceneImageItemDto[]): Promise<void> {
     await this.findOne(sceneId)
 
-    // 删除该场景的所有现有图片
-    await this.sceneImageRepo.delete({ scene_id: sceneId })
+    await this.dataSource.transaction(async (manager) => {
+      await manager.delete(SceneImage, { scene_id: sceneId })
 
-    // 重新创建所有图片
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i]
-      const image = this.sceneImageRepo.create({
-        scene_id: sceneId,
-        type: item.type || 'image',
-        url: item.url || null,
-        name: item.name,
-        width: item.width,
-        height: item.height,
-        position: item.position || null,
-        scale: item.scale || null,
-        rotation: item.rotation || null,
-        visible: item.visible !== undefined ? item.visible : true,
-        billboard: item.billboard !== undefined ? item.billboard : true,
-        sort_order: item.sort_order ?? i,
-        autoplay: item.autoplay !== undefined ? item.autoplay : null,
-        muted: item.muted !== undefined ? item.muted : null,
-        loop: item.loop !== undefined ? item.loop : null,
-        text: item.text || null,
-        fontSize: item.fontSize || null,
-        fontColor: item.fontColor || null,
-        iframeUrl: item.iframeUrl || null,
-      })
-      await this.sceneImageRepo.save(image)
-    }
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i]
+        const image = manager.create(SceneImage, {
+          scene_id: sceneId,
+          type: item.type || 'image',
+          url: item.url || null,
+          name: item.name,
+          width: item.width,
+          height: item.height,
+          position: item.position || null,
+          scale: item.scale || null,
+          rotation: item.rotation || null,
+          visible: item.visible !== undefined ? item.visible : true,
+          billboard: item.billboard !== undefined ? item.billboard : true,
+          sort_order: item.sort_order ?? i,
+          autoplay: item.autoplay !== undefined ? item.autoplay : null,
+          muted: item.muted !== undefined ? item.muted : null,
+          loop: item.loop !== undefined ? item.loop : null,
+          text: item.text || null,
+          fontSize: item.fontSize || null,
+          fontColor: item.fontColor || null,
+          iframeUrl: item.iframeUrl || null,
+        })
+        await manager.save(SceneImage, image)
+      }
+    })
   }
 }

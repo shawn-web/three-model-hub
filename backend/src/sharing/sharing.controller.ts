@@ -12,6 +12,7 @@ import { CreateShareLinkDto } from './dto/share.dto'
 
 /**
  * 分享链接控制器
+ * 注意：静态路径（scene/:sceneId、model/:modelId）必须在 :token 之前注册
  */
 @Controller('share')
 export class SharingController {
@@ -30,6 +31,18 @@ export class SharingController {
     }
   }
 
+  /** 获取场景的分享链接列表（静态路径，必须在 :token 之前） */
+  @Get('scene/:sceneId')
+  async getBySceneId(@Param('sceneId', ParseUUIDPipe) sceneId: string) {
+    return this.sharingService.getBySceneId(sceneId)
+  }
+
+  /** 获取模型的分享链接列表（静态路径，必须在 :token 之前） */
+  @Get('model/:modelId')
+  async getByModelId(@Param('modelId', ParseUUIDPipe) modelId: string) {
+    return this.sharingService.getByModelId(modelId)
+  }
+
   /** 通过 token 获取分享内容（公开访问，无需认证） */
   @Get(':token')
   async getByToken(@Param('token') token: string) {
@@ -41,17 +54,5 @@ export class SharingController {
   async revoke(@Param('id', ParseUUIDPipe) id: string) {
     await this.sharingService.revoke(id)
     return { success: true }
-  }
-
-  /** 获取场景的分享链接列表 */
-  @Get('scene/:sceneId')
-  async getBySceneId(@Param('sceneId', ParseUUIDPipe) sceneId: string) {
-    return this.sharingService.getBySceneId(sceneId)
-  }
-
-  /** 获取模型的分享链接列表 */
-  @Get('model/:modelId')
-  async getByModelId(@Param('modelId', ParseUUIDPipe) modelId: string) {
-    return this.sharingService.getByModelId(modelId)
   }
 }
