@@ -60,7 +60,7 @@ interface ExternalConfigData {
 
 /** Viewer store 接口（UI 专用字段） */
 interface ViewerStoreApi {
-  sceneConfig?: Record<string, unknown>
+  sceneConfig?: Record<string, unknown> | null
   setSceneConfig: (config: Record<string, unknown>) => void
   setToolbarVisible: (visible: boolean) => void
   setTreeVisible: (visible: boolean) => void
@@ -79,10 +79,10 @@ interface SceneStoreApi {
   setAutoRotateSpeed: (speed: number) => void
   setGridVisible: (visible: boolean) => void
   setViewCubeVisible: (visible: boolean) => void
-  setCameraState: ((state: unknown) => void) | null
+  setCameraState: ((state: { position: { x: number; y: number; z: number }; target: { x: number; y: number; z: number }; up?: { x: number; y: number; z: number }; fov?: number }) => void) | null
 }
 
-import type * as THREE from 'three'
+import * as THREE from 'three'
 
 /** 从编辑器收集完整配置数据 */
 export function collectSceneConfig(store: EditState & {
@@ -342,7 +342,7 @@ export function applyExternalConfig(data: ExternalConfigData, viewerStore: Viewe
   if (data.autoRotateSpeed != null) sceneStore.setAutoRotateSpeed(data.autoRotateSpeed)
   if (data.gridVisible != null) sceneStore.setGridVisible(data.gridVisible)
   if (data.viewCubeVisible != null) sceneStore.setViewCubeVisible(data.viewCubeVisible)
-  if (data.camera && sceneStore.setCameraState) sceneStore.setCameraState(data.camera)
+  if (data.camera && sceneStore.setCameraState) sceneStore.setCameraState(data.camera as Parameters<NonNullable<typeof sceneStore.setCameraState>>[0])
 
   // ── 标点：按 id 合并 → scene-store ──
   if (data.markers && Array.isArray(data.markers)) {

@@ -255,12 +255,20 @@ export function ModelsPage() {
   ]
 
   return (
-    <div className="max-w-[1200px] mx-auto px-6 py-8">
+    <div className="max-w-[1200px] mx-auto px-6 py-8 animate-fade-in">
       {/* 页面标题 */}
-      <h1 className="text-[22px] font-semibold mb-6">模型管理</h1>
+      <h1
+        className="text-[22px] font-semibold mb-6 animate-fade-in-up"
+        style={{ animationDelay: '0ms' }}
+      >
+        模型管理
+      </h1>
 
       {/* 操作栏 */}
-      <div className="flex justify-between items-center mb-6">
+      <div
+        className="flex justify-between items-center mb-6 animate-fade-in-up"
+        style={{ animationDelay: '60ms' }}
+      >
         <Input
           placeholder="搜索模型..."
           prefix={<Search20 />}
@@ -290,22 +298,27 @@ export function ModelsPage() {
       </div>
 
       {/* 模型列表表格 */}
-      <Table<ModelItem>
-        columns={columns}
-        dataSource={models}
-        rowKey="id"
-        loading={loading}
-        tableLayout="fixed"
-        pagination={{
-          current: page,
-          pageSize,
-          total,
-          showSizeChanger: false,
-          showTotal: (t) => `共 ${t} 个模型`,
-          onChange: (p) => setPage(p),
-        }}
-        locale={{ emptyText: search ? '没有找到匹配的模型' : '还没有模型，点击上方按钮上传' }}
-      />
+      <div
+        className="animate-fade-in-up row-highlight"
+        style={{ animationDelay: '120ms' }}
+      >
+        <Table<ModelItem>
+          columns={columns}
+          dataSource={models}
+          rowKey="id"
+          loading={loading}
+          tableLayout="fixed"
+          pagination={{
+            current: page,
+            pageSize,
+            total,
+            showSizeChanger: false,
+            showTotal: (t) => `共 ${t} 个模型`,
+            onChange: (p) => setPage(p),
+          }}
+          locale={{ emptyText: search ? '没有找到匹配的模型' : '还没有模型，点击上方按钮上传' }}
+        />
+      </div>
 
       {/* 编辑弹窗 */}
       <Modal

@@ -58,7 +58,10 @@ export function ViewerPage() {
     const sceneStore = useSceneStore.getState()
     sceneStore.setModelLoadingProgress(0)
     sceneStore.setModelLoading(true)
-    useViewerStore.getState().setSceneConfig(sceneData.config)
+    // 合并外部配置（iframe postMessage 传入的配置优先于后端配置）
+    const existingConfig = useViewerStore.getState().sceneConfig || {}
+    const mergedConfig = sceneData.config ? { ...sceneData.config, ...existingConfig } : existingConfig
+    useViewerStore.getState().setSceneConfig(mergedConfig)
 
     const getModelUrl = async (modelId: string): Promise<string> => {
       const modelInfo = await getModel(modelId)
@@ -88,8 +91,25 @@ export function ViewerPage() {
     }
 
     sceneStore.setModelObject(sceneGroup)
-    sceneStore.setMarkers(sceneData.markers || [])
-    sceneStore.setSceneImages(sceneData.images || [])
+    sceneStore.setMarkers((sceneData.markers || []) as import('../types/edit-data').MarkerData[])
+    sceneStore.setSceneImages((sceneData.images || []) as import('../types/edit-data').SceneMedia[])
+
+    // 同步场景配置到 scene-store（渲染状态），使用合并后的配置（外部配置优先）
+    if (mergedConfig) {
+      if (mergedConfig.autoRotate != null) {
+        sceneStore.setAutoRotate(mergedConfig.autoRotate as boolean)
+      }
+      if (mergedConfig.autoRotateAxis) {
+        sceneStore.setAutoRotateAxis(mergedConfig.autoRotateAxis as 'x' | 'y' | 'z')
+      }
+      if (mergedConfig.autoRotateSpeed != null) {
+        sceneStore.setAutoRotateSpeed(mergedConfig.autoRotateSpeed as number)
+      }
+      if (mergedConfig.gridVisible != null) {
+        sceneStore.setGridVisible(mergedConfig.gridVisible as boolean)
+      }
+    }
+
     sceneStore.setModelLoadingProgress(100)
     setTimeout(() => {
       useSceneStore.getState().setModelLoading(false)

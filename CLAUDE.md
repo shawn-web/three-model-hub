@@ -92,12 +92,35 @@ NestJS 模块化组织，每个业务模块包含 `entities/`、`dto/`、`*.serv
 
 ## 开发注意事项
 
+### 文件读取
+- 默认只读取用户指定文件，禁止递归扫描和全仓库搜索
+- 单次最多读取 5 个文件，存在明确依赖链时可扩展至 8~10 个
+- 允许读取直接依赖文件（最多一层 import 链）
+- 禁止无目的批量扫描，不读取 node_modules、dist 目录，不分析无关依赖
+
+### 作用域
+- 仅修改用户要求内容，禁止主动重构、修复全局问题、修改无关代码
+- 优先输出 diff，禁止生成 mock 实现
+- 修改实体必须同步 migration
+
+### 编码规范
 - 所有注释和文档使用中文，注释只写功能相关的
 - 后端 TypeScript 使用 `experimentalDecorators` + `emitDecoratorMetadata`（NestJS 装饰器模式）
 - 前端 TypeScript 启用 `noUnusedLocals`、`noUnusedParameters`、`noFallthroughCasesInSwitch`（非 strict 模式），后端 `strictNullChecks` 和 `noImplicitAny` 均关闭
+
+### 项目约定
 - 后端 `.env` 文件配置数据库连接和文件上传服务
 - 场景编辑器（`/scenes/:id/edit`）和全屏查看器（`/view/:sceneId`）是两个不同的页面，后者无导航栏
-- 修改、新增、删除场景、模型、属性等的配置的时候需要同步修改配置文件
+- 修改、新增、删除场景、模型、属性等配置时，需同步修改以下配置文件：
+
+| 变更类型 | 需同步修改的配置文件 |
+|---|---|
+| 场景状态/属性 | `frontend/src/store/scene-store.ts`、`frontend/src/store/edit-store.ts`、`frontend/src/store/viewer-store.ts` |
+| 前端路由/页面 | `frontend/src/RouterApp.tsx` |
+| 后端实体字段 | `backend/src/<module>/entities/` 目录下对应实体文件 |
+| 后端 DTO | `backend/src/<module>/dto/` 目录下对应 DTO 文件 |
+| 后端模块注册 | `backend/src/app.module.ts` |
+| 文档 | 详见下方「文档同步规则」表 |
 
 ### 文档同步规则
 

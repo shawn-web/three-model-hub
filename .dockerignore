@@ -1,0 +1,11 @@
+node_modules
+dist-ssr
+.git
+*.log
+.claude
+docs
+*.md
+!frontend/package.json
+!backend/package.json
+!frontend/dist
+!backend/dist

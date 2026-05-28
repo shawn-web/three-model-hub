@@ -71,8 +71,9 @@ apiClient.interceptors.response.use(
     const method = (response.config.method || 'get').toLowerCase()
 
     // 如果是缓存命中，直接返回缓存的响应
-    if ((response.config as InternalConfig).__cacheHit) {
-      return (response.config as InternalConfig).__cacheHit
+    const cached = (response.config as InternalConfig).__cacheHit
+    if (cached) {
+      return cached
     }
 
     // 缓存成功的 GET 响应

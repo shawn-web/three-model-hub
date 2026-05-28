@@ -79,7 +79,7 @@ export function SceneTree() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [treeVersion, setTreeVersion] = useState(0)
   const { token } = theme.useToken()
-  const treeRef = useRef<InstanceType<typeof Tree> | null>(null)
+  const treeRef = useRef<any>(null)
   const propsRef = useRef<ComponentPropertiesRef>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerHeight, setContainerHeight] = useState(400)

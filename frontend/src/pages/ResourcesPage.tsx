@@ -170,7 +170,7 @@ export function ResourcesPage() {
           metadata = { ...metadata, ...meta }
         }
 
-        await uploadResource(file, metadata)
+        await uploadResource(file, metadata as Parameters<typeof uploadResource>[1])
         uploadedCount.current++
       } catch (err: unknown) {
         failedCount.current++
@@ -328,9 +328,9 @@ export function ResourcesPage() {
   ]
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full animate-fade-in">
       {/* 左侧分组列表 */}
-      <div className="w-[200px] border-r border-[--ant-color-border-secondary] p-3 flex flex-col shrink-0">
+      <div className="w-[200px] border-r border-[--ant-color-border-secondary] p-3 flex flex-col shrink-0 animate-slide-in-left">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-medium">分组</span>
           <Button
@@ -358,7 +358,7 @@ export function ResourcesPage() {
                 <div className="flex items-center justify-between group">
                   <span className="truncate">{g.name}</span>
                   <span
-                    className="opacity-0 group-hover:opacity-100 flex gap-1"
+                    className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity duration-200"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <span
@@ -398,7 +398,10 @@ export function ResourcesPage() {
       {/* 右侧主区域 */}
       <div className="flex-1 flex flex-col min-w-0 p-6">
         {/* 顶部操作栏 */}
-        <div className="flex gap-3 mb-4 items-center">
+        <div
+          className="flex gap-3 mb-4 items-center animate-fade-in-up"
+          style={{ animationDelay: '80ms' }}
+        >
           <Input
             prefix={<Search20 size={14} />}
             placeholder="搜索资源"
@@ -438,16 +441,17 @@ export function ResourcesPage() {
             <Spin size="large" description="加载中..." />
           </div>
         ) : resources.length === 0 ? (
-          <div className="flex justify-center items-center flex-1">
+          <div className="flex justify-center items-center flex-1 animate-scale-in">
             <Empty description="暂无资源，点击上方按钮上传" />
           </div>
         ) : (
-          <Row gutter={[16, 16]} className="flex-1 content-start overflow-y-auto">
-            {resources.map((item) => (
+          <Row gutter={[20, 20]} className="flex-1 content-start overflow-y-auto">
+            {resources.map((item, i) => (
               <Col key={item.id} xs={12} sm={8} md={8} lg={6}>
                 <Card
                   hoverable
-                  className="rounded-lg overflow-hidden cursor-pointer"
+                  className="rounded-xl overflow-hidden cursor-pointer card-hover-lift animate-fade-in-up"
+                  style={{ animationDelay: `${120 + i * 45}ms` }}
                   onClick={() => {
                     setLightboxIndex(resources.indexOf(item))
                     setLightboxOpen(true)
@@ -458,7 +462,7 @@ export function ResourcesPage() {
                         <img
                           src={item.url}
                           alt={item.name}
-                          className="h-full object-contain mx-auto"
+                          className="h-full object-contain mx-auto thumb-zoom"
                           onError={(e) => {
                             const el = e.currentTarget
                             el.style.display = 'none'
@@ -469,7 +473,7 @@ export function ResourcesPage() {
                       ) : (
                         <VideoThumbnail
                           url={item.url}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-cover thumb-zoom"
                           fallbackSize={40}
                         />
                       )}

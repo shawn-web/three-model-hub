@@ -117,39 +117,40 @@ export const ComponentProperties = forwardRef<ComponentPropertiesRef>(function C
     })
     setSelectedObj(found)
     if (!found) return
+    const obj = found as THREE.Object3D
 
     const data = editData[selectedComponentId]
 
     // 恢复别名
     if (data?.name) setAlias(data.name)
-    else if (found.name) setAlias(found.name)
+    else if (obj.name) setAlias(obj.name)
     else setAlias('')
 
     // 恢复描述
-    if (data?.description !== undefined) setDescription(data.description)
-    else if (found.userData?.description) setDescription(found.userData.description)
+    if (data?.description !== undefined) setDescription(data.description ?? '')
+    else if (obj.userData?.description) setDescription(obj.userData.description as string)
     else setDescription('')
 
     // 恢复位置
-    const pos = data?.position || found.position.toArray()
+    const pos = data?.position || obj.position.toArray()
     setPosX(pos[0].toFixed(3))
     setPosY(pos[1].toFixed(3))
     setPosZ(pos[2].toFixed(3))
 
     // 恢复旋转
-    const rot = data?.rotation || [found.rotation.x, found.rotation.y, found.rotation.z]
+    const rot = data?.rotation || [obj.rotation.x, obj.rotation.y, obj.rotation.z]
     setRotX((rot[0] * 180 / Math.PI).toFixed(1))
     setRotY((rot[1] * 180 / Math.PI).toFixed(1))
     setRotZ((rot[2] * 180 / Math.PI).toFixed(1))
 
     // 恢复缩放
-    const scl = data?.scale || found.scale.toArray()
+    const scl = data?.scale || obj.scale.toArray()
     setScaleX(scl[0].toFixed(3))
     setScaleY(scl[1].toFixed(3))
     setScaleZ(scl[2].toFixed(3))
 
     // 恢复材质
-    const mesh = found instanceof THREE.Mesh ? found as THREE.Mesh : null
+    const mesh = obj instanceof THREE.Mesh ? obj as THREE.Mesh : null
     if (mesh) {
       const mat = Array.isArray(mesh.material) ? mesh.material[0] as THREE.MeshStandardMaterial : mesh.material as THREE.MeshStandardMaterial
       setColor(mat.color.getStyle())
@@ -461,7 +462,6 @@ export const ComponentProperties = forwardRef<ComponentPropertiesRef>(function C
               max={100}
               value={opacity}
               onChange={setOpacity}
-              size="small"
             />
           </div>
 

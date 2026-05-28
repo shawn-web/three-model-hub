@@ -21,7 +21,7 @@ export interface ViewerPlugin {
   id: string
   name: string
   icon?: string
-  group?: 'navigation' | 'interaction' | 'display' | 'tool'
+  group?: 'navigation' | 'interaction' | 'display' | 'tool' | 'section' | 'measurement' | 'picking'
   install(context: ViewerContext): void
   uninstall(): void
   activate(): void
