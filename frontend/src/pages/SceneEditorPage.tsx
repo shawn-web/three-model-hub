@@ -48,6 +48,8 @@ import { getModel, getModels } from '../api/models'
 import { loadSceneModels, loadGLBWithCache, getNodePath } from '../utils/multi-model-loader'
 import { uploadFile } from '../api/upload'
 import { invalidateHttpCache } from '../api/client'
+import type { MarkerData } from '../types/edit-data'
+import type { EditComponentData } from '../store/edit-store'
 
 const { Sider, Content } = Layout
 
@@ -73,15 +75,6 @@ interface SceneModelEntry {
   material_overrides?: { components?: Record<string, Record<string, unknown>> }
   visible?: boolean
   resolvedName?: string
-}
-
-/** 标点类型 */
-interface MarkerData {
-  id: string
-  name?: string
-  width?: number
-  height?: number
-  action?: string
   [key: string]: unknown
 }
 
@@ -170,9 +163,9 @@ export function SceneEditorPage() {
         if (sceneData.markers && Array.isArray(sceneData.markers)) {
           const store = useEditStore.getState()
           store.markers.forEach(() => {})
-          sceneData.markers.forEach((m: Record<string, unknown>) => {
+          ;(sceneData.markers as Array<Record<string, unknown>>).forEach((m) => {
             if (!store.markers.find((existing) => existing.id === m.id)) {
-              store.addMarker({ ...m, action: m.action || 'none' })
+              store.addMarker({ ...m, action: (m.action as string) || 'none' } as MarkerData)
             }
           })
         }
@@ -205,7 +198,7 @@ export function SceneEditorPage() {
           const sceneGroup = await loadSceneModels(
             sceneData.models,
             getModelUrl,
-            (loaded, total, name, overallPercent) => {
+            (loaded, total, _name, overallPercent) => {
               const progress = overallPercent ?? Math.round((loaded / total) * 100)
               useEditStore.getState().setModelLoadingProgress(progress)
             },
@@ -233,14 +226,15 @@ export function SceneEditorPage() {
           }
 
           // 从加载的模型中恢复 editData（描述 + 材质覆盖）
-          const restoredEditData: Record<string, Record<string, unknown>> = {}
+          const restoredEditData: Record<string, EditComponentData> = {}
           // 收集所有覆盖数据，key → override 值
           const overrideData = new Map<string, Record<string, unknown>>()
-          for (const sm of sceneData.models) {
-            if (sm.material_overrides?.components) {
-              for (const [k, v] of Object.entries(sm.material_overrides.components)) {
+          for (const sm of sceneData.models as Array<Record<string, unknown>>) {
+            const mo = sm.material_overrides as { components?: Record<string, unknown> } | undefined
+            if (mo?.components) {
+              for (const [k, v] of Object.entries(mo.components)) {
                 if ((v as Record<string, unknown>)?._deleted) continue
-                overrideData.set(k, v)
+                overrideData.set(k, v as Record<string, unknown>)
               }
             }
           }
@@ -254,12 +248,12 @@ export function SceneEditorPage() {
             let override: Record<string, unknown> | null = null
             let matchBy = ''
             if (child.name && overrideData.has(child.name)) {
-              override = overrideData.get(child.name)
+              override = overrideData.get(child.name) ?? null
               matchBy = 'name'
             }
             if (!override && child.parent) {
               let modelRoot: THREE.Object3D | null = null
-              let p = child.parent
+              let p: THREE.Object3D | null = child.parent
               while (p && p !== sceneGroup) {
                 if (p.userData?.sceneModelId && p.children[0]) {
                   modelRoot = p.children[0]
@@ -270,13 +264,13 @@ export function SceneEditorPage() {
               if (modelRoot) {
                 const path = getNodePath(child, modelRoot)
                 if (overrideData.has(path)) {
-                  override = overrideData.get(path)
+                  override = overrideData.get(path) ?? null
                   matchBy = 'path'
                 }
               }
             }
             if (!override && overrideData.has(child.uuid)) {
-              override = overrideData.get(child.uuid)
+              override = overrideData.get(child.uuid) ?? null
               matchBy = 'uuid'
             }
             if (!desc && !override) return
@@ -288,16 +282,16 @@ export function SceneEditorPage() {
               position: child.position.toArray() as [number, number, number],
               rotation: [child.rotation.x, child.rotation.y, child.rotation.z] as [number, number, number],
               scale: child.scale.toArray() as [number, number, number],
-              color: override?.color ?? null,
-              opacity: override?.opacity ?? null,
-              mapUrl: override?.mapUrl ?? null,
-              normalMapUrl: override?.normalMapUrl ?? null,
-              roughnessMapUrl: override?.roughnessMapUrl ?? null,
-              metalnessMapUrl: override?.metalnessMapUrl ?? null,
-              emissiveMapUrl: override?.emissiveMapUrl ?? null,
+              color: (override?.color as string | null) ?? null,
+              opacity: (override?.opacity as number | null) ?? null,
+              mapUrl: (override?.mapUrl as string | null) ?? null,
+              normalMapUrl: (override?.normalMapUrl as string | null) ?? null,
+              roughnessMapUrl: (override?.roughnessMapUrl as string | null) ?? null,
+              metalnessMapUrl: (override?.metalnessMapUrl as string | null) ?? null,
+              emissiveMapUrl: (override?.emissiveMapUrl as string | null) ?? null,
               visible: child.visible,
               name: child.name || null,
-              description: desc || override?.description || null,
+              description: (desc as string | null) || (override?.description as string | null) || null,
             }
           })
           console.log('[Restore] total entries:', Object.keys(restoredEditData).length)
@@ -316,7 +310,7 @@ export function SceneEditorPage() {
                 const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
                 for (const m of materials) {
                   const mat = m as THREE.MeshStandardMaterial
-                  if (data.color) {
+                  if (data.color != null) {
                     if (!mat.userData._originalColor) mat.userData._originalColor = mat.color.getHexString()
                     mat.color.set(data.color)
                   }
@@ -361,11 +355,11 @@ export function SceneEditorPage() {
             }
           }
 
-          const enriched = sceneData.models.map((sm: Record<string, unknown>) => ({
+          const enriched = (sceneData.models as Array<Record<string, unknown>>).map((sm) => ({
             ...sm,
-            resolvedName: sm.display_name || modelNameMap[sm.model_id] || `模型 ${sm.model_id?.slice(0, 6)}`,
+            resolvedName: (sm.display_name as string | undefined) || modelNameMap[sm.model_id as string] || `模型 ${(sm.model_id as string | undefined)?.slice(0, 6)}`,
           }))
-          setSceneModels(enriched)
+          setSceneModels(enriched as SceneModelEntry[])
         }
       } catch (err) {
         console.error('加载场景失败:', err)
@@ -683,22 +677,23 @@ export function SceneEditorPage() {
         console.error('[AddModel] 步骤2-获取模型信息失败:', e)
         throw new Error('获取模型信息失败，请检查模型是否存在', { cause: e })
       }
-      if (!modelInfo?.file_url) {
+      const fileUrl = modelInfo.file_url as string
+      if (!fileUrl) {
         throw new Error(`模型 ${modelId} 没有可用的文件 URL`)
       }
 
       let loadedModel: THREE.Group
       try {
-        const result = await loadGLBWithCache(modelInfo.file_url)
+        const result = await loadGLBWithCache(fileUrl)
         loadedModel = result.scene
         console.log('[AddModel] 步骤3完成-加载GLB, fromCache:', result.fromCache,
           'scene children:', loadedModel.children.length,
           'boundingBox:', new THREE.Box3().setFromObject(loadedModel))
       } catch (e) {
         console.error('[AddModel] 步骤3-加载GLB模型失败:', e)
-        throw new Error(`加载模型文件失败，请检查文件 URL: ${modelInfo.file_url}`, { cause: e })
+        throw new Error(`加载模型文件失败，请检查文件 URL: ${fileUrl}`, { cause: e })
       }
-      const displayName = sceneModelData.display_name || modelInfo.name || `模型 ${modelId.slice(0, 6)}`
+      const displayName = (sceneModelData.display_name as string | undefined) || (modelInfo.name as string | undefined) || `模型 ${modelId.slice(0, 6)}`
       loadedModel.name = displayName
 
       const wrapper = new THREE.Group()
@@ -709,10 +704,11 @@ export function SceneEditorPage() {
         displayName,
       }
 
-      if (sceneModelData.transform) {
-        if (sceneModelData.transform.position) wrapper.position.set(...sceneModelData.transform.position)
-        if (sceneModelData.transform.rotation) wrapper.rotation.set(...sceneModelData.transform.rotation)
-        if (sceneModelData.transform.scale) wrapper.scale.set(...sceneModelData.transform.scale)
+      const transform = sceneModelData.transform as { position?: number[]; rotation?: number[]; scale?: number[] } | undefined
+      if (transform) {
+        if (transform.position) wrapper.position.set(...(transform.position as [number, number, number]))
+        if (transform.rotation) wrapper.rotation.set(...(transform.rotation as [number, number, number]))
+        if (transform.scale) wrapper.scale.set(...(transform.scale as [number, number, number]))
       }
 
       wrapper.add(loadedModel)
@@ -742,9 +738,10 @@ export function SceneEditorPage() {
         ...prev,
         {
           ...sceneModelData,
+          id: sceneModelData.id as string,
           model_id: modelId,
           resolvedName: displayName,
-        },
+        } as SceneModelEntry,
       ])
 
       // 添加模型后自动聚焦到模型（等轴测视角）
@@ -898,10 +895,11 @@ export function SceneEditorPage() {
             size="small"
             style={{ maxHeight: 400, overflow: 'auto' }}
             dataSource={availableModels.filter((m) =>
-              !searchText || m.name?.toLowerCase().includes(searchText.toLowerCase()),
+              !searchText || (m.name as string | undefined)?.toLowerCase().includes(searchText.toLowerCase()),
             )}
             renderItem={(model) => {
-              const alreadyAdded = sceneModels.some((sm) => sm.model_id === model.id)
+              const modelIdStr = model.id as string
+              const alreadyAdded = sceneModels.some((sm) => sm.model_id === modelIdStr)
               return (
                 <List.Item
                   actions={[
@@ -909,9 +907,9 @@ export function SceneEditorPage() {
                       key="add"
                       type="link"
                       size="small"
-                      loading={addingModelId === model.id}
+                      loading={addingModelId === modelIdStr}
                       disabled={alreadyAdded}
-                      onClick={() => handleAddModel(model.id)}
+                      onClick={() => handleAddModel(modelIdStr)}
                     >
                       {alreadyAdded ? '已添加' : '添加'}
                     </Button>,
@@ -919,8 +917,8 @@ export function SceneEditorPage() {
                 >
                   <List.Item.Meta
                     avatar={<Building20 />}
-                    title={model.name || model.id}
-                    description={model.description || ''}
+                    title={(model.name as string | undefined) || modelIdStr}
+                    description={(model.description as string | undefined) || ''}
                   />
                 </List.Item>
               )
