@@ -54,7 +54,7 @@ export function IframePage() {
       <iframe
         ref={iframeRef}
         className="w-full h-full"
-        src={"http://192.168.10.41:5173/view/"+sceneId}
+        src={"http://localhost:8080/view/"+sceneId}
         title="Iframe"
       />
       {/* 事件调试面板 */}
