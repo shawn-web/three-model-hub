@@ -37,6 +37,8 @@ export interface MarkerPopup {
   title: string
   content: string
   contentUrl?: string
+  imageUrl?: string
+  linkUrl?: string
   style?: MarkerPopupStyle
 }
 

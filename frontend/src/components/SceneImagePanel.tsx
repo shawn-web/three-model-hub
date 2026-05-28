@@ -72,7 +72,7 @@ export function SceneImagePanel() {
       height: 64,
       position: [0, 0, 0],
       scale: [1, 1],
-      rotation: 0,
+      rotation: [0, 0, 0],
       visible: true,
     }
     addSceneImage(media)

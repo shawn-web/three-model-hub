@@ -29,20 +29,17 @@ export class GridPlugin implements ViewerPlugin {
   icon = 'grid'
   group = 'display' as const
 
-  private context: ViewerContext | null = null
   private active = false
 
   sceneComponent: FC = GridScene
   toolbarComponent: FC<{ plugin: ViewerPlugin }> = GridToolbarButton
 
-  install(context: ViewerContext): void {
-    this.context = context
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  install(_context: ViewerContext): void {
     this.active = true
   }
 
-  uninstall(): void {
-    this.context = null
-  }
+  uninstall(): void {}
 
   activate(): void { this.active = true }
   deactivate(): void { this.active = false }

@@ -112,6 +112,7 @@ export function SceneEditorPage() {
   const [addModalOpen, setAddModalOpen] = useState(false)
   const [availableModels, setAvailableModels] = useState<Record<string, unknown>[]>([])
   const [modelsLoading, setModelsLoading] = useState(false)
+
   const [searchText, setSearchText] = useState('')
   const [addingModelId, setAddingModelId] = useState<string | null>(null)
   const [editingMarker, setEditingMarker] = useState<MarkerData | null>(null)
@@ -377,7 +378,7 @@ export function SceneEditorPage() {
 
   /** 适配视图：将相机聚焦到整个模型 */
   const handleFitView = useCallback(() => {
-    const fn = useEditStore.getState().fitToViewFn
+    const fn = useSceneStore.getState().fitToViewFn
     if (fn) fn()
   }, [])
 
@@ -501,7 +502,10 @@ export function SceneEditorPage() {
           console.log('[Save] model:', u.id,
             'transform:', JSON.stringify(u.transform),
             'overrides:', u.material_overrides?.components
-              ? Object.entries(u.material_overrides.components).map(([k, v]) => `${k}: pos=${(v as Record<string, unknown>).position}`)
+              ? Object.entries(u.material_overrides.components).map(([k, v]) => {
+                  const ov = v as Record<string, unknown>
+                  return `${k}: pos=${JSON.stringify(ov.position)} rot=${JSON.stringify(ov.rotation)} scale=${JSON.stringify(ov.scale)}`
+                })
               : [])
         }
       }
@@ -608,6 +612,39 @@ export function SceneEditorPage() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleSaveAll, saving])
 
+  // W/E/R 变换模式快捷键（统一在页面层级注册，确保 Canvas 外也能响应）
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      const store = useEditStore.getState()
+      const tm = store.transformMode
+      let newMode: 'translate' | 'rotate' | 'scale' | null = null
+      switch (e.key.toLowerCase()) {
+        case 'w': newMode = tm === 'translate' ? null : 'translate'; break
+        case 'e': newMode = tm === 'rotate' ? null : 'rotate'; break
+        case 'r': newMode = tm === 'scale' ? null : 'scale'; break
+        default: return
+      }
+      store.setTransformMode(newMode)
+      if (newMode && !store.selectedComponentId) {
+        // 没有选中模型时自动选中第一个 wrapper，跳过相机过渡动画
+        const root = store.modelObject
+        const firstWrapper = root?.children.find((c) => c.userData?.sceneModelId)
+        if (firstWrapper) {
+          store.setSkipSelectionAnim(true)
+          store.selectComponent(firstWrapper.uuid)
+        }
+      }
+      if (!newMode && store.selectedComponentId) {
+        // 取消变换模式时同时取消选中
+        store.setSkipSelectionAnim(true)
+        store.selectComponent(null)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
   /** 打开添加模型弹窗并加载可用模型列表 */
   const handleOpenAddModal = async () => {
     setAddModalOpen(true)
@@ -627,19 +664,23 @@ export function SceneEditorPage() {
     if (!id) return
     setAddingModelId(modelId)
     try {
+      console.log('[AddModel] 开始添加模型, modelId:', modelId)
+
       let sceneModelData: Record<string, unknown>
       try {
         sceneModelData = await addModelToScene(id, { model_id: modelId })
+        console.log('[AddModel] 步骤1完成-添加到场景:', sceneModelData)
       } catch (e) {
-        console.error('[SceneEditor] 步骤1-添加到场景失败:', e)
+        console.error('[AddModel] 步骤1-添加到场景失败:', e)
         throw new Error('添加模型到场景失败(API)，请检查后端服务', { cause: e })
       }
 
       let modelInfo: Record<string, unknown>
       try {
         modelInfo = await getModel(modelId)
+        console.log('[AddModel] 步骤2完成-获取模型信息, file_url:', modelInfo?.file_url)
       } catch (e) {
-        console.error('[SceneEditor] 步骤2-获取模型信息失败:', e)
+        console.error('[AddModel] 步骤2-获取模型信息失败:', e)
         throw new Error('获取模型信息失败，请检查模型是否存在', { cause: e })
       }
       if (!modelInfo?.file_url) {
@@ -650,8 +691,11 @@ export function SceneEditorPage() {
       try {
         const result = await loadGLBWithCache(modelInfo.file_url)
         loadedModel = result.scene
+        console.log('[AddModel] 步骤3完成-加载GLB, fromCache:', result.fromCache,
+          'scene children:', loadedModel.children.length,
+          'boundingBox:', new THREE.Box3().setFromObject(loadedModel))
       } catch (e) {
-        console.error('[SceneEditor] 步骤3-加载GLB模型失败:', e)
+        console.error('[AddModel] 步骤3-加载GLB模型失败:', e)
         throw new Error(`加载模型文件失败，请检查文件 URL: ${modelInfo.file_url}`, { cause: e })
       }
       const displayName = sceneModelData.display_name || modelInfo.name || `模型 ${modelId.slice(0, 6)}`
@@ -674,16 +718,25 @@ export function SceneEditorPage() {
       wrapper.add(loadedModel)
 
       const store = useEditStore.getState()
+      console.log('[AddModel] 步骤4-准备设置modelObject, 当前modelObject:', store.modelObject,
+        'sceneVersion:', store.sceneVersion)
+
       if (store.modelObject) {
         store.modelObject.add(wrapper)
+        console.log('[AddModel] 路径A-添加到已有group, children数量:', store.modelObject.children.length)
       } else {
         const newGroup = new THREE.Group()
         newGroup.name = 'SceneModels'
         newGroup.add(wrapper)
+        console.log('[AddModel] 路径B-创建新group, children数量:', newGroup.children.length,
+          'wrapper boundingBox:', new THREE.Box3().setFromObject(wrapper))
         store.setModelObject(newGroup)
         useSceneStore.getState().setModelObject(newGroup)
+        console.log('[AddModel] 路径B-setModelObject完成, editStore.modelObject:', useEditStore.getState().modelObject?.uuid,
+          'sceneStore.modelObject:', useSceneStore.getState().modelObject?.uuid)
       }
       store.bumpSceneVersion()
+      console.log('[AddModel] bumpSceneVersion完成, 新sceneVersion:', useEditStore.getState().sceneVersion)
 
       setSceneModels((prev) => [
         ...prev,
@@ -697,6 +750,8 @@ export function SceneEditorPage() {
       // 添加模型后自动聚焦到模型（等轴测视角）
       setTimeout(() => {
         const s = useSceneStore.getState()
+        console.log('[AddModel] 延迟200ms后 fitToViewFn:', !!s.fitToViewFn,
+          'modelObject:', !!s.modelObject)
         if (s.fitToViewFn) s.fitToViewFn({ x: 1, y: 1, z: 1 })
       }, 200)
 

@@ -713,13 +713,15 @@ export function ViewCube({ getCameraState, setCameraState, modelObject }: ViewCu
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
       faceMeshes.forEach(m => {
-        ;(m.material as THREE.MeshBasicMaterial).map?.dispose()
-        m.material.dispose()
+        const mat = m.material as THREE.MeshBasicMaterial
+        mat.map?.dispose()
+        mat.dispose()
         m.geometry.dispose()
       })
       highlightMeshes.forEach(m => {
-        ;(m.material as THREE.MeshBasicMaterial).map?.dispose()
-        m.material.dispose()
+        const mat = m.material as THREE.MeshBasicMaterial
+        mat.map?.dispose()
+        mat.dispose()
         m.geometry.dispose()
       })
       renderer.dispose()

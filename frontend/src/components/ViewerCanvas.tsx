@@ -85,9 +85,9 @@ const ViewerSceneContent = React.memo(function ViewerSceneContent({ onPluginMana
 
   const sceneConfig = useViewerStore((s) => s.sceneConfig)
   const isModelPreview = useViewerStore((s) => s.viewerType === 'model')
-  const sceneAmbientIntensity = useViewerStore((s) => s.sceneConfig?.ambientIntensity)
-  const sceneLightIntensity = useViewerStore((s) => s.sceneConfig?.lightIntensity)
-  const sceneLightColor = useViewerStore((s) => s.sceneConfig?.lightColor)
+  const sceneAmbientIntensity = useViewerStore((s) => s.sceneConfig?.ambientIntensity as number | undefined)
+  const sceneLightIntensity = useViewerStore((s) => s.sceneConfig?.lightIntensity as number | undefined)
+  const sceneLightColor = useViewerStore((s) => s.sceneConfig?.lightColor as string | undefined)
   const ambientIntensity = isModelPreview ? LIGHT_DEFAULTS.ambientIntensity : (sceneAmbientIntensity ?? LIGHT_DEFAULTS.ambientIntensity)
   const lightIntensity = isModelPreview ? 1.0 : (sceneLightIntensity ?? 1.0)
   const lightColor = isModelPreview ? LIGHT_DEFAULTS.lightColor : (sceneLightColor ?? LIGHT_DEFAULTS.lightColor)
@@ -98,13 +98,13 @@ const ViewerSceneContent = React.memo(function ViewerSceneContent({ onPluginMana
   const config: SceneSetupConfig = {
     mode: 'view',
     lighting: { ambientIntensity, lightIntensity, lightColor },
-    background: sceneConfig?.background ?? null,
+    background: (sceneConfig?.background as import('../store/edit-store').BackgroundConfig) ?? null,
     camera: {
       position: [10, 10, 10],
       fov: 50,
       near: 0.001,
       far: 100000,
-      savedConfig: sceneConfig?.camera ?? null,
+      savedConfig: (sceneConfig?.camera as { position: { x: number; y: number; z: number }; target: { x: number; y: number; z: number }; fov?: number }) ?? null,
     },
     plugins: {
       viewCube: true,
@@ -135,7 +135,7 @@ const ViewerSceneContent = React.memo(function ViewerSceneContent({ onPluginMana
 
 export function ViewerCanvas({ onPluginManagerReady }: ViewerCanvasProps) {
   const sceneConfig = useViewerStore.getState().sceneConfig
-  const cameraConfig = sceneConfig?.camera
+  const cameraConfig = sceneConfig?.camera as { position: { x: number; y: number; z: number }; fov?: number } | undefined
   const cameraProps = cameraConfig
     ? {
         position: [cameraConfig.position.x, cameraConfig.position.y, cameraConfig.position.z] as [number, number, number],

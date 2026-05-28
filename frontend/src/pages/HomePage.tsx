@@ -52,31 +52,35 @@ export function HomePage() {
   }
 
   return (
-    <div className="max-w-[1200px] mx-auto px-6 py-8">
+    <div className="max-w-[1200px] mx-auto px-6 py-8 animate-fade-in">
       {/* 模型区域 */}
       <Section
         title="最近模型"
         count={models.length}
         linkTo="/models"
         icon={<Cube20 />}
+        delay={0}
       >
         {models.length === 0 ? (
-          <Empty description="还没有模型，去上传一个吧" />
+          <Empty description="还没有模型，去上传一个吧" className="animate-scale-in" />
         ) : (
-          <Row gutter={[16, 16]}>
-            {models.map((model) => (
+          <Row gutter={[20, 20]}>
+            {models.map((model, i) => (
               <Col key={model.id} xs={24} sm={12} md={8} lg={8}>
                 <Link to={`/view/${model.id}?type=model`} className="no-underline">
                   <Card
                     hoverable
-                    className="rounded-lg overflow-hidden"
+                    className="rounded-xl overflow-hidden card-hover-lift animate-fade-in-up"
+                    style={{ animationDelay: `${i * 60}ms` }}
                     cover={
                       model.thumbnail_url ? (
-                        <img
-                          src={model.thumbnail_url}
-                          alt={model.name}
-                          className="h-40 object-cover"
-                        />
+                        <div className="h-40 overflow-hidden bg-[--ant-color-fill-quaternary]">
+                          <img
+                            src={model.thumbnail_url}
+                            alt={model.name}
+                            className="w-full h-full object-cover thumb-zoom"
+                          />
+                        </div>
                       ) : (
                         <div className="h-40 !flex items-center justify-center bg-[--ant-color-fill-quaternary]">
                           <Cube20 size={40} color="var(--ant-color-text-tertiary)" />
@@ -88,7 +92,7 @@ export function HomePage() {
                     <Text strong className="text-sm">{model.name}</Text>
                     <br />
                     <Tag className="mt-1">
-                      {model.file_format?.toUpperCase()} · {formatSize(model.file_size)}
+                      {model.file_format?.toUpperCase()} · {formatSize(model.file_size ?? 0)}
                     </Tag>
                   </Card>
                 </Link>
@@ -105,24 +109,28 @@ export function HomePage() {
         linkTo="/scenes"
         icon={<Viewport3d20 />}
         className="mt-10"
+        delay={150}
       >
         {scenes.length === 0 ? (
-          <Empty description="还没有场景，去创建一个吧" />
+          <Empty description="还没有场景，去创建一个吧" className="animate-scale-in" />
         ) : (
-          <Row gutter={[16, 16]}>
-            {scenes.map((scene) => (
+          <Row gutter={[20, 20]}>
+            {scenes.map((scene, i) => (
               <Col key={scene.id} xs={24} sm={12} md={8} lg={8}>
                 <Link to={`/scenes/${scene.id}/edit`} className="no-underline">
                   <Card
                     hoverable
-                    className="rounded-lg overflow-hidden"
+                    className="rounded-xl overflow-hidden card-hover-lift animate-fade-in-up"
+                    style={{ animationDelay: `${150 + i * 60}ms` }}
                     cover={
                       scene.thumbnail_url ? (
-                        <img
-                          src={scene.thumbnail_url}
-                          alt={scene.name}
-                          className="h-40 object-cover"
-                        />
+                        <div className="h-40 overflow-hidden bg-[--ant-color-fill-quaternary]">
+                          <img
+                            src={scene.thumbnail_url}
+                            alt={scene.name}
+                            className="w-full h-full object-cover thumb-zoom"
+                          />
+                        </div>
                       ) : (
                         <div className="h-40 !flex items-center justify-center bg-[--ant-color-fill-quaternary]">
                           <Viewport3d20 size={40} color="var(--ant-color-text-tertiary)" />
@@ -148,19 +156,25 @@ export function HomePage() {
 }
 
 /** 分区标题组件 */
-function Section({ title, count, linkTo, icon, children, className }: {
+function Section({ title, count, linkTo, icon, children, className, delay = 0 }: {
   title: string
   count: number
   linkTo: string
   icon: React.ReactNode
   children: React.ReactNode
   className?: string
+  delay?: number
 }) {
   return (
     <div className={className}>
-      <div className="flex justify-between items-center mb-4">
-        <Space>
-          {icon}
+      <div
+        className="flex justify-between items-center mb-5 animate-fade-in-up"
+        style={{ animationDelay: `${delay}ms` }}
+      >
+        <Space size={8}>
+          <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[--ant-color-primary-bg] text-[--ant-color-primary]">
+            {icon}
+          </span>
           <Title level={4} className="m-0">
             {title}
             <Text type="secondary" className="text-sm font-normal ml-2">

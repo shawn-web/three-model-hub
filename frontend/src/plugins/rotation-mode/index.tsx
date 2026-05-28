@@ -7,7 +7,7 @@ import type { ViewerPlugin, ViewerContext } from '../types'
 
 function RotationModeScene() {
   const modelObject = useSceneStore((s) => s.modelObject)
-  const transformRef = useRef<TransformControls>(null)
+  const transformRef = useRef<any>(null)
   const { gl } = useThree()
 
   useEffect(() => {

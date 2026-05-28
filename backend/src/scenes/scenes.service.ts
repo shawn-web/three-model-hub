@@ -69,7 +69,6 @@ export class ScenesService {
       name: dto.name,
       description: dto.description,
       scene_config: dto.scene_config || {
-        camera: { position: [5, 5, 5], target: [0, 0, 0] },
         backgroundColor: '#1a1a2e',
         autoRotate: false,
       },

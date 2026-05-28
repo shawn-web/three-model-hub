@@ -194,6 +194,12 @@ export function SceneSetup({ config, pluginManager }: SceneSetupProps) {
   // ── 选中时平滑过渡相机到构件 ──
   useEffect(() => {
     if (!selectedObj || !orbitRef.current || !modelObject) return
+    // 在 effect 内消费 skipSelectionAnim，避免 setTimeout 竞态
+    const store = useEditStore.getState()
+    if (store.skipSelectionAnim) {
+      store.setSkipSelectionAnim(false)
+      return
+    }
     const cam = cameraRef.current as THREE.PerspectiveCamera
     const controls = orbitRef.current
     const box = new THREE.Box3().setFromObject(selectedObj)
@@ -210,15 +216,25 @@ export function SceneSetup({ config, pluginManager }: SceneSetupProps) {
   // ── 非 model tab 自动提升选中到 wrapper ──
   useEffect(() => {
     if (config.mode !== 'edit' || !activeTab || activeTab === 'model') return
-    if (!selectedObj || !modelObject) return
+    if (!selectedObj || !modelObject || !selectedComponentId) return
     let wrapper: THREE.Object3D | null = selectedObj
     while (wrapper && wrapper.parent !== modelObject) {
       wrapper = wrapper.parent
     }
     if (wrapper && wrapper !== modelObject && wrapper.uuid !== selectedComponentId) {
-      useSceneStore.getState().selectComponent(wrapper.uuid)
+      useEditStore.getState().setSkipSelectionAnim(true)
+      useEditStore.getState().selectComponent(wrapper.uuid)
+      // 切换 tab 时恢复到配置的相机视角
+      const savedConfig = config.camera.savedConfig
+      if (savedConfig && orbitRef.current) {
+        cameraAnim.current = {
+          targetPos: new THREE.Vector3(savedConfig.position.x, savedConfig.position.y, savedConfig.position.z),
+          targetLookAt: new THREE.Vector3(savedConfig.target.x, savedConfig.target.y, savedConfig.target.z),
+          progress: 0,
+        }
+      }
     }
-  }, [activeTab, selectedObj, modelObject, selectedComponentId, config.mode])
+  }, [activeTab, selectedObj, modelObject, selectedComponentId, config.mode, config.camera.savedConfig])
 
   // ── 自动 XRay 模式 ──
   useEffect(() => {
@@ -228,20 +244,39 @@ export function SceneSetup({ config, pluginManager }: SceneSetupProps) {
   }, [selectedComponentId, config.plugins.xray])
 
   // ── 取消选中时平滑过渡相机 ──
+  // 使用 ref 追踪上一次选中状态，仅在从有选中变为无选中时才触发动画
+  // 避免页面初始加载时（selectedComponentId 始终为 null）错误触发
+  const hadSelectionRef = useRef(false)
   useEffect(() => {
+    const hadSelection = hadSelectionRef.current
+    hadSelectionRef.current = !!selectedComponentId
+    // 初始加载或组件重置时 selectedComponentId 从 undefined/null 变为 null 不应触发
+    if (!hadSelection && !selectedComponentId) return
     if (selectedComponentId || !modelObject || !orbitRef.current) return
+    if (useEditStore.getState().skipSelectionAnim) {
+      useEditStore.getState().setSkipSelectionAnim(false)
+      return
+    }
     const cam = cameraRef.current as THREE.PerspectiveCamera
     const controls = orbitRef.current
-    // 回到适配全模型视角
-    const box = new THREE.Box3().setFromObject(modelObject)
-    const center = box.getCenter(new THREE.Vector3())
-    const size = box.getSize(new THREE.Vector3())
-    const maxDim = Math.max(size.x, size.y, size.z)
-    const fovRad = cam.fov * (Math.PI / 180)
-    const cameraZ = Math.abs(maxDim / (2 * Math.tan(fovRad / 2))) * 1.2
-    const direction = new THREE.Vector3().subVectors(cam.position, controls.target).normalize()
-    const targetPos = center.clone().add(direction.multiplyScalar(cameraZ))
-    cameraAnim.current = { targetPos, targetLookAt: center, progress: 0 }
+    const savedConfig = config.camera.savedConfig
+    if (savedConfig) {
+      // 有保存的相机配置时，恢复到配置的视角
+      const targetPos = new THREE.Vector3(savedConfig.position.x, savedConfig.position.y, savedConfig.position.z)
+      const targetLookAt = new THREE.Vector3(savedConfig.target.x, savedConfig.target.y, savedConfig.target.z)
+      cameraAnim.current = { targetPos, targetLookAt, progress: 0 }
+    } else {
+      // 无保存配置时，适配全模型视角
+      const box = new THREE.Box3().setFromObject(modelObject)
+      const center = box.getCenter(new THREE.Vector3())
+      const size = box.getSize(new THREE.Vector3())
+      const maxDim = Math.max(size.x, size.y, size.z)
+      const fovRad = cam.fov * (Math.PI / 180)
+      const cameraZ = Math.abs(maxDim / (2 * Math.tan(fovRad / 2))) * 1.2
+      const direction = new THREE.Vector3().subVectors(cam.position, controls.target).normalize()
+      const targetPos = center.clone().add(direction.multiplyScalar(cameraZ))
+      cameraAnim.current = { targetPos, targetLookAt: center, progress: 0 }
+    }
   }, [selectedComponentId, modelObject, config.mode, config.camera.savedConfig])
 
   useFrame((_, delta) => {
@@ -276,7 +311,7 @@ export function SceneSetup({ config, pluginManager }: SceneSetupProps) {
 
     const target = event.object
     if (target === modelObject) {
-      useSceneStore.getState().selectComponent(null)
+      useEditStore.getState().selectComponent(null)
       return
     }
 
@@ -296,18 +331,22 @@ export function SceneSetup({ config, pluginManager }: SceneSetupProps) {
         wrapper = wrapper.parent
       }
       if (!wrapper || wrapper === modelObject) {
+        useEditStore.getState().setSkipSelectionAnim(true)
         useEditStore.getState().selectComponent(null)
         return
       }
       targetId = wrapper.uuid
     }
 
-    if (selectedComponentId === targetId) {
+    // 使用 store 最新值比较，避免闭包滞后
+    const currentId = useEditStore.getState().selectedComponentId
+    useEditStore.getState().setSkipSelectionAnim(true)
+    if (currentId === targetId) {
       useEditStore.getState().selectComponent(null)
     } else {
       useEditStore.getState().selectComponent(targetId)
     }
-  }, [config.mode, modelObject, selectedComponentId])
+  }, [config.mode, modelObject])
 
   // 放置模式使用 mousedown 触发，避免拖动模型后松手时误放置到错误位置
   const handlePointerDown = useCallback((event: ThreeEvent<MouseEvent>) => {
@@ -388,21 +427,6 @@ export function SceneSetup({ config, pluginManager }: SceneSetupProps) {
     gl.domElement.style.cursor = inPlacement ? 'crosshair' : 'default'
   })
 
-  // ── 键盘快捷键 (仅编辑模式) ──
-  useEffect(() => {
-    if (config.mode !== 'edit') return
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
-      const tm = useEditStore.getState().transformMode
-      switch (e.key.toLowerCase()) {
-        case 'w': useEditStore.getState().setTransformMode(tm === 'translate' ? null : 'translate'); break
-        case 'e': useEditStore.getState().setTransformMode(tm === 'rotate' ? null : 'rotate'); break
-        case 'r': useEditStore.getState().setTransformMode(tm === 'scale' ? null : 'scale'); break
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [config.mode])
 
   // ═══════════════════════════════════════════════════════════════
   // 渲染

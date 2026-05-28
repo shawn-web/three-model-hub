@@ -5,12 +5,13 @@ import { ToolButton } from './ToolButton'
 import { useEditStore } from '../store/edit-store'
 import { useSceneStore } from '../store/scene-store'
 import type { TransformMode } from '../store/edit-store'
+import type { IconifyIcon } from '@iconify/react'
 
 interface EditToolbarProps {
   onFitView: () => void
 }
 
-const TRANSFORM_MODES: { mode: TransformMode; iconData: object; label: string; shortcut: string }[] = [
+const TRANSFORM_MODES: { mode: TransformMode; iconData: string | IconifyIcon; label: string; shortcut: string }[] = [
   { mode: 'translate', iconData: moveIcon, label: '移动', shortcut: 'W' },
   { mode: 'rotate', iconData: rotateCwIcon, label: '旋转', shortcut: 'E' },
   { mode: 'scale', iconData: scalingIcon, label: '缩放', shortcut: 'R' },
@@ -23,7 +24,21 @@ export function EditToolbar({ onFitView }: EditToolbarProps) {
   const xrayMode = useSceneStore((s) => s.xrayMode)
 
   const handleModeChange = useCallback((mode: TransformMode) => {
-    setTransformMode(transformMode === mode ? null : mode)
+    const newMode = transformMode === mode ? null : mode
+    setTransformMode(newMode)
+    const store = useEditStore.getState()
+    if (newMode && !store.selectedComponentId) {
+      const root = store.modelObject
+      const firstWrapper = root?.children.find((c) => c.userData?.sceneModelId)
+      if (firstWrapper) {
+        store.setSkipSelectionAnim(true)
+        store.selectComponent(firstWrapper.uuid)
+      }
+    }
+    if (!newMode && store.selectedComponentId) {
+      store.setSkipSelectionAnim(true)
+      store.selectComponent(null)
+    }
   }, [transformMode, setTransformMode])
 
   return (

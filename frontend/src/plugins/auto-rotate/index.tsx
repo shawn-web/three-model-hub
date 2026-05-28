@@ -58,17 +58,16 @@ export class AutoRotatePlugin implements ViewerPlugin {
   icon = 'sync'
   group = 'display' as const
 
-  private context: ViewerContext | null = null
   private active = false
 
   sceneComponent: FC = AutoRotateScene
   toolbarComponent: FC<{ plugin: ViewerPlugin }> = AutoRotateToolbar
 
-  install(context: ViewerContext): void {
-    this.context = context
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  install(_context: ViewerContext): void {
     this.active = true
   }
-  uninstall(): void { this.context = null }
+  uninstall(): void {}
   activate(): void { this.active = true }
   deactivate(): void { this.active = false }
   isActive(): boolean { return this.active }

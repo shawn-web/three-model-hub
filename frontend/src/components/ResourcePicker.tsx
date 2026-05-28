@@ -200,7 +200,7 @@ function ResourcePickerContent({
         Object.assign(metadata, meta)
       }
 
-      await uploadResource(file, metadata as Record<string, unknown>)
+      await uploadResource(file, metadata as Parameters<typeof uploadResource>[1])
       message.success('上传成功')
       loadResources()
     } catch (err: unknown) {

@@ -116,6 +116,8 @@ export interface EditState {
   highlightManager: SelectionHighlightManager | null
   /** RRF invalidate 函数（由 Canvas 内部组件设置，外部修改材质后调用强制刷新） */
   invalidateFn: (() => void) | null
+  /** 是否跳过选中时的相机过渡动画（用于快捷键/按钮自动选中场景） */
+  skipSelectionAnim: boolean
 }
 
 /** 编辑器操作方法 */
@@ -220,6 +222,8 @@ export interface EditActions {
   setHighlightManager: (mgr: SelectionHighlightManager | null) => void
   /** 设置 RRF invalidate 函数 */
   setInvalidateFn: (fn: (() => void) | null) => void
+  /** 设置是否跳过选中时的相机过渡动画 */
+  setSkipSelectionAnim: (skip: boolean) => void
   /** 重置编辑器状态 */
   resetEdit: () => void
 }
@@ -277,6 +281,7 @@ const initialState: EditState = {
   xrayMode: false,
   highlightManager: null,
   invalidateFn: null,
+  skipSelectionAnim: false,
 }
 
 /** 编辑器状态管理 Store（支持时间旅行撤销/重做） */
@@ -425,6 +430,7 @@ export const useEditStore = create<EditState & EditActions>()(
       setXrayMode: (enabled) => set({ xrayMode: enabled }),
       setHighlightManager: (mgr) => set({ highlightManager: mgr }),
       setInvalidateFn: (fn) => set({ invalidateFn: fn }),
+      setSkipSelectionAnim: (skip) => set({ skipSelectionAnim: skip }),
       resetEdit: () => set(initialState),
     }),
     {

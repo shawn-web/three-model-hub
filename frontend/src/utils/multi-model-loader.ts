@@ -394,7 +394,7 @@ export async function loadSceneModels(
           // 诊断日志：记录覆盖匹配
           const matchBy = components[child.name] ? 'name' : components[path] ? 'path' : 'uuid'
           console.log('[Load] override applied:', child.name || child.type,
-            'matchBy:', matchBy, 'position:', override.position, 'rotation:', override.rotation)
+            'matchBy:', matchBy, 'position:', JSON.stringify(override.position), 'rotation:', JSON.stringify(override.rotation), 'scale:', JSON.stringify(override.scale))
           // 复制描述到 userData，供属性面板读取
           if (override.description !== undefined) {
             child.userData.description = override.description

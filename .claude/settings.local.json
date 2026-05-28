@@ -128,7 +128,21 @@
       "Bash(docker compose *)",
       "mcp__plugin_context7_context7__query-docs",
       "Bash(grep -n \"^\\\\.env$\" D:/other/threeMode/.gitignore)",
-      "Bash(git status *)"
+      "Bash(git status *)",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__navigate_page",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__take_screenshot",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__hover",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__take_snapshot",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__evaluate_script",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__list_pages",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__click",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__wait_for",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__press_key",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__list_console_messages",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__get_console_message",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__handle_dialog",
+      "Bash(docker exec threemode_frontend *)",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec threemode_frontend *)"
     ]
   }
 }

@@ -1,5 +1,8 @@
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import type { MediaClickedPayload } from '../communication/protocol'
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore - .js 配置文件无类型声明
 import SceneConfig from '../assets/scene-config.js'
 
 /**
@@ -11,7 +14,6 @@ import SceneConfig from '../assets/scene-config.js'
 
 export function IframePage() {
   const iframeRef = useRef<HTMLIFrameElement>(null)
-  const [events, setEvents] = useState<MediaClickedPayload[]>([])
   const configSentRef = useRef(false)
   
 

@@ -12,9 +12,8 @@ function TransformControlsScene() {
   const modelObject = useSceneStore((s) => s.modelObject)
   const selectedComponentId = useSceneStore((s) => s.selectedComponentId)
   const transformMode = useEditStore((s) => s.transformMode)
-  const setTransformMode = useEditStore((s) => s.setTransformMode)
 
-  const transformRef = useRef<TransformControls>(null)
+  const transformRef = useRef<any>(null)
   const orbitRef = useRef<OrbitControlsImpl | null>(null)
   useThree()
 
@@ -23,19 +22,7 @@ function TransformControlsScene() {
     return modelObject.getObjectByProperty('uuid', selectedComponentId) as THREE.Object3D | null
   }, [modelObject, selectedComponentId])
 
-  // 键盘快捷键 W/E/R
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
-      switch (e.key.toLowerCase()) {
-        case 'w': setTransformMode(transformMode === 'translate' ? null : 'translate'); break
-        case 'e': setTransformMode(transformMode === 'rotate' ? null : 'rotate'); break
-        case 'r': setTransformMode(transformMode === 'scale' ? null : 'scale'); break
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [transformMode, setTransformMode])
+  // 键盘快捷键已统一在 SceneEditorPage 中处理，此处不再重复注册
 
   // 拖拽处理
   useEffect(() => {
@@ -66,7 +53,7 @@ function TransformControlsScene() {
 
   // 将 orbitRef 注册到 context（在 effect 中处理避免渲染期访问 ref）
   useEffect(() => {
-    const refObj = transformRef.current as (TransformControls & { __orbitRef?: OrbitControlsImpl }) | null
+    const refObj = transformRef.current as any
     if (refObj && refObj.__orbitRef) {
       orbitRef.current = refObj.__orbitRef
     }

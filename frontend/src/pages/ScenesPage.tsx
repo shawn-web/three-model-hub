@@ -98,9 +98,12 @@ export function ScenesPage() {
   }
 
   return (
-    <div className="max-w-[1200px] mx-auto px-6 py-8">
+    <div className="max-w-[1200px] mx-auto px-6 py-8 animate-fade-in">
       {/* 头部操作栏 */}
-      <div className="flex justify-between items-center mb-6">
+      <div
+        className="flex justify-between items-center mb-6 animate-fade-in-up"
+        style={{ animationDelay: '0ms' }}
+      >
         <h1 className="text-[22px] font-semibold m-0">场景管理</h1>
         <Button
           type="primary"
@@ -113,21 +116,24 @@ export function ScenesPage() {
 
       {/* 场景卡片列表 */}
       {scenes.length === 0 ? (
-        <Empty description="还没有场景，点击上方按钮创建" />
+        <Empty description="还没有场景，点击上方按钮创建" className="animate-scale-in" />
       ) : (
-        <Row gutter={[16, 16]}>
-          {scenes.map((scene) => (
+        <Row gutter={[20, 20]}>
+          {scenes.map((scene, i) => (
             <Col key={scene.id} xs={24} sm={12} md={8} lg={6}>
               <Card
                 hoverable
-                className="rounded-lg overflow-hidden"
+                className="rounded-xl overflow-hidden card-hover-lift animate-fade-in-up"
+                style={{ animationDelay: `${80 + i * 55}ms` }}
                 cover={
                   scene.thumbnail_url ? (
-                    <img
-                      src={scene.thumbnail_url}
-                      alt={scene.name}
-                      className="h-40 object-cover"
-                    />
+                    <div className="h-40 overflow-hidden bg-[--ant-color-fill-quaternary]">
+                      <img
+                        src={scene.thumbnail_url}
+                        alt={scene.name}
+                        className="w-full h-full object-cover thumb-zoom"
+                      />
+                    </div>
                   ) : (
                     <div className="h-40 !flex items-center justify-center bg-[--ant-color-fill-quaternary]">
                       <Viewport3d20 size={40} color="var(--ant-color-text-tertiary)" />
