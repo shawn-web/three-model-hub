@@ -27,7 +27,7 @@ export function RouterApp() {
 
         {/* 全屏预览页（不带导航栏） */}
         <Route path="/view/:sceneId" element={<ViewerPage />} />
-        <Route path="/iframe" element={<IframePage />} />
+        <Route path="/iframe/:sceneId" element={<IframePage />} />
       </Routes>
     </BrowserRouter>
   )

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react'
+import { useParams } from 'react-router-dom'
 import type { MediaClickedPayload } from '../communication/protocol'
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -13,20 +14,11 @@ import SceneConfig from '../assets/scene-config.js'
  */
 
 export function IframePage() {
+  const { sceneId } = useParams<{ sceneId: string }>()
+  if(!sceneId) return null
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const configSentRef = useRef(false)
-  
 
-  setTimeout(()=>{
-    SceneConfig.markers[0].imageUrl = 'https://oss.1357.cn/huazhu/labs/images/20260521/1776923671100-honaf5oeu4.jpeg'
-    configSentRef.current = false
-    sendConfig()
-  },1000)
-  setTimeout(()=>{
-    SceneConfig.markers[0].imageUrl = 'http://tapp.huazhukeji.cn:32000/huazhu/labs/images/20260521/æ å»å®¤_online-pb6d2tgrk9.png'
-    configSentRef.current = false
-    sendConfig()
-  },5000)
   // 向 iframe 发送场景配置
   const sendConfig = useCallback(() => {
     const iframe = iframeRef.current
@@ -52,6 +44,7 @@ export function IframePage() {
   }, [sendConfig])
 
   useEffect(() => {
+   
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
   }, [handleMessage])
@@ -61,7 +54,7 @@ export function IframePage() {
       <iframe
         ref={iframeRef}
         className="w-full h-full"
-        src="http://192.168.10.41:5173/view/ce09961a-fe82-4549-a678-f1d1206b3270"
+        src={"http://192.168.10.41:5173/view/"+sceneId}
         title="Iframe"
       />
       {/* 事件调试面板 */}
