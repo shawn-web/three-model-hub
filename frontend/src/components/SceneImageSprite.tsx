@@ -188,7 +188,7 @@ function SceneMediaSprite({ media, onClick }: { media: SceneMedia; onClick?: (id
       // distance-based scaling
       vec3Cache.current.set(pos[0], pos[1], pos[2])
       const dist = camera.position.distanceTo(vec3Cache.current)
-      const screenFactor = Math.max(dist * 0.12, 0.5)
+      const screenFactor = Math.max(dist * 0.12, 0.05)
       const w = aspect >= 1 ? screenFactor : screenFactor * aspect
       const h = aspect >= 1 ? screenFactor / aspect : screenFactor
       meshRef.current.scale.set(w * userScaleX, h * userScaleY, 1)

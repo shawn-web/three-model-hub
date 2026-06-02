@@ -5,11 +5,21 @@ import type { MarkerData, SceneMedia } from '../types/edit-data'
 import type { SelectionHighlightManager } from '../utils/selection-highlight'
 import { useSceneStore } from './scene-store'
 
+/** 内置天空盒预设列表（图片存放在 public/skybox/ 目录，Vite 自动映射到根路径） */
+export const SKYBOX_PRESETS = [
+  { id: 'day-1', name: '白天1', url: '/skybox/skybox-day-10.jpg' },
+  { id: 'day-2', name: '白天2', url: '/skybox/skybox-day-18.jpg' },
+  { id: 'dusk-1', name: '黄昏1', url: '/skybox/skybox-dusk-4.jpg' },
+  { id: 'dusk-2', name: '黄昏2', url: '/skybox/skybox-dusk-6.jpg' },
+  { id: 'night-1', name: '夜晚1', url: '/skybox/skybox-night-3.jpg' },
+  { id: 'night-2', name: '夜晚2', url: '/skybox/skybox-night-24.jpg' },
+] as const
+
 /** 场景背景配置 */
 export type BackgroundConfig =
   | { type: 'color'; color: string }
   | { type: 'image'; url: string }
-  | { type: 'skybox' }
+  | { type: 'skybox'; preset?: string; customUrl?: string }
 
 /** 变换操作模式（null 表示未激活） */
 export type TransformMode = 'translate' | 'rotate' | 'scale' | null
@@ -82,7 +92,7 @@ export interface EditState {
   placingImageId: string | null
   /** 网格是否可见 */
   gridVisible: boolean
-  /** 当前活动标签页 key ('scene' | 'model' | 'properties') */
+  /** 当前活动标签页 key ('scene' | 'model') */
   activeTab: string
   /** 相机信息面板是否可见 */
   cameraInfoVisible: boolean

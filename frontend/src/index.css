@@ -71,6 +71,12 @@ svg {
   to   { opacity: 1; transform: scale(1); }
 }
 
+/* 变换面板入场 —— 工具栏上方弹出 */
+@keyframes transformPanelIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
 /* 动画类 */
 .animate-fade-in-up {
   animation: fadeInUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -134,4 +140,193 @@ svg {
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* ============ 文档页面样式 ============ */
+
+/* 侧边栏 */
+.docs-page .docs-sider {
+  border-right: 1px solid var(--ant-color-border-secondary);
+  background: var(--ant-color-bg-container) !important;
+  overflow-y: auto;
+}
+
+.docs-sider-title {
+  padding: 20px 24px 16px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ant-color-heading-color);
+  border-bottom: 1px solid var(--ant-color-border-secondary);
+}
+
+.docs-sider-menu {
+  border-inline-end: none !important;
+}
+
+/* 内容区域 */
+.docs-page .docs-content {
+  overflow-y: auto;
+  background: var(--ant-color-bg-layout);
+}
+
+.docs-body {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 40px 48px 80px;
+  color: var(--ant-color-text);
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+/* 标题 */
+.docs-body h1 {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--ant-color-heading-color);
+  margin: 0 0 24px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid var(--ant-color-border-secondary);
+}
+
+.docs-body h2 {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--ant-color-heading-color);
+  margin: 40px 0 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--ant-color-border-secondary);
+}
+
+.docs-body h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ant-color-heading-color);
+  margin: 32px 0 12px;
+}
+
+.docs-body h4, .docs-body h5, .docs-body h6 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ant-color-heading-color);
+  margin: 24px 0 8px;
+}
+
+/* 段落 */
+.docs-body p {
+  margin: 0 0 16px;
+}
+
+/* 链接 */
+.docs-body a {
+  color: var(--ant-color-primary);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.docs-body a:hover {
+  color: var(--ant-color-primary-hover);
+  text-decoration: underline;
+}
+
+/* 行内代码 */
+.docs-body code {
+  background: var(--ant-color-fill-quaternary);
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 13px;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  color: var(--ant-color-text);
+}
+
+/* 代码块 */
+.docs-body pre {
+  background: var(--ant-color-fill-quaternary);
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin: 0 0 20px;
+  overflow-x: auto;
+  line-height: 1.6;
+}
+
+.docs-body pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 13px;
+  color: var(--ant-color-text);
+}
+
+/* 表格 */
+.docs-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 20px;
+  font-size: 14px;
+}
+
+.docs-body thead {
+  background: var(--ant-color-fill-quaternary);
+}
+
+.docs-body th {
+  padding: 10px 14px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--ant-color-heading-color);
+  border-bottom: 2px solid var(--ant-color-border-secondary);
+}
+
+.docs-body td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--ant-color-border-secondary);
+}
+
+.docs-body tbody tr:hover {
+  background: var(--ant-color-fill-quaternary);
+}
+
+/* 列表 */
+.docs-body ul, .docs-body ol {
+  padding-left: 24px;
+  margin: 0 0 16px;
+}
+
+.docs-body li {
+  margin-bottom: 6px;
+}
+
+/* 引用 */
+.docs-body blockquote {
+  margin: 0 0 16px;
+  padding: 12px 20px;
+  border-left: 4px solid var(--ant-color-primary);
+  background: var(--ant-color-fill-quaternary);
+  border-radius: 0 6px 6px 0;
+  color: var(--ant-color-text-secondary);
+}
+
+.docs-body blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+/* 分隔线 */
+.docs-body hr {
+  border: none;
+  border-top: 1px solid var(--ant-color-border-secondary);
+  margin: 32px 0;
+}
+
+/* 粗体 */
+.docs-body strong {
+  font-weight: 600;
+  color: var(--ant-color-heading-color);
+}
+
+/* 图片 */
+.docs-body img {
+  max-width: 100%;
+  border-radius: 6px;
+  margin: 8px 0;
 }

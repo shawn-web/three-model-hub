@@ -40,7 +40,7 @@ function buildTreeData(object: THREE.Object3D, isRoot: boolean = false): TreeDat
  * 显示模型层级结构，支持点选高亮、多选、折叠
  */
 export function ViewerTree() {
-  const modelObject = useViewerStore((s) => s.modelObject)
+  const modelObject = useSceneStore((s) => s.modelObject)
   const treeVisible = useViewerStore((s) => s.treeVisible)
   const selectedComponentId = useSceneStore((s) => s.selectedComponentId)
   const [collapsed, setCollapsed] = useState(false)

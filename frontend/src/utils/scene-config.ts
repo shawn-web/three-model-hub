@@ -229,7 +229,9 @@ const sceneConfig = {
   // type: 'color' | 'image' | 'skybox'
   // color 类型：{ type: 'color', color: '#1a1a2e' }
   // image 类型：{ type: 'image', url: 'https://...' }
-  // skybox 类型：{ type: 'skybox' }
+  // skybox 预设类型：{ type: 'skybox', preset: 'day-1' }
+  //   可选 preset: day-1, day-2, dusk-1, dusk-2, night-1, night-2
+  // skybox 自定义类型：{ type: 'skybox', preset: 'day-1', customUrl: 'https://...' }
   background: ${JSON.stringify(config.background, null, 2)},
 
   // ========== 灯光 ==========

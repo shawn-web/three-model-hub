@@ -7,6 +7,7 @@ import { SceneEditorPage } from './pages/SceneEditorPage'
 import { ViewerPage } from './pages/ViewerPage'
 import { IframePage } from './pages/IframePage'
 import { ResourcesPage } from './pages/ResourcesPage'
+import { DocsPage } from './pages/DocsPage'
 
 /**
  * 应用根组件
@@ -23,6 +24,8 @@ export function RouterApp() {
           <Route path="/scenes" element={<ScenesPage />} />
           <Route path="/scenes/:id/edit" element={<SceneEditorPage />} />
           <Route path="/resources" element={<ResourcesPage />} />
+          <Route path="/docs" element={<DocsPage />} />
+          <Route path="/docs/:name" element={<DocsPage />} />
         </Route>
 
         {/* 全屏预览页（不带导航栏） */}

@@ -503,7 +503,19 @@ export function SceneSetup({ config, pluginManager }: SceneSetupProps) {
 
       {/* 标记 */}
       {modelObject && markers.map((marker) => (
-        <MarkerSpriteShared key={marker.id} marker={marker} />
+        <MarkerSpriteShared key={marker.id} marker={marker} onClick={config.mode === 'view' ? (id) => {
+          const m = markers.find((mk) => mk.id === id)
+          if (m) {
+            getMessageBus().send(MESSAGE_TYPES.MARKER_CLICKED, {
+              id: m.id,
+              name: m.name,
+              position: m.position,
+              action: m.action,
+              popup: m.popup,
+              linkUrl: m.linkUrl,
+            })
+          }
+        } : undefined} />
       ))}
 
       {/* 场景图像 */}

@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { Select, ColorPicker, Input, Button, Slider, Switch, theme } from 'antd'
 import type { Color } from 'antd/es/color-picker'
-import { useEditStore } from '../store/edit-store'
+import { useEditStore, SKYBOX_PRESETS } from '../store/edit-store'
 import { ResourcePicker } from './ResourcePicker'
 import { SectionTitle } from './EditPanel'
 import type { ResourceItem } from '../types/resource'
@@ -12,6 +12,11 @@ const BG_TYPE_OPTIONS = [
   { value: 'color', label: '纯色' },
   { value: 'image', label: '图片' },
   { value: 'skybox', label: '天空盒' },
+]
+
+const SKYBOX_OPTIONS = [
+  ...SKYBOX_PRESETS.map((p) => ({ value: p.id, label: p.name })),
+  { value: 'custom', label: '自定义 URL' },
 ]
 
 export function SceneSettings() {
@@ -43,7 +48,7 @@ export function SceneSettings() {
         setBackgroundConfig({ type: 'image', url: '' })
         break
       case 'skybox':
-        setBackgroundConfig({ type: 'skybox' })
+        setBackgroundConfig({ type: 'skybox', preset: 'day-1' })
         break
     }
   }, [setBackgroundConfig])
@@ -119,15 +124,50 @@ export function SceneSettings() {
 
       {currentType === 'skybox' && backgroundConfig?.type === 'skybox' && (
         <div style={{ marginTop: 8 }}>
-          <div style={{
-            fontSize: 11,
-            color: token.colorTextSecondary,
-            padding: '6px 8px',
-            background: token.colorFillQuaternary,
-            borderRadius: 4,
-          }}>
-            已启用程序化天空盒背景
-          </div>
+          <div style={{ fontSize: 11, color: token.colorTextTertiary, marginBottom: 4 }}>天空盒选择</div>
+          <Select
+            size="small"
+            value={backgroundConfig.customUrl !== undefined ? 'custom' : (backgroundConfig.preset ?? 'day-1')}
+            onChange={(value) => {
+              if (value === 'custom') {
+                setBackgroundConfig({ type: 'skybox', preset: backgroundConfig.preset ?? 'day-1', customUrl: '' })
+              } else {
+                setBackgroundConfig({ type: 'skybox', preset: value })
+              }
+            }}
+            options={SKYBOX_OPTIONS}
+            style={{ width: '100%' }}
+          />
+          {backgroundConfig.customUrl !== undefined && (
+            <>
+              <div style={{ fontSize: 11, color: token.colorTextTertiary, marginTop: 8, marginBottom: 4 }}>全景图 URL</div>
+              <Input
+                size="small"
+                value={backgroundConfig.customUrl}
+                onChange={(e) => setBackgroundConfig({ type: 'skybox', preset: backgroundConfig.preset, customUrl: e.target.value })}
+                placeholder="输入全景图 URL（等距圆柱投影格式）"
+              />
+              <Button
+                size="small"
+                style={{ marginTop: 4 }}
+                block
+                onClick={() => setBgPickerOpen(true)}
+              >
+                从资源库选择
+              </Button>
+              <ResourcePicker
+                open={bgPickerOpen}
+                onClose={() => setBgPickerOpen(false)}
+                onSelect={(resources: ResourceItem[]) => {
+                  if (resources.length > 0) {
+                    setBackgroundConfig({ type: 'skybox', preset: backgroundConfig.preset, customUrl: resources[0].url })
+                  }
+                }}
+                typeFilter="image"
+                allowUpload
+              />
+            </>
+          )}
         </div>
       )}
 

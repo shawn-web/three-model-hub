@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { Icon } from '@iconify/react'
 import { maximizeIcon, crosshairIcon, moveIcon, rotateCwIcon, scalingIcon, eyeIcon } from './Icons'
 import { ToolButton } from './ToolButton'
+import { TransformInputPanel } from './TransformInputPanel'
 import { useEditStore } from '../store/edit-store'
 import { useSceneStore } from '../store/scene-store'
 import type { TransformMode } from '../store/edit-store'
@@ -42,7 +43,9 @@ export function EditToolbar({ onFitView }: EditToolbarProps) {
   }, [transformMode, setTransformMode])
 
   return (
-    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-0.5 bg-[rgba(20,20,30,0.9)] rounded-[10px] backdrop-blur-[12px] shadow-[0_2px_12px_rgba(0,0,0,0.4)] py-1 px-2">
+    <div className="absolute bottom-3 left-1/2 -translate-x-1/2">
+    <TransformInputPanel />
+    <div className="flex items-center gap-0.5 bg-[rgba(20,20,30,0.9)] rounded-[10px] backdrop-blur-[12px] shadow-[0_2px_12px_rgba(0,0,0,0.4)] py-1 px-2">
       {TRANSFORM_MODES.map(({ mode, iconData, label, shortcut }) => (
         <ToolButton
           key={mode}
@@ -78,6 +81,7 @@ export function EditToolbar({ onFitView }: EditToolbarProps) {
         active={cameraInfoVisible}
         onClick={() => useSceneStore.getState().setCameraInfoVisible(!cameraInfoVisible)}
       />
+    </div>
     </div>
   )
 }

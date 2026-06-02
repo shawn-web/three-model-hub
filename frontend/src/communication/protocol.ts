@@ -80,6 +80,15 @@ export interface MediaClickedPayload {
   text?: string
 }
 
+export interface MarkerClickedPayload {
+  id: string
+  name: string
+  position: [number, number, number]
+  action: string
+  popup?: { title?: string; content?: string; contentUrl?: string }
+  linkUrl?: string
+}
+
 // Message type constants
 export const MESSAGE_TYPES = {
   LOAD_MODEL: 'load-model',
@@ -96,6 +105,7 @@ export const MESSAGE_TYPES = {
   TOOL_ACTIVATED: 'tool-activated',
   PROGRESS: 'progress',
   MEDIA_CLICKED: 'media-clicked',
+  MARKER_CLICKED: 'marker-clicked',
 } as const
 
 export type MessageType = typeof MESSAGE_TYPES[keyof typeof MESSAGE_TYPES]

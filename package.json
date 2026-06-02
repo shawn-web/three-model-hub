@@ -5,6 +5,11 @@
     "dev": "cd frontend && pnpm dev",
     "build": "cd frontend && pnpm build",
     "backend:dev": "cd backend && pnpm run start:dev",
-    "backend:test": "cd backend && pnpm test"
+    "backend:test": "cd backend && pnpm test",
+    "dev:all": "concurrently \"pnpm dev\" \"pnpm backend:dev\"",
+    "sync:docs": "node -e \"const fs=require('fs');const m=[['README.md','readme.md'],['CHANGELOG.md','changelog.md'],['CONTRIBUTING.md','contributing.md'],['docs/api.md','api.md'],['docs/architecture.md','architecture.md'],['docs/development.md','development.md'],['docs/testing.md','testing.md'],['docs/deployment.md','deployment.md']];m.forEach(([s,d])=>fs.copyFileSync(s,'frontend/src/docs/'+d));console.log('已同步 '+m.length+' 个文档文件')\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
   }
 }

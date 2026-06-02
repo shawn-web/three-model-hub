@@ -12,6 +12,7 @@ import {
   Divider,
   Typography,
   Space,
+  Empty,
 } from 'antd'
 import { Target20, ArrowRotateClockwise20, ArrowMaximize20 } from './FluentIcon'
 
@@ -43,10 +44,30 @@ export function PropertyEditor() {
   const updateComponentName = useEditStore((s) => s.updateComponentName)
   const updateComponentDescription = useEditStore((s) => s.updateComponentDescription)
 
-  if (!selectedComponentId || !modelObject) return null
+  if (!selectedComponentId || !modelObject) {
+    return (
+      <div style={{ padding: '24px 8px', textAlign: 'center' }}>
+        <Empty
+          description="请选择一个构件以编辑属性"
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          style={{ fontSize: 11 }}
+        />
+      </div>
+    )
+  }
 
   const obj = modelObject.getObjectByProperty('uuid', selectedComponentId) as THREE.Object3D | undefined
-  if (!obj) return null
+  if (!obj) {
+    return (
+      <div style={{ padding: '24px 8px', textAlign: 'center' }}>
+        <Empty
+          description="未找到对应构件"
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          style={{ fontSize: 11 }}
+        />
+      </div>
+    )
+  }
 
   const data = editData[selectedComponentId]
   const position = data?.position ?? (obj.position.toArray() as [number, number, number])
