@@ -145,6 +145,7 @@ pnpm build
 | `pnpm dev` | 启动前端开发服务 |
 | `pnpm build` | 构建前端生产版本 |
 | `pnpm backend:dev` | 启动后端开发服务 |
+| `pnpm dev:all` | 同时启动前后端开发服务 |
 | `pnpm backend:test` | 运行后端测试 |
 | `docker-compose up -d` | 启动 MySQL |
 

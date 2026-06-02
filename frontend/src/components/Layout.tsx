@@ -5,6 +5,7 @@ import { SunOutlined, MoonOutlined } from '@ant-design/icons'
 import { Home20, Cube20, LayerScene20, Image20 } from './FluentIcon'
 import { useThemeStore } from '../store/theme-store'
 import { getThemeConfig } from '../theme'
+import { QuestionCircleOutlined } from '@ant-design/icons'
 
 const { Header, Content } = AntdLayout
 
@@ -16,6 +17,7 @@ const menuItems = [
   { key: '/models', label: '模型管理', icon: <Cube20 /> },
   { key: '/scenes', label: '场景管理', icon: <LayerScene20 /> },
   { key: '/resources', label: '资源管理', icon: <Image20 /> },
+  { key: '/docs', label: '文档', icon: <QuestionCircleOutlined /> },
 ]
 
 /**
@@ -47,6 +49,17 @@ export function Layout() {
     navigate(key)
   }, [navigate])
 
+  // 根据当前路径匹配选中的菜单项（支持子路径如 /docs/api 选中 /docs）
+  const selectedKey = useMemo(() => {
+    const path = location.pathname
+    for (const item of menuItems) {
+      if (path === item.key || path.startsWith(item.key + '/') || path.startsWith(item.key + '#')) {
+        return item.key
+      }
+    }
+    return '/'
+  }, [location.pathname])
+
   // 主题切换
   const handleThemeSwitch = useCallback(() => {
     toggleTheme()
@@ -68,7 +81,7 @@ export function Layout() {
           {/* 导航菜单 */}
           <Menu
             mode="horizontal"
-            selectedKeys={[location.pathname]}
+            selectedKeys={[selectedKey]}
             items={menuItems}
             onClick={handleMenuClick}
             className="flex-1 min-w-0 border-none"

@@ -356,8 +356,8 @@ function MediaCard({
                   key={axis}
                   size="small"
                   value={media.scale?.[idx] ?? 1}
-                  step={0.1}
-                  min={0.01}
+                  step={0.01}
+                  min={0.001}
                   className="!flex-1"
                   prefix={<span className="text-[10px] opacity-40">{axis}</span>}
                   onChange={(v) => {

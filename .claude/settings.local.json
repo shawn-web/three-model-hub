@@ -142,7 +142,8 @@
       "mcp__plugin_chrome-devtools-mcp_chrome-devtools__get_console_message",
       "mcp__plugin_chrome-devtools-mcp_chrome-devtools__handle_dialog",
       "Bash(docker exec threemode_frontend *)",
-      "Bash(MSYS_NO_PATHCONV=1 docker exec threemode_frontend *)"
+      "Bash(MSYS_NO_PATHCONV=1 docker exec threemode_frontend *)",
+      "Bash(git commit *)"
     ]
   }
 }

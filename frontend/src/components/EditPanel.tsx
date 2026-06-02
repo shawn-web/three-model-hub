@@ -1,16 +1,15 @@
 /**
  * 编辑器左侧面板
  *
- * 使用 Tabs 切换三个功能区域：
- * - 场景：场景设置、场景模型管理、图片配置
+ * 使用 Tabs 切换两个功能区域：
+ * - 场景：场景设置、场景模型管理、媒体管理、标点管理
  * - 模型：模型的树形结构，支持选中/勾选/展开
- * - 属性：选中构件的属性编辑 + 标点管理
  */
 import { useCallback } from 'react'
 import { Tabs, theme as antdTheme, Button, Popconfirm } from 'antd'
 import type { TabsProps } from 'antd'
 import { Icon } from '@iconify/react'
-import { layersIcon, gitBranchIcon, slidersIcon, trash2Icon, plusIcon } from './Icons'
+import { layersIcon, gitBranchIcon, trash2Icon, plusIcon } from './Icons'
 import { SceneTree } from './SceneTree'
 import { SceneSettings } from './SceneSettings'
 import { SceneImagePanel } from './SceneImagePanel'
@@ -70,7 +69,7 @@ export function EditPanel({ sceneModels, onRemoveModel, onOpenAddModal, onSelect
       ),
       children: (
         <div style={{ overflowY: 'auto', overflowX: 'hidden', padding: '4px 0' }}>
-          <SceneTab sceneModels={sceneModels} onRemoveModel={onRemoveModel} onOpenAddModal={onOpenAddModal} onSelectModel={onSelectModel} />
+          <SceneTab sceneModels={sceneModels} onRemoveModel={onRemoveModel} onOpenAddModal={onOpenAddModal} onSelectModel={onSelectModel} onEditMarker={onEditMarker || (() => {})} />
         </div>
       ),
     },
@@ -85,23 +84,6 @@ export function EditPanel({ sceneModels, onRemoveModel, onOpenAddModal, onSelect
       children: (
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
           <SceneTree />
-        </div>
-      ),
-    },
-    {
-      key: 'properties',
-      label: (
-        <span className="flex items-center gap-1">
-          <Icon icon={slidersIcon} width={14} />
-          属性
-        </span>
-      ),
-      children: (
-        <div style={{ overflowY: 'auto', overflowX: 'hidden', padding: '4px 0' }}>
-          <div style={{ padding: '0 8px' }}>
-            <SectionTitle title="标点管理" />
-            <MarkerList onEditMarker={onEditMarker || (() => {})} />
-          </div>
         </div>
       ),
     },
@@ -137,12 +119,13 @@ export function EditPanel({ sceneModels, onRemoveModel, onOpenAddModal, onSelect
   )
 }
 
-/** 场景 Tab 内容：场景设置 + 场景模型 + 图片管理 */
-function SceneTab({ sceneModels, onRemoveModel, onOpenAddModal, onSelectModel }: {
+/** 场景 Tab 内容：场景设置 + 场景模型 + 图片管理 + 标点管理 */
+function SceneTab({ sceneModels, onRemoveModel, onOpenAddModal, onSelectModel, onEditMarker }: {
   sceneModels: SceneModelItem[]
   onRemoveModel: (id: string) => void
   onOpenAddModal: () => void
   onSelectModel?: (sceneModelId: string) => void
+  onEditMarker?: (marker: MarkerData) => void
 }) {
   const modelObject = useEditStore((s) => s.modelObject)
   const selectedComponentId = useEditStore((s) => s.selectedComponentId)
@@ -204,6 +187,10 @@ function SceneTab({ sceneModels, onRemoveModel, onOpenAddModal, onSelectModel }:
       {/* 媒体管理 */}
       <SectionTitle title="媒体管理" />
       <SceneImagePanel />
+
+      {/* 标点管理 */}
+      <SectionTitle title="标点管理" />
+      <MarkerList onEditMarker={onEditMarker || (() => {})} />
     </div>
   )
 }
