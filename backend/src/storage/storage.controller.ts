@@ -69,12 +69,14 @@ export class StorageController {
 
     // 2. key 从 req.url 解析（去掉 /api/storage/{bucket}/ 前缀）
     //    NestJS 11 wildcard 段不能稳定通过 @Param('0') 取到值，改用 URL 解析
+    //    注意：必须先剥掉 query string，否则 ?cache=1 等会被拼进 objectKey
     const prefix = `/api/storage/${bucket}/`
-    const url = req.originalUrl || req.url
-    if (!url.startsWith(prefix)) {
-      throw new BadRequestException(`URL 格式错误：${url}`)
+    const rawUrl = req.originalUrl || req.url || ''
+    const pathOnly = rawUrl.split('?', 1)[0].split('#', 1)[0]
+    if (!pathOnly.startsWith(prefix)) {
+      throw new BadRequestException(`URL 格式错误：${rawUrl}`)
     }
-    const objectKey = decodeURIComponent(url.slice(prefix.length)).replace(/^\/+/, '')
+    const objectKey = decodeURIComponent(pathOnly.slice(prefix.length)).replace(/^\/+/, '')
     if (!objectKey) {
       throw new BadRequestException('objectKey 不能为空')
     }
