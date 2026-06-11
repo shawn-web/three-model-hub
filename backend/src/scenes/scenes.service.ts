@@ -1,6 +1,6 @@
 ﻿import { Injectable, NotFoundException } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
-import { Repository, DataSource, In } from 'typeorm'
+import { Repository, DataSource, EntityManager, In } from 'typeorm'
 import { Scene } from './entities/scene.entity'
 import { SceneModel } from './entities/scene-model.entity'
 import { SceneImage } from './entities/scene-image.entity'
@@ -162,37 +162,53 @@ export class ScenesService {
   }
 
   /**
-   * 批量更新场景中的模型配置（事务 + 批量查询）
+   * 统一保存 Geo 配置
+   *
+   * 真原子：模型坐标批量更新 + Scene.scene_config 写入包在同一 dataSource.transaction 内。
+   * 任一步抛错，整个事务回滚，避免「模型坐标已落库但底图配置丢失」的半完成状态。
    */
-  /** 统一保存 Geo 配置（原子操作：同时保存模型坐标 + 底图配置） */
   async saveGeoConfig(sceneId: string, dto: SaveGeoConfigDto): Promise<void> {
     await this.findOne(sceneId)
 
-    // 1. 批量更新模型坐标
-    await this.batchUpdateModels(sceneId, dto.models)
+    await this.dataSource.transaction(async (manager) => {
+      // 1. 批量更新模型坐标（复用事务 manager）
+      await this.batchUpdateModels(sceneId, dto.models, manager)
 
-    // 2. 更新场景底图配置
-    if (dto.geoConfig) {
-      const scene = await this.sceneRepo.findOne({ where: { id: sceneId } })
-      if (scene) {
-        const currentConfig = (scene.scene_config as Record<string, any>) || {}
-        scene.scene_config = {
-          ...currentConfig,
-          geo: {
-            ...(currentConfig.geo as Record<string, any> || {}),
-            ...dto.geoConfig,
-          },
+      // 2. 更新场景底图配置（同一事务内）
+      if (dto.geoConfig) {
+        const sceneRepo = manager.getRepository(Scene)
+        const scene = await sceneRepo.findOne({ where: { id: sceneId } })
+        if (scene) {
+          const currentConfig = (scene.scene_config as Record<string, any>) || {}
+          scene.scene_config = {
+            ...currentConfig,
+            geo: {
+              ...(currentConfig.geo as Record<string, any> || {}),
+              ...dto.geoConfig,
+            },
+          }
+          await sceneRepo.save(scene)
         }
-        await this.sceneRepo.save(scene)
       }
-    }
+    })
   }
 
-  async batchUpdateModels(sceneId: string, items: BatchSceneModelItemDto[]): Promise<void> {
-    await this.findOne(sceneId)
+  /**
+   * 批量更新场景中的模型配置（事务 + 批量查询）
+   *
+   * @param manager 可选的事务 EntityManager；提供时所有写入走该事务，
+   *                不提供时本方法自己包裹一个独立事务
+   */
+  async batchUpdateModels(
+    sceneId: string,
+    items: BatchSceneModelItemDto[],
+    manager?: EntityManager,
+  ): Promise<void> {
+    if (!manager) await this.findOne(sceneId)
 
     const itemIds = items.map((item) => item.id)
-    const sceneModels = await this.sceneModelRepo
+    const repo = manager ? manager.getRepository(SceneModel) : this.sceneModelRepo
+    const sceneModels = await repo
       .createQueryBuilder('sm')
       .where('sm.id IN (:...ids)', { ids: itemIds })
       .andWhere('sm.scene_id = :sceneId', { sceneId })
@@ -200,7 +216,7 @@ export class ScenesService {
 
     const modelMap = new Map(sceneModels.map((sm) => [sm.id, sm]))
 
-    await this.dataSource.transaction(async (manager) => {
+    const writer = async (mgr: EntityManager) => {
       for (const item of items) {
         const sceneModel = modelMap.get(item.id)
         if (!sceneModel) continue
@@ -210,13 +226,18 @@ export class ScenesService {
         if (item.visible !== undefined) sceneModel.visible = item.visible
         if (item.display_name !== undefined) sceneModel.display_name = item.display_name
         if (item.geo_position !== undefined) sceneModel.geo_position = item.geo_position
-
       }
       // 批量保存所有模型
       // 注意：必须用 Array.from(modelMap.values())，不能 Object.values(modelMap)，
       //       后者对 Map 实例返回 []，导致 save 收到空数组（pending-issues.md pi-001）
-      await manager.save(SceneModel, Array.from(modelMap.values()))
-    })
+      await mgr.save(SceneModel, Array.from(modelMap.values()))
+    }
+
+    if (manager) {
+      await writer(manager)
+    } else {
+      await this.dataSource.transaction(writer)
+    }
   }
 
   /**

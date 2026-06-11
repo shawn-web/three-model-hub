@@ -22,14 +22,12 @@ export class MinioService implements OnModuleInit {
   private readonly endpoint: string
   private readonly port: number
   private readonly useSSL: boolean
-  private readonly publicUrl: string
 
   constructor(private config: ConfigService) {
     this.endpoint = this.config.get<string>('MINIO_ENDPOINT', 'localhost')
     this.port = parseInt(this.config.get<string>('MINIO_PORT', '9000'), 10)
     this.useSSL = this.config.get<string>('MINIO_USE_SSL') === 'true'
     this.bucket = this.config.get<string>('MINIO_BUCKET', 'three-mode')
-    this.publicUrl = this.config.get<string>('MINIO_PUBLIC_URL', `http://${this.endpoint}:${this.port}`)
 
     // 客户端在构造函数中初始化（避免 onModuleInit 被测试覆盖）
     this.client = new Client({
@@ -37,7 +35,7 @@ export class MinioService implements OnModuleInit {
       port: this.port,
       useSSL: this.useSSL,
       accessKey: this.config.get<string>('MINIO_ACCESS_KEY', 'minioadmin'),
-      secretKey: this.config.get<string>('MINIO_SECRET_KEY', 'minioadmin'),
+      secretKey: this.config.get<string>('MINIO_SECRET_KEY', 'minioadmin123'),
     })
   }
 

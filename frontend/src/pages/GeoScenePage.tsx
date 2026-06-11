@@ -30,7 +30,7 @@ import { GeoLocationPanel } from '../components/geo/GeoLocationPanel'
 import { useGeoStore } from '../store/geo-store'
 import { type GeoConfigPayload } from '../communication/protocol'
 import { parseUrlParams } from '../communication/url-params'
-import { getParentOrigin } from '../communication/parent-origin'
+import { getMessageBus } from '../hooks/useMessageBus'
 import { getThemeConfig } from '../theme'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -87,8 +87,7 @@ export function GeoScenePage() {
     return origins ? origins.split(',') : null
   }, [searchParams])
 
-  // 父页面 origin（用于发送 geo-ready 消息）
-  const parentOrigin = useMemo(() => getParentOrigin(), [])
+  // 把 URL 解析的 allowedOrigins 推到 MessageBus（覆盖构造时的默认值）
 
   // P1-6/7: 解析 URL 参数并应用到 store（使用 parseUrlParams 统一体系）
   useEffect(() => {
@@ -117,6 +116,8 @@ export function GeoScenePage() {
     }
     if (urlParams.allowedOrigins) {
       store.setAllowedOrigins(urlParams.allowedOrigins)
+      // 同步到 MessageBus
+      getMessageBus().setAllowedOrigins(urlParams.allowedOrigins)
     }
     if (urlParams.camera) {
       store.flyToGeo(
@@ -134,8 +135,10 @@ export function GeoScenePage() {
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       // origin 校验：URL 参数优先，其次使用数据库恢复的白名单
+      // 注意：与 MessageBus 不同，Geo 页面要求白名单必须显式存在；
+      //   未配置白名单时拒绝所有（默认安全，不依赖 referrer 可用性）
       const effectiveAllowedOrigins = allowedOrigins || storeAllowedOrigins
-      if (effectiveAllowedOrigins && !effectiveAllowedOrigins.includes(event.origin)) return
+      if (!effectiveAllowedOrigins || !effectiveAllowedOrigins.includes(event.origin)) return
 
       const data = event.data
       if (!data || typeof data !== 'object') return
@@ -213,11 +216,11 @@ export function GeoScenePage() {
     loadCesium()
       .then(() => {
         setCesiumReady(true)
-        // 通知父页面 Geo 已就绪（使用父页面 origin，非 '*'）
-        window.parent.postMessage({ type: 'geo-ready', payload: { mapId } }, parentOrigin)
+        // 通知父页面 Geo 已就绪（走 MessageBus，由其 allowlist 校验决定是否发出）
+        getMessageBus().send('geo-ready', { mapId })
       })
       .catch((err) => setLoadError(err.message || 'Cesium 加载失败'))
-  }, [mapId, parentOrigin])
+  }, [mapId])
 
   if (!mapId) {
     return (

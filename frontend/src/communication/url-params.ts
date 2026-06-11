@@ -31,7 +31,7 @@ function parseBooleanParam(value: string | null): boolean | undefined {
 }
 
 function parseListParam(value: string | null): string[] | undefined {
-  const list = value?.split(',').map((item) => item.trim()).filter(Boolean)
+  const list = value?.split(',').map((item) => item.trim()).filter((item) => item.length > 0)
   return list && list.length > 0 ? list : undefined
 }
 
@@ -62,7 +62,7 @@ export function parseUrlParams(search: string): UrlParams {
 
   return {
     modelUrl: params.get('modelUrl'),
-    tools: params.get('tools')?.split(',').filter(Boolean) ?? [],
+    tools: params.get('tools')?.split(',').map((s) => s.trim()).filter((s) => s.length > 0) ?? [],
     environment: params.get('environment'),
     toolbarVisible: params.get('toolbar') !== 'false',
     treeVisible: params.get('tree') !== 'false',
