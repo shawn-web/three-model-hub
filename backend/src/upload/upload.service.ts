@@ -77,7 +77,11 @@ export class UploadService {
    * 上传单个分片
    * - 校验 session 存在且未完成
    * - 调 MinIO uploadPart 拿 ETag
-   * - 累加写入 session.uploaded_parts
+   * - 原子写入 session.uploaded_parts（避免并发 read-modify-write 丢分片）
+   *
+   * 并发安全：前端 MAX_CONCURRENT_PARTS=3 并发上传分片时，简单的
+   * 「读 → 改 → 写」会出现 T1 写 part 2 → T2 写 part 3 时覆盖 part 2。
+   * 改用 MySQL JSON_SET 单条 UPDATE 原子合并，保证不丢分片。
    */
   async uploadPart(
     uploadId: string,
@@ -94,11 +98,19 @@ export class UploadService {
 
     const etag = await this.minioService.uploadPart(uploadId, session.object_key, partNumber, buffer)
 
-    session.uploaded_parts = {
-      ...(session.uploaded_parts || {}),
-      [partNumber]: etag,
+    // 原子合并：JSON_SET 在单条 UPDATE 内加键，并行分片互不覆盖。
+    // status='pending' 条件防止「在 abort 之后写」/「在 cleanup 之后写」。
+    const result = await this.sessionRepo.query(
+      `UPDATE upload_sessions
+       SET uploaded_parts = JSON_SET(COALESCE(uploaded_parts, JSON_OBJECT()), ?, ?)
+       WHERE upload_id = ? AND status = 'pending'`,
+      [`$.${partNumber}`, etag, uploadId],
+    )
+    // mysql2 返回 OkPacket；affectedRows=0 表示 session 已不处于 pending（如被 abort）
+    const affected = (result as { affectedRows?: number }[])[0]?.affectedRows ?? 0
+    if (affected === 0) {
+      throw new BadRequestException(`上传任务已被取消或完成：${uploadId}`)
     }
-    await this.sessionRepo.save(session)
 
     return { etag, partNumber }
   }
