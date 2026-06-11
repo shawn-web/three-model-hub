@@ -17,6 +17,10 @@ backend/dist
 # 环境变量
 .env
 
+# MinIO 数据目录（根目录和 backend 目录下都可能存在）
+/.minio-data/
+/backend/.minio-data/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

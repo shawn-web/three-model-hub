@@ -1,24 +1,254 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common'
+import { InjectRepository } from '@nestjs/typeorm'
+import { Repository } from 'typeorm'
+import { UploadSession } from './entities/upload-session.entity'
+import { MinioService } from '../minio/minio.service'
 import { StorageService } from '../storage/storage.service'
+import { InitMultipartDto } from './dto/init-multipart.dto'
+import { CompleteMultipartDto } from './dto/complete-multipart.dto'
 import { MulterFile } from '../common/types'
 
+/** 分片大小：8MB（与前端 chunk size 对齐） */
+export const CHUNK_SIZE = 8 * 1024 * 1024
+
+/**
+ * 上传业务编排服务
+ *
+ * 职责：
+ *   - 维护 UploadSession 状态机
+ *   - 协调 MinioService 完成 multipart upload 流程
+ *   - 暴露状态查询（断点续传）
+ *
+ * 状态机：
+ *   pending → completed（成功合并）
+ *   pending → aborted（用户取消 / 定时清理）
+ */
 @Injectable()
 export class UploadService {
-  constructor(private storageService: StorageService) {}
+  private readonly logger = new Logger(UploadService.name)
 
-  async uploadFile(file: MulterFile): Promise<{ url: string }> {
-    try {
-      const result = await this.storageService.uploadFile(
-        file.buffer,
-        file.originalname,
-        undefined,
-        undefined,
-        'labs/images',
+  constructor(
+    @InjectRepository(UploadSession)
+    private readonly sessionRepo: Repository<UploadSession>,
+    private readonly minioService: MinioService,
+    private readonly storageService: StorageService,
+  ) {}
+
+  /**
+   * 初始化分片上传
+   * - 生成 objectKey
+   * - 调 MinIO initMultipart 拿 uploadId
+   * - 写 UploadSession (pending)
+   */
+  async initMultipart(dto: InitMultipartDto): Promise<{
+    uploadId: string
+    objectKey: string
+    partSize: number
+    totalParts: number
+  }> {
+    const objectKey = this.storageService.generateObjectKey(dto.bizType, dto.fileName)
+    const uploadId = await this.minioService.initMultipart(objectKey)
+    const totalParts = Math.ceil(dto.fileSize / CHUNK_SIZE)
+
+    const session = this.sessionRepo.create({
+      upload_id: uploadId,
+      object_key: objectKey,
+      bucket: this.minioService.getBucket(),
+      file_name: dto.fileName,
+      file_size: dto.fileSize,
+      mime_type: dto.mimeType,
+      biz_type: dto.bizType,
+      status: 'pending',
+      uploaded_parts: {},
+    })
+    await this.sessionRepo.save(session)
+
+    this.logger.log(`init multipart: ${objectKey} (${totalParts} parts, ${dto.fileSize} bytes)`)
+
+    return {
+      uploadId,
+      objectKey,
+      partSize: CHUNK_SIZE,
+      totalParts,
+    }
+  }
+
+  /**
+   * 上传单个分片
+   * - 校验 session 存在且未完成
+   * - 调 MinIO uploadPart 拿 ETag
+   * - 累加写入 session.uploaded_parts
+   */
+  async uploadPart(
+    uploadId: string,
+    partNumber: number,
+    buffer: Buffer,
+  ): Promise<{ etag: string; partNumber: number }> {
+    const session = await this.sessionRepo.findOne({ where: { upload_id: uploadId } })
+    if (!session) {
+      throw new NotFoundException(`上传任务不存在：${uploadId}`)
+    }
+    if (session.status !== 'pending') {
+      throw new BadRequestException(`上传任务已 ${session.status}，不能修改`)
+    }
+
+    const etag = await this.minioService.uploadPart(uploadId, session.object_key, partNumber, buffer)
+
+    session.uploaded_parts = {
+      ...(session.uploaded_parts || {}),
+      [partNumber]: etag,
+    }
+    await this.sessionRepo.save(session)
+
+    return { etag, partNumber }
+  }
+
+  /**
+   * 合并分片
+   * - 校验 session 存在
+   * - 校验前端传入的 parts 与 session.uploaded_parts 完全一致（防止半完成 / 越权 complete）
+   * - 调 MinIO completeMultipartUpload
+   * - 标记 session.status=completed
+   * - 返回公开 URL 和 fileKey
+   */
+  async completeMultipart(dto: CompleteMultipartDto): Promise<{
+    url: string
+    fileKey: string
+    fileSize: number
+  }> {
+    const session = await this.sessionRepo.findOne({ where: { upload_id: dto.uploadId } })
+    if (!session) {
+      throw new NotFoundException(`上传任务不存在：${dto.uploadId}`)
+    }
+    if (session.status === 'completed') {
+      // 幂等：已完成的请求直接返回结果
+      return {
+        url: this.minioService.getPublicUrl(session.object_key),
+        fileKey: session.object_key,
+        fileSize: Number(session.file_size),
+      }
+    }
+    if (session.status === 'aborted') {
+      throw new BadRequestException(`上传任务已取消：${dto.uploadId}`)
+    }
+
+    // 校验：前端传入的 parts 必须与 session.uploaded_parts 完全一致
+    const recorded = session.uploaded_parts || {}
+    const recordedKeys = Object.keys(recorded).sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
+    const incomingKeys = dto.parts
+      .map((p) => String(p.partNumber))
+      .sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
+
+    if (recordedKeys.length !== incomingKeys.length
+      || recordedKeys.some((k, i) => k !== incomingKeys[i])) {
+      throw new BadRequestException(
+        `分片清单与服务端记录不一致：服务端记录 ${recordedKeys.length} 个分片，请求传入 ${incomingKeys.length} 个`,
       )
-      return { url: result.url }
-    } catch (err) {
-      console.error('[UploadService] 上传失败:', err)
-      throw err
+    }
+    for (const p of dto.parts) {
+      const expected = recorded[String(p.partNumber)]
+      if (!expected || expected !== p.etag) {
+        throw new BadRequestException(
+          `分片 ${p.partNumber} 的 etag 与服务端记录不一致`,
+        )
+      }
+    }
+
+    const parts = dto.parts.map((p) => ({ partNumber: p.partNumber, etag: p.etag }))
+    await this.minioService.completeMultipart(dto.uploadId, session.object_key, parts)
+
+    session.status = 'completed'
+    // session.uploaded_parts 已与请求一致，无需重写
+    await this.sessionRepo.save(session)
+
+    this.logger.log(`complete multipart: ${session.object_key}`)
+
+    return {
+      url: this.minioService.getPublicUrl(session.object_key),
+      fileKey: session.object_key,
+      fileSize: Number(session.file_size),
+    }
+  }
+
+  /**
+   * 取消分片上传
+   * - 幂等：session 不存在直接返回 success
+   * - 调 MinIO abortMultipart 释放分片数据
+   * - 标记 session.status=aborted
+   */
+  async abort(uploadId: string): Promise<{ success: true }> {
+    const session = await this.sessionRepo.findOne({ where: { upload_id: uploadId } })
+    if (!session) {
+      return { success: true }
+    }
+    if (session.status === 'completed') {
+      return { success: true }
+    }
+    await this.minioService.abortMultipart(uploadId, session.object_key)
+    session.status = 'aborted'
+    await this.sessionRepo.save(session)
+    this.logger.log(`abort multipart: ${session.object_key}`)
+    return { success: true }
+  }
+
+  /**
+   * 查询上传状态（断点续传）
+   * - 直接读 UploadSession.uploaded_parts 作为权威数据源
+   * - 不依赖 MinioService.listParts（minio 8.x 无公开 API，永远返回空）
+   */
+  async status(uploadId: string): Promise<{
+    objectKey: string
+    fileSize: number
+    uploadedParts: number[]
+    etags: { partNumber: number; etag: string }[]
+  }> {
+    const session = await this.sessionRepo.findOne({ where: { upload_id: uploadId } })
+    if (!session) {
+      throw new NotFoundException(`上传任务不存在：${uploadId}`)
+    }
+
+    // 已 completed/aborted 的不返回断点信息，前端应当重新走 init
+    if (session.status !== 'pending') {
+      return {
+        objectKey: session.object_key,
+        fileSize: Number(session.file_size),
+        uploadedParts: [],
+        etags: [],
+      }
+    }
+
+    const partsMap = session.uploaded_parts || {}
+    const etags = Object.entries(partsMap)
+      .map(([k, v]) => ({ partNumber: parseInt(k, 10), etag: v }))
+      .filter((p) => !Number.isNaN(p.partNumber))
+      .sort((a, b) => a.partNumber - b.partNumber)
+
+    return {
+      objectKey: session.object_key,
+      fileSize: Number(session.file_size),
+      uploadedParts: etags.map((p) => p.partNumber),
+      etags,
+    }
+  }
+
+  /**
+   * 简单上传（< 8MB 单次上传）
+   * - 生成 objectKey
+   * - 调 MinIO putObject
+   * - 返回公开 URL
+   */
+  async uploadSimple(file: MulterFile, bizType: string): Promise<{
+    url: string
+    fileKey: string
+    fileSize: number
+  }> {
+    const objectKey = this.storageService.generateObjectKey(bizType as any, file.originalname)
+    await this.minioService.putObject(objectKey, file.buffer, file.mimetype || 'application/octet-stream')
+
+    return {
+      url: this.minioService.getPublicUrl(objectKey),
+      fileKey: objectKey,
+      fileSize: file.size,
     }
   }
 }

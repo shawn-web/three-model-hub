@@ -27,6 +27,9 @@ import {
 } from './dto/resource.dto'
 import { MulterFile } from '../common/types'
 
+/** 文件大小上限（MB） */
+const MAX_UPLOAD_SIZE_MB = parseInt(process.env.MAX_UPLOAD_SIZE_MB || '1024', 10)
+
 /**
  * 资源管理控制器
  */
@@ -92,9 +95,9 @@ export class ResourcesController {
     })
   }
 
-  /** 上传并创建资源 */
+  /** 上传并创建资源（multipart 整文件接收，内部走 MinIO） */
   @Post('upload')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 500 * 1024 * 1024 } }))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_UPLOAD_SIZE_MB * 1024 * 1024 } }))
   async upload(
     @UploadedFile() file: MulterFile,
     @Body('name') name?: string,

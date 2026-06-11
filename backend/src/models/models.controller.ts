@@ -19,9 +19,12 @@ import { ModelsService } from './models.service'
 import { CreateModelDto, UpdateModelDto, CreateVersionDto, CreateFromUrlDto } from './dto/model.dto'
 import { MulterFile } from '../common/types'
 
+/** 文件大小上限（MB） */
+const MAX_UPLOAD_SIZE_MB = parseInt(process.env.MAX_UPLOAD_SIZE_MB || '1024', 10)
+
 /**
  * 模型管理控制器
- * 注意：静态路径（如 upload-config、upload、create）必须在动态路径（:id）之前注册
+ * 注意：静态路径（如 upload、create、file）必须在动态路径（:id）之前注册
  */
 @Controller('models')
 export class ModelsController {
@@ -42,10 +45,19 @@ export class ModelsController {
     })
   }
 
-  /** 获取文件上传配置（两段路径，不可能与 :id 单段路径冲突） */
-  @Get('upload/config')
-  getUploadConfig() {
-    return this.modelsService.getUploadConfig()
+  /**
+   * 代理获取模型文件（302 重定向到 MinIO 公开 URL）
+   * 用于 GLB 预处理（绕过 Cesium shader bug）
+   * 注意：此静态路径必须放在动态路径 :id 之前
+   */
+  @Get(':id/file')
+  async proxyFile(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() res: Response,
+  ) {
+    const url = await this.modelsService.getFileRedirectUrl(id)
+    res.setHeader('Cache-Control', 'public, max-age=3600')
+    return res.redirect(url)
   }
 
   @Get(':id')
@@ -53,15 +65,15 @@ export class ModelsController {
     return this.modelsService.findOne(id)
   }
 
-  /** 前端直传文件服务后，用此接口创建模型记录 */
+  /** 前端分片上传完成后，用此接口创建模型记录 */
   @Post('create')
   async createFromUrl(@Body() dto: CreateFromUrlDto) {
     return this.modelsService.createFromUrl(dto)
   }
 
-  /** 通过后端转发上传（备用方案） */
+  /** 后端代理上传（备用方案，整文件 multipart 接收，内部走 MinIO） */
   @Post('upload')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 500 * 1024 * 1024 } }))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_UPLOAD_SIZE_MB * 1024 * 1024 } }))
   async create(
     @UploadedFile() file: MulterFile,
     @Body() dto: CreateModelDto,
@@ -85,7 +97,7 @@ export class ModelsController {
   }
 
   @Post(':id/versions')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 500 * 1024 * 1024 } }))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_UPLOAD_SIZE_MB * 1024 * 1024 } }))
   async uploadVersion(
     @Param('id', ParseUUIDPipe) id: string,
     @UploadedFile() file: MulterFile,

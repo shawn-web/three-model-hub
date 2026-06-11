@@ -1,5 +1,6 @@
-import axios from 'axios'
-import apiClient from './client'
+import apiClient, { invalidateHttpCache } from './client'
+import { uploadFile } from './upload'
+import type { UploadResult } from '../types/upload'
 
 /**
  * 模型相关 API
@@ -18,73 +19,37 @@ export async function getModel(id: string) {
 }
 
 /**
- * 上传模型（直传文件服务，获取真实进度）
- * 参考 BaseOrgEdit.vue 的实现：
- *   1. 从后端获取上传配置（URL、token 等）
- *   2. 前端直传文件服务，通过 onUploadProgress 回调真实进度
- *   3. 上传完成后，调后端创建模型记录
+ * 上传模型（tapp → MinIO 迁移后）
+ *
+ * 流程：
+ *   1. uploadFile 调 /upload/multipart/* 或 /upload/simple 完成 MinIO 上传
+ *   2. 拿到 { url, fileKey, fileSize } 后 POST /models/create 落库
+ *
+ * 进度：0-95% 走 uploadFile 的 onProgress，100% 在数据库落库后回调
  */
 export async function uploadModel(
   file: File,
   metadata: { name: string; description?: string; tags?: string[] },
   onProgress?: (percent: number) => void,
 ) {
-  // 1. 获取上传配置（两段路径 /models/upload/config，不与 :id 冲突）
-  const { data: config } = await apiClient.get('/models/upload/config')
-
-  // 2. 直传文件服务（不传 bucket，由文件服务自行管理）
-  // 文件服务不支持中文文件名，非 ASCII 时生成纯 ASCII 安全名称
-  const ext = file.name.includes('.') ? '.' + file.name.split('.').pop() : ''
-  const safeName = /[^\x00-\x7F]/.test(file.name)
-    ? `model_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`
-    : file.name
-  const safeFile = new File([file], safeName, { type: file.type })
-  const formData = new FormData()
-  formData.append('file', safeFile)
-  formData.append('path', config.path)
-
-  // 判断用代理路径还是直连（开发环境用 Vite 代理 /hz-file-upload，避免 CORS）
-  const uploadUrl = config.url.replace(/^https?:\/\/[^/]+/, '')
-    || config.url
-
-  const uploadResponse = await axios.post(uploadUrl, formData, {
-    headers: {
-      'token': config.token,
-      'clientId': config.clientId,
-      'passportId': config.passportId,
-    },
-    timeout: 600000,
-    onUploadProgress: (e) => {
-      if (e.total && onProgress) {
-        // 上传阶段只占 0-90%，留 90-100% 给服务端处理
-        onProgress(Math.round((e.loaded / e.total) * 90))
-      }
-    },
+  const { url, fileKey, fileSize }: UploadResult = await uploadFile(file, {
+    bizType: 'model',
+    onProgress,
   })
 
-  // 4. 文件上传完成，服务端正在处理
-  onProgress?.(95)
-
-  // 5. 解析文件服务返回结果
-  const respData = uploadResponse.data
-  const inner = respData.data || respData
-  const fileUrl = inner.resultUrl || inner.url
-  if (!fileUrl) throw new Error('文件上传失败：未获取到文件 URL')
-  const fileKey = inner.fileName || inner.fileKey || fileUrl.split('/').pop() || ''
-
-  // 6. 创建模型记录
   const { data: model } = await apiClient.post('/models/create', {
     name: metadata.name,
     description: metadata.description,
     tags: metadata.tags,
-    file_url: fileUrl,
+    file_url: url,
     file_name: file.name,
-    file_size: file.size,
+    file_size: fileSize,
     file_key: fileKey,
     commit_message: '初始版本',
   })
 
   onProgress?.(100)
+  invalidateHttpCache('/models')
   return model
 }
 
@@ -97,6 +62,7 @@ export async function updateModel(id: string, updates: { name?: string; descript
 /** 删除模型 */
 export async function deleteModel(id: string) {
   const { data } = await apiClient.delete(`/models/${id}`)
+  invalidateHttpCache('/models')
   return data
 }
 
@@ -112,15 +78,27 @@ export async function getModelVersions(id: string) {
   return data
 }
 
-/** 上传新版本 */
-export async function uploadVersion(id: string, file: File, commitMessage?: string) {
-  const formData = new FormData()
-  formData.append('file', file)
-  if (commitMessage) formData.append('commit_message', commitMessage)
+/**
+ * 上传新版本
+ * 流程：uploadFile → POST /models/:id/versions 带 fileKey
+ */
+export async function uploadVersion(
+  id: string,
+  file: File,
+  commitMessage?: string,
+  onProgress?: (percent: number) => void,
+) {
+  const { url, fileKey, fileSize }: UploadResult = await uploadFile(file, {
+    bizType: 'model-version',
+    onProgress,
+  })
 
-  const { data } = await apiClient.post(`/models/${id}/versions`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-    timeout: 300000,
+  const { data } = await apiClient.post(`/models/${id}/versions`, {
+    file_url: url,
+    file_key: fileKey,
+    file_size: fileSize,
+    file_name: file.name,
+    commit_message: commitMessage,
   })
   return data
 }

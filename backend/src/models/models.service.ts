@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { Repository } from 'typeorm'
 import { Model } from './entities/model.entity'
@@ -12,9 +12,16 @@ import { CreateModelDto, UpdateModelDto, CreateFromUrlDto } from './dto/model.dt
 /**
  * 模型管理服务
  * 处理模型的增删改查、版本管理、文件上传等业务逻辑
+ *
+ * 存储层：tapp → MinIO 重构
+ *   - 旧 tapp 代理上传已删除，所有上传走 storageService（内部 MinIO）
+ *   - proxyFile 改为返回 MinIO 公开 URL（前端直接 fetch，bucket 匿名 download）
+ *   - 旧 tapp 数据（file_key 为 null）返回 NotFound
  */
 @Injectable()
 export class ModelsService {
+  private readonly logger = new Logger(ModelsService.name)
+
   constructor(
     @InjectRepository(Model)
     private modelRepo: Repository<Model>,
@@ -72,16 +79,26 @@ export class ModelsService {
     return model
   }
 
-  /** 获取文件上传配置（供前端直传） */
-  getUploadConfig() {
-    return this.storageService.getUploadConfig()
-  }
-
   /**
-   * 前端直传后创建模型
-   * 前端已直接上传到文件服务，此方法仅创建数据库记录
+   * 前端分片上传完成后创建模型
+   * 流程：前端先调 /upload/multipart/* 完成上传，再调此接口落库
+   *
+   * 校验：
+   *   - dto.file_key 在 MinIO 中必须真实存在（防伪造 URL）
    */
   async createFromUrl(dto: CreateFromUrlDto): Promise<Model> {
+    // 校验 fileKey 真实性：MinIO 中必须存在该对象
+    const { exists, size } = await this.storageService.verifyObject(dto.file_key)
+    if (!exists) {
+      throw new BadRequestException('文件不存在或上传未完成，请重新上传')
+    }
+    // 文件大小校验（防前端伪造 file_size）
+    if (size !== undefined && size !== Number(dto.file_size)) {
+      this.logger.warn(
+        `文件大小不一致：DTO=${dto.file_size}, MinIO=${size}, key=${dto.file_key}`,
+      )
+    }
+
     const fileFormat = this.storageService.detectFormat(dto.file_name)
 
     const model = this.modelRepo.create({
@@ -111,8 +128,7 @@ export class ModelsService {
   }
 
   /**
-   * 上传新模型
-   * 将文件转发到文件服务，并在数据库中创建记录
+   * 后端代理上传（备用方案，整文件 multipart 接收，内部走 MinIO）
    */
   async create(
     file: MulterFile,
@@ -121,6 +137,9 @@ export class ModelsService {
     const uploadResult = await this.storageService.uploadFile(
       file.buffer,
       file.originalname,
+      undefined,
+      undefined,
+      'labs/models',
     )
 
     const fileHash = this.storageService.calculateHash(file.buffer)
@@ -216,7 +235,7 @@ export class ModelsService {
   }
 
   /**
-   * 上传新版本
+   * 上传新版本（后端代理 multipart，内部走 MinIO）
    */
   async uploadVersion(
     modelId: string,
@@ -230,6 +249,8 @@ export class ModelsService {
       file.buffer,
       file.originalname,
       modelId,
+      undefined,
+      'labs/models',
     )
 
     const fileHash = this.storageService.calculateHash(file.buffer)
@@ -270,7 +291,7 @@ export class ModelsService {
   }
 
   /**
-   * 复制模型
+   * 复制模型（复用 fileKey，MinIO 端不复制文件）
    */
   async copy(id: string): Promise<Model> {
     const original = await this.findOne(id)
@@ -355,5 +376,32 @@ export class ModelsService {
   /** 增加下载计数 */
   async incrementDownloadCount(id: string): Promise<void> {
     await this.modelRepo.increment({ id }, 'download_count', 1)
+  }
+
+  /**
+   * 获取模型文件的可访问 URL（重定向）
+   *
+   * 重构说明：
+   *   - 旧实现：axios.get(tappURL) 流式转发，绕过 CORS
+   *   - 新实现：直接返回 MinIO 公开 URL（bucket 匿名 download），前端 fetch
+   *
+   * 老 tapp 数据兼容：
+   *   - 若 file_key 缺失（老数据），直接返回原 file_url（仍可访问直到 tapp 服务下线）
+   *   - 用户决策：失败就失败，提示即可，不做兜底兼容
+   */
+  async getFileRedirectUrl(id: string): Promise<string> {
+    const model = await this.modelRepo.findOne({ where: { id } })
+    if (!model) {
+      throw new NotFoundException(`模型不存在: ${id}`)
+    }
+    if (!model.file_url) {
+      throw new NotFoundException(`模型文件不存在: ${id}`)
+    }
+    // 老 tapp 数据：file_key 为 null（之前 tapp 时代不上传 file_key）
+    if (!model.file_key) {
+      this.logger.warn(`模型 ${id} 缺少 file_key（疑似 tapp 旧数据），返回 404`)
+      throw new NotFoundException(`文件已失效，请重新上传该模型`)
+    }
+    return this.storageService.getPublicUrl(model.file_key)
   }
 }
