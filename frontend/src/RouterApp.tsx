@@ -6,6 +6,8 @@ import { ScenesPage } from './pages/ScenesPage'
 import { SceneEditorPage } from './pages/SceneEditorPage'
 import { ViewerPage } from './pages/ViewerPage'
 import { IframePage } from './pages/IframePage'
+import { GeoScenePage } from './pages/GeoScenePage'
+import { MapsPage } from './pages/MapsPage'
 import { ResourcesPage } from './pages/ResourcesPage'
 import { DocsPage } from './pages/DocsPage'
 
@@ -23,6 +25,7 @@ export function RouterApp() {
           <Route path="/models" element={<ModelsPage />} />
           <Route path="/scenes" element={<ScenesPage />} />
           <Route path="/scenes/:id/edit" element={<SceneEditorPage />} />
+          <Route path="/maps" element={<MapsPage />} />
           <Route path="/resources" element={<ResourcesPage />} />
           <Route path="/docs" element={<DocsPage />} />
           <Route path="/docs/:name" element={<DocsPage />} />
@@ -31,6 +34,7 @@ export function RouterApp() {
         {/* 全屏预览页（不带导航栏） */}
         <Route path="/view/:sceneId" element={<ViewerPage />} />
         <Route path="/iframe/:sceneId" element={<IframePage />} />
+        <Route path="/maps/:id" element={<GeoScenePage />} />
       </Routes>
     </BrowserRouter>
   )
