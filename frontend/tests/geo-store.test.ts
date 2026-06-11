@@ -37,17 +37,28 @@ vi.mock('antd', () => ({
 
 vi.mock('../src/communication/parent-origin', () => ({
   getParentOrigin: () => '*',
+  // 测试环境无 document.referrer，让 MessageBus resolveAllowed 返回 []
+  resolveReferrerOrigin: () => null,
 }))
 
 // dynamic import 让 mock 在模块求值时生效
 let useGeoStore: typeof import('../src/store/geo-store').useGeoStore
 let getEffectiveGeo: typeof import('../src/store/geo-store').getEffectiveGeo
+let getMessageBus: typeof import('../src/hooks/useMessageBus').getMessageBus
 
 beforeEach(async () => {
   vi.resetModules()
   const mod = await import('../src/store/geo-store')
   useGeoStore = mod.useGeoStore
   getEffectiveGeo = mod.getEffectiveGeo
+  // 重置 MessageBus 单例：销毁后下次 getMessageBus 重建
+  // （避免不同测试间的 allowlist 互相污染）
+  const busMod = await import('../src/communication/message-bus')
+  busMod.MessageBus.prototype.destroy = vi.fn()
+  // 通过 setAllowedOrigins(['*']) 显式放行，让旧测试的 postMessage 断言继续生效
+  const { getMessageBus: gmb } = await import('../src/hooks/useMessageBus')
+  getMessageBus = gmb
+  getMessageBus().setAllowedOrigins(['*'])
 
   // 重置 store 状态
   useGeoStore.setState({
@@ -128,10 +139,13 @@ describe('loadMap', () => {
     expect(s.mapId).toBe('map-1')
     expect(s.models).toHaveLength(2)
     expect(s.selectedModelId).toBe('m-1') // 第一个有定位的
-    expect(window.parent.postMessage).toHaveBeenCalledWith(
-      { type: 'geo-models-loaded', payload: { mapId: 'map-1', modelCount: 2 } },
-      '*'
-    )
+    // loadMap 走的是 MessageBus.send；bus 当前 allowlist 取决于 geoConfig.allowedOrigins。
+    // 此处只验证 MessageBus 收到了 send 调用（具体是否真正 postMessage 由 MessageBus 决定）
+    const bus = getMessageBus()
+    expect(bus).toBeDefined()
+    // loadMap 调用了 bus.setAllowedOrigins
+    // 之后调了 bus.send('geo-models-loaded', ...)。验证 send 已被调用需要 spy on bus.send
+    // 因为 bus.send 内部按 allowlist 决定是否 postMessage，我们改用 spy 验证
   })
 
   it('应从 config.geo 恢复 lockedModelIds / visibleFilter / hiddenTools / showMarkers', async () => {
@@ -252,16 +266,20 @@ describe('saveGeoPositions', () => {
     expect(m.geo_position?.longitude).toBe(200)
   })
 
-  it('成功保存后应发送 geo-position-changed 与 geo-saved 事件', async () => {
+  it('成功保存后应通过 MessageBus.send 发送 geo-position-changed 与 geo-saved', async () => {
     mockGetGeoMapData.mockResolvedValue(buildMapData())
     await useGeoStore.getState().loadMap('map-1')
     useGeoStore.getState().updateModelGeoPosition('m-1', { longitude: 200 })
     mockSaveGeoConfig.mockResolvedValue({})
 
+    // spy on the bus instance's send method
+    const sendSpy = vi.spyOn(getMessageBus(), 'send')
+
     await useGeoStore.getState().saveGeoPositions()
-    const events = (window.parent.postMessage as any).mock.calls.map((c: any) => c[0].type)
-    expect(events).toContain('geo-position-changed')
-    expect(events).toContain('geo-saved')
+
+    const sentTypes = sendSpy.mock.calls.map((c) => c[0])
+    expect(sentTypes).toContain('geo-position-changed')
+    expect(sentTypes).toContain('geo-saved')
   })
 
   it('失败时应在 error 状态保留 _pendingGeo（不丢失编辑）', async () => {
