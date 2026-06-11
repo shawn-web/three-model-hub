@@ -11,7 +11,6 @@ import { MinioService } from '../../minio/minio.service'
  *   - getPublicUrl 透传
  *   - uploadFile 调 minioService.putObject
  *   - deleteFile 调 minioService.removeObject
- *   - getUploadConfig 不暴露 MinIO 内部端点
  */
 describe('StorageService', () => {
   let service: StorageService
@@ -134,20 +133,6 @@ describe('StorageService', () => {
     it('fileKey 为空时不应调 removeObject', async () => {
       await service.deleteFile('')
       expect(mockMinioService.removeObject).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('getUploadConfig', () => {
-    it('应返回非敏感的前端上传限制', () => {
-      const config = service.getUploadConfig()
-      expect(config).toEqual({
-        maxUploadSizeMB: expect.any(Number),
-      })
-      // 安全要求：不得返回 MinIO 内部端点 / port / publicUrl / bucket
-      expect(config).not.toHaveProperty('endpoint')
-      expect(config).not.toHaveProperty('port')
-      expect(config).not.toHaveProperty('publicUrl')
-      expect(config).not.toHaveProperty('bucket')
     })
   })
 

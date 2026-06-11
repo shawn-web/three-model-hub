@@ -53,7 +53,6 @@ const MIME_BY_EXT: Record<string, string> = {
  *   - generateObjectKey: 按 bizType + 文件名生成 labs/{bizPath}/{yyyy}/{MM}/{uuid}.{ext}
  *   - verifyObject: 用 MinIO statObject 校验文件是否存在
  *   - getPublicUrl: 拼 ${MINIO_PUBLIC_URL}/${bucket}/${key}
- *   - getUploadConfig: 仅返回前端上传限制（非敏感），不暴露 MinIO endpoint
  */
 @Injectable()
 export class StorageService {
@@ -150,19 +149,7 @@ export class StorageService {
   }
 
   /**
-   * 返回前端上传所需的非敏感配置
-   *
-   * 重要：不再返回 MinIO endpoint/port/publicUrl，
-   *      避免任何调用方绕过 NestJS 代理直连 MinIO。
-   *      前端上传统一走 /api/upload/*，读取统一走 /api/storage/:bucket/*。
-   */
-  getUploadConfig() {
-    return {
-      maxUploadSizeMB: parseInt(process.env.MAX_UPLOAD_SIZE_MB || '1024', 10),
-    }
-  }
-
-  /** 计算文件 SHA256 哈希（保留兼容） */
+   * 计算文件 SHA256 哈希（保留兼容） */
   calculateHash(buffer: Buffer): string {
     const crypto = require('crypto') as typeof import('crypto')
     return crypto.createHash('sha256').update(buffer).digest('hex')

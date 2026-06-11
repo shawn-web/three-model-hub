@@ -60,7 +60,6 @@ export interface UploadStatusResponse {
   objectKey: string
   fileSize: number
   uploadedParts: number[]
-  etags: { partNumber: number; etag: string }[]
 }
 
 /** 分片大小：8MB（与后端 CHUNK_SIZE 对齐） */

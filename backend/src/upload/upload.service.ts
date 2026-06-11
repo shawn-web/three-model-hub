@@ -195,12 +195,12 @@ export class UploadService {
    * 查询上传状态（断点续传）
    * - 直接读 UploadSession.uploaded_parts 作为权威数据源
    * - 不依赖 MinioService.listParts（minio 8.x 无公开 API，永远返回空）
+   * - 仅返回 partNumber 列表，不返回 etag 映射（前端断点续传不读 etag）
    */
   async status(uploadId: string): Promise<{
     objectKey: string
     fileSize: number
     uploadedParts: number[]
-    etags: { partNumber: number; etag: string }[]
   }> {
     const session = await this.sessionRepo.findOne({ where: { upload_id: uploadId } })
     if (!session) {
@@ -213,21 +213,19 @@ export class UploadService {
         objectKey: session.object_key,
         fileSize: Number(session.file_size),
         uploadedParts: [],
-        etags: [],
       }
     }
 
     const partsMap = session.uploaded_parts || {}
-    const etags = Object.entries(partsMap)
-      .map(([k, v]) => ({ partNumber: parseInt(k, 10), etag: v }))
-      .filter((p) => !Number.isNaN(p.partNumber))
-      .sort((a, b) => a.partNumber - b.partNumber)
+    const uploadedParts = Object.keys(partsMap)
+      .map((k) => parseInt(k, 10))
+      .filter((n) => !Number.isNaN(n))
+      .sort((a, b) => a - b)
 
     return {
       objectKey: session.object_key,
       fileSize: Number(session.file_size),
-      uploadedParts: etags.map((p) => p.partNumber),
-      etags,
+      uploadedParts,
     }
   }
 
