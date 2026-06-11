@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
-import { Repository, DataSource, In } from 'typeorm'
+import { Repository, DataSource, EntityManager, In } from 'typeorm'
 import { GeoMap } from './entities/geo-map.entity'
 import { GeoMapModel } from './entities/geo-map-model.entity'
 import { Model } from '../models/entities/model.entity'
@@ -142,7 +142,7 @@ export class GeoMapsService {
   async batchUpdateModels(
     geoMapId: string,
     items: BatchGeoMapModelItemDto[],
-    manager?: import('typeorm').EntityManager,
+    manager?: EntityManager,
   ): Promise<void> {
     if (!manager) await this.findOne(geoMapId)
 
@@ -158,7 +158,7 @@ export class GeoMapsService {
 
     const modelMap = new Map(geoMapModels.map((gmm) => [gmm.id, gmm]))
 
-    const writer = async (mgr: import('typeorm').EntityManager) => {
+    const writer = async (mgr: EntityManager) => {
       for (const item of items) {
         const geoMapModel = modelMap.get(item.id)
         if (!geoMapModel) continue

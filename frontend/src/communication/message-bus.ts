@@ -32,7 +32,8 @@ export class MessageBus {
 
   constructor(opts: MessageBusOptions = {}) {
     this.referrerOrigin = resolveReferrerOrigin()
-    if (opts.allowedOrigins && opts.allowedOrigins.length > 0) {
+    // 显式 null = 走 referrer 默认；显式 [] = 拒绝一切；显式非空 = 按列表
+    if (opts.allowedOrigins !== undefined) {
       this.explicitAllowlist = opts.allowedOrigins
     }
     window.addEventListener('message', this.handleMessage)
@@ -40,10 +41,12 @@ export class MessageBus {
 
   /**
    * 运行时更新 allowlist（典型场景：URL 解析完成 / Geo 配置从后端拉到后）
-   * 传 null 或空数组恢复为「仅 referrer」模式
+   * - null：恢复为「仅 referrer」模式
+   * - []：显式拒绝一切（即使 referrer 也不接收/发送）
+   * - 非空：按列表校验
    */
   setAllowedOrigins(origins: string[] | null): void {
-    this.explicitAllowlist = origins && origins.length > 0 ? origins : null
+    this.explicitAllowlist = origins
   }
 
   /** 当前生效的 allowlist；空数组表示无任何可信 origin（应当拒绝收发） */

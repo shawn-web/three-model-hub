@@ -131,6 +131,14 @@ export function GeoScenePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams.toString()])
 
+  // 离开 Geo 页面时把 MessageBus 显式 allowlist 还原成「null = 走 referrer 默认」
+  // 避免 bus 带着 Geo 专属 allowlist 跨页面污染 /scenes / /viewer 等其他页面
+  useEffect(() => {
+    return () => {
+      getMessageBus().setAllowedOrigins(null)
+    }
+  }, [])
+
   // 监听父页面 postMessage（优先级 4：运行时最高，不参与持久化）
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
