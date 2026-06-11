@@ -577,7 +577,7 @@ export function SceneEditorPage() {
       const res = await fetch(dataUrl)
       const blob = await res.blob()
       const file = new File([blob], `scene-${id}-thumbnail.png`, { type: 'image/png' })
-      const result = await uploadFile(file)
+      const result = await uploadFile(file, { bizType: 'thumbnail' })
       await updateScene(id, { thumbnail_url: result.url })
       invalidateHttpCache('/scenes')
       message.success('封面已设置')

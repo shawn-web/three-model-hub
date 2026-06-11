@@ -24,7 +24,7 @@ export function MarkerList({ onEditMarker }: { onEditMarker: (marker: MarkerData
 
   const handleUploadDefault = useCallback(async (file: File) => {
     try {
-      const result = await uploadFile(file)
+      const result = await uploadFile(file, { bizType: 'marker-icon' })
       setDefaultMarkerUrl(result.url)
       setCustomDefault(result.url)
       message.success('默认标点图标已更新')
