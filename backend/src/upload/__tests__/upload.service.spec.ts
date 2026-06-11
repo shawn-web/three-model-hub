@@ -30,6 +30,8 @@ describe('UploadService', () => {
       create: jest.fn((dto) => ({ id: 'session-1', ...dto })),
       save: jest.fn(async (s) => s),
       findOne: jest.fn(),
+      // 默认返回受影响的行数 1（让成功路径走通）；具体测试可覆盖
+      query: jest.fn().mockResolvedValue([{ affectedRows: 1 }]),
     }
 
     mockMinio = {
@@ -110,7 +112,7 @@ describe('UploadService', () => {
       ).rejects.toBeInstanceOf(BadRequestException)
     })
 
-    it('成功时应累加 etag 到 session.uploaded_parts', async () => {
+    it('成功时应通过原子 UPDATE 写入 etag 到 session.uploaded_parts', async () => {
       mockSessionRepo.findOne.mockResolvedValue({
         upload_id: 'up-1',
         status: 'pending',
@@ -122,11 +124,27 @@ describe('UploadService', () => {
       const result = await service.uploadPart('up-1', 1, Buffer.from('p'))
 
       expect(result).toEqual({ etag: 'etag-1', partNumber: 1 })
-      expect(mockSessionRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          uploaded_parts: { 1: 'etag-1' },
-        }),
+      // 验证走的是原子 UPDATE 而不是 read-modify-write save
+      expect(mockSessionRepo.query).toHaveBeenCalledWith(
+        expect.stringContaining('JSON_SET'),
+        expect.arrayContaining(['$.1', 'etag-1', 'up-1']),
       )
+      expect(mockSessionRepo.save).not.toHaveBeenCalled()
+    })
+
+    it('UPDATE 影响 0 行（session 已不在 pending）时抛 BadRequestException', async () => {
+      mockSessionRepo.findOne.mockResolvedValue({
+        upload_id: 'up-1',
+        status: 'pending',
+        object_key: 'labs/x.glb',
+        uploaded_parts: {},
+      })
+      mockMinio.uploadPart.mockResolvedValue('etag-1')
+      mockSessionRepo.query.mockResolvedValueOnce([{ affectedRows: 0 }])
+
+      await expect(
+        service.uploadPart('up-1', 1, Buffer.from('p')),
+      ).rejects.toBeInstanceOf(BadRequestException)
     })
   })
 
