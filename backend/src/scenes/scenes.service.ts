@@ -1,9 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+﻿import { Injectable, NotFoundException } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
-import { Repository, DataSource } from 'typeorm'
+import { Repository, DataSource, In } from 'typeorm'
 import { Scene } from './entities/scene.entity'
 import { SceneModel } from './entities/scene-model.entity'
 import { SceneImage } from './entities/scene-image.entity'
+import { Model } from '../models/entities/model.entity'
+import { ModelVersion } from '../models/entities/model-version.entity'
 import {
   CreateSceneDto,
   UpdateSceneDto,
@@ -14,6 +16,7 @@ import {
   UpdateSceneImageDto,
   BatchSceneImageItemDto,
 } from './dto/scene.dto'
+import { SaveGeoConfigDto } from './dto/save-geo-config.dto'
 
 /**
  * 场景管理服务
@@ -28,6 +31,10 @@ export class ScenesService {
     private sceneModelRepo: Repository<SceneModel>,
     @InjectRepository(SceneImage)
     private sceneImageRepo: Repository<SceneImage>,
+    @InjectRepository(Model)
+    private modelRepo: Repository<Model>,
+    @InjectRepository(ModelVersion)
+    private versionRepo: Repository<ModelVersion>,
     private dataSource: DataSource,
   ) {}
 
@@ -111,6 +118,7 @@ export class ScenesService {
       visible: dto.visible !== undefined ? dto.visible : true,
       sort_order: dto.sort_order || 0,
       display_name: dto.display_name || null,
+      geo_position: dto.geo_position || null,
     })
     return this.sceneModelRepo.save(sceneModel)
   }
@@ -135,6 +143,7 @@ export class ScenesService {
     if (dto.visible !== undefined) sceneModel.visible = dto.visible
     if (dto.sort_order !== undefined) sceneModel.sort_order = dto.sort_order
     if (dto.display_name !== undefined) sceneModel.display_name = dto.display_name
+    if (dto.geo_position !== undefined) sceneModel.geo_position = dto.geo_position
 
     return this.sceneModelRepo.save(sceneModel)
   }
@@ -155,6 +164,30 @@ export class ScenesService {
   /**
    * 批量更新场景中的模型配置（事务 + 批量查询）
    */
+  /** 统一保存 Geo 配置（原子操作：同时保存模型坐标 + 底图配置） */
+  async saveGeoConfig(sceneId: string, dto: SaveGeoConfigDto): Promise<void> {
+    await this.findOne(sceneId)
+
+    // 1. 批量更新模型坐标
+    await this.batchUpdateModels(sceneId, dto.models)
+
+    // 2. 更新场景底图配置
+    if (dto.geoConfig) {
+      const scene = await this.sceneRepo.findOne({ where: { id: sceneId } })
+      if (scene) {
+        const currentConfig = (scene.scene_config as Record<string, any>) || {}
+        scene.scene_config = {
+          ...currentConfig,
+          geo: {
+            ...(currentConfig.geo as Record<string, any> || {}),
+            ...dto.geoConfig,
+          },
+        }
+        await this.sceneRepo.save(scene)
+      }
+    }
+  }
+
   async batchUpdateModels(sceneId: string, items: BatchSceneModelItemDto[]): Promise<void> {
     await this.findOne(sceneId)
 
@@ -176,18 +209,48 @@ export class ScenesService {
         if (item.material_overrides !== undefined) sceneModel.material_overrides = item.material_overrides
         if (item.visible !== undefined) sceneModel.visible = item.visible
         if (item.display_name !== undefined) sceneModel.display_name = item.display_name
+        if (item.geo_position !== undefined) sceneModel.geo_position = item.geo_position
 
-        await manager.save(SceneModel, sceneModel)
       }
+      // 批量保存所有模型
+      await manager.save(SceneModel, Object.values(modelMap))
     })
   }
 
   /**
    * 获取场景的完整数据（用于前端预览）
-   * 包含所有模型信息和文件 URL
+   * 包含所有模型信息、文件 URL 和缩略图
    */
   async getSceneData(id: string) {
     const scene = await this.findOne(id)
+
+    // 批量获取关联模型的 file_url 和 thumbnail_url，避免前端 N+1 请求
+    const modelIds = scene.scene_models.map((sm) => sm.model_id)
+    const modelEntities = modelIds.length > 0
+      ? await this.modelRepo.findBy({ id: In(modelIds) })
+      : []
+    const modelMap = new Map(modelEntities.map((m) => [m.id, m]))
+
+    // 当 Model.file_url 为空时，回退到最新版本的 file_url
+    const modelIdsWithoutFileUrl = modelEntities
+      .filter((m) => !m.file_url)
+      .map((m) => m.id)
+    const versionMap = new Map<string, string>()
+    if (modelIdsWithoutFileUrl.length > 0) {
+      const versions = await this.versionRepo
+        .createQueryBuilder('v')
+        .select(['v.model_id', 'v.file_url', 'v.thumbnail_url'])
+        .where('v.model_id IN (:...ids)', { ids: modelIdsWithoutFileUrl })
+        .orderBy('v.version_number', 'DESC')
+        .getMany()
+      // 只取每个模型的最新版本
+      for (const v of versions) {
+        if (!versionMap.has(v.model_id)) {
+          versionMap.set(v.model_id, v.file_url)
+        }
+      }
+    }
+
     return {
       id: scene.id,
       name: scene.name,
@@ -215,16 +278,25 @@ export class ScenesService {
         fontColor: si.fontColor,
         iframeUrl: si.iframeUrl,
       })),
-      models: scene.scene_models.map((sm) => ({
-        id: sm.id,
-        model_id: sm.model_id,
-        model_version_id: sm.model_version_id,
-        transform: sm.transform,
-        material_overrides: sm.material_overrides,
-        visible: sm.visible,
-        display_name: sm.display_name,
-        sort_order: sm.sort_order,
-      })),
+      models: scene.scene_models.map((sm) => {
+        const modelEntity = modelMap.get(sm.model_id)
+        const fallback = versionMap.get(sm.model_id)
+        const fileUrl = modelEntity?.file_url || fallback || null
+        const thumbnailUrl = modelEntity?.thumbnail_url || null
+        return {
+          id: sm.id,
+          model_id: sm.model_id,
+          model_version_id: sm.model_version_id,
+          transform: sm.transform,
+          material_overrides: sm.material_overrides,
+          visible: sm.visible,
+          display_name: sm.display_name,
+          sort_order: sm.sort_order,
+          geo_position: sm.geo_position,
+          file_url: fileUrl,
+          thumbnail_url: thumbnailUrl,
+        }
+      }),
     }
   }
 
@@ -344,3 +416,5 @@ export class ScenesService {
     })
   }
 }
+
+

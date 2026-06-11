@@ -1,4 +1,4 @@
-import apiClient from './client'
+import apiClient, { invalidateHttpCache } from './client'
 
 /**
  * 场景相关 API
@@ -34,6 +34,8 @@ export async function createScene(dto: { name: string; description?: string; sce
 /** 更新场景 */
 export async function updateScene(id: string, dto: { name?: string; description?: string; thumbnail_url?: string; scene_config?: JsonConfig }) {
   const { data } = await apiClient.put(`/scenes/${id}`, dto)
+  // 清除场景数据缓存，确保后续加载获取最新 scene_config
+  invalidateHttpCache(`/scenes/${id}/data`)
   return data
 }
 
@@ -60,6 +62,7 @@ export async function updateSceneModel(sceneId: string, sceneModelId: string, dt
   material_overrides?: JsonConfig
   visible?: boolean
   display_name?: string
+  geo_position?: JsonConfig
 }) {
   const { data } = await apiClient.put(`/scenes/${sceneId}/models/${sceneModelId}`, dto)
   return data
@@ -80,9 +83,12 @@ export async function batchUpdateSceneModels(
     material_overrides?: JsonConfig
     visible?: boolean
     display_name?: string
+    geo_position?: JsonConfig | null
   }>,
 ) {
   const { data } = await apiClient.put(`/scenes/${sceneId}/models/batch`, { models })
+  // 清除场景数据缓存，确保后续加载获取最新 geo_position
+  invalidateHttpCache(`/scenes/${sceneId}/data`)
   return data
 }
 

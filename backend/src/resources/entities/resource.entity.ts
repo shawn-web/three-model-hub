@@ -30,7 +30,8 @@ export class Resource {
   @Column({ type: 'enum', enum: ResourceType })
   type: ResourceType
 
-  @Column({ length: 500 })
+  /** MinIO 公开访问 URL，可能较长 */
+  @Column({ length: 1024 })
   url: string
 
   @Column({ type: 'bigint', default: 0 })
@@ -49,11 +50,11 @@ export class Resource {
   @Column({ type: 'float', nullable: true })
   duration: number
 
-  @Column({ length: 500, nullable: true })
+  @Column({ length: 1024, nullable: true })
   thumbnail_url: string
 
-  /** 文件 key，用于删除 */
-  @Column({ length: 500, nullable: true })
+  /** 文件在 MinIO 中的 objectKey，用于删除 */
+  @Column({ length: 1024, nullable: true })
   file_key: string
 
   @Column({ type: 'uuid', nullable: true })

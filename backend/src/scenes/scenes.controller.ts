@@ -1,4 +1,4 @@
-import {
+﻿import {
   Controller,
   Get,
   Post,
@@ -20,6 +20,7 @@ import {
   UpdateSceneImageDto,
   BatchSaveSceneImagesDto,
 } from './dto/scene.dto'
+import { SaveGeoConfigDto } from './dto/save-geo-config.dto'
 
 /**
  * 场景管理控制器
@@ -78,6 +79,15 @@ export class ScenesController {
   }
 
   /** 添加模型到场景 */
+  /** 统一保存 Geo 配置（模型坐标 + 底图配置，原子操作） */
+  @Put(':id/geo')
+  async saveGeoConfig(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SaveGeoConfigDto,
+  ) {
+    return this.scenesService.saveGeoConfig(id, dto)
+  }
+
   @Post(':id/models')
   async addModel(
     @Param('id', ParseUUIDPipe) id: string,
@@ -155,3 +165,6 @@ export class ScenesController {
     return { success: true }
   }
 }
+
+
+
