@@ -300,10 +300,8 @@ describe('UploadService', () => {
       const result = await service.status('up-1')
 
       expect(result.uploadedParts).toEqual([1, 2])
-      expect(result.etags).toEqual([
-        { partNumber: 1, etag: 'e1' },
-        { partNumber: 2, etag: 'e2' },
-      ])
+      expect(result.objectKey).toBe('labs/x.glb')
+      expect(result.fileSize).toBe(16 * 1024 * 1024)
       // 关键：不应依赖 minio.listParts
       expect(mockMinio.listParts).not.toHaveBeenCalled()
     })
@@ -319,7 +317,6 @@ describe('UploadService', () => {
 
       const result = await service.status('up-1')
       expect(result.uploadedParts).toEqual([])
-      expect(result.etags).toEqual([])
     })
   })
 

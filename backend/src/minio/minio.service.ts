@@ -42,7 +42,7 @@ export class MinioService implements OnModuleInit {
   }
 
   /**
-   * 模块初始化：自动创建 bucket + 设 download 策略
+   * 模块初始化：自动创建 bucket（保持私有读，访问走 NestJS 代理）
    */
   async onModuleInit(): Promise<void> {
     const url = `${this.useSSL ? 'https' : 'http'}://${this.endpoint}:${this.port}`

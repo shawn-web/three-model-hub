@@ -220,8 +220,6 @@ describe('Geo Maps & Scenes /geo API 端到端测试', () => {
         })
         .expect(200)
 
-      // 已知 bug：GeoMapsService.batchUpdateModels 中 Object.values(Map) 返回 []
-      // 因此 geo_position 不会落库；以下断言暂跳过，仅验证 config 合并成功。
       const after = await request(app.getHttpServer())
         .get(`/api/geo-maps/${testMapId}/data`)
         .expect(200)
@@ -229,6 +227,11 @@ describe('Geo Maps & Scenes /geo API 端到端测试', () => {
       // 验证 config 已合并
       expect(after.body.config.geo.imageryProvider).toBe('google')
       expect(after.body.config.geo.imageryType).toBe('terrain')
+      // 验证 geo_position 真的落库了（commit ③ fix 后）
+      const m = after.body.models.find((x: any) => x.id === testMapModelId)
+      expect(m).toBeDefined()
+      expect(m.geo_position.longitude).toBe(50)
+      expect(m.geo_position.latitude).toBe(50)
     })
 
     it('PUT /api/geo-maps/:id/geo 缺 models 应返回 400', async () => {
@@ -253,11 +256,11 @@ describe('Geo Maps & Scenes /geo API 端到端测试', () => {
   })
 
   // ─── Scenes /geo 端点 ────────────────────────────────────
-  // 注意：ScenesService.batchUpdateModels 与 GeoMapsService.batchUpdateModels
-  // 存在一个生产 bug：使用 Object.values(Map 实例) 应为 Array.from(map.values())，
-  // 导致 manager.save 收到空数组，geo_position 实际未持久化。
-  // 下方 PUT /geo 端到端测试暂跳过地理坐标验证，仅验证端点可达 + 4xx 错误码。
-  describe('Scenes /geo API（端点可达性 + 错误码）', () => {
+  // 历史说明：ScenesService.batchUpdateModels 曾因 Object.values(Map) bug
+  //  导致 geo_position 不落库（pending-issues.md pi-001）。
+  // 本轮 polish commit 同步修了两边（geo-maps 早已在 commit ③ 静默修复），
+  // 下方 PUT /geo 端到端测试可启用 geo_position 真断言。
+  describe('Scenes /geo API', () => {
     let sceneModelId: string
 
     it('应先添加模型到 scene', async () => {
@@ -268,9 +271,8 @@ describe('Geo Maps & Scenes /geo API 端到端测试', () => {
       sceneModelId = res.body.id
     })
 
-    it('PUT /api/scenes/:id/geo 应返回 200（端点存在）', async () => {
-      // 已知 bug：geo_position 不会落库（见 describe 注释）；仅验证端点可达
-      const res = await request(app.getHttpServer())
+    it('PUT /api/scenes/:id/geo 应原子保存 models + config', async () => {
+      await request(app.getHttpServer())
         .put(`/api/scenes/${testSceneId}/geo`)
         .send({
           models: [
@@ -282,7 +284,14 @@ describe('Geo Maps & Scenes /geo API 端到端测试', () => {
           geoConfig: { imageryType: 'vector' },
         })
         .expect(200)
-      expect(res.body).toBeDefined()
+
+      // 拉回场景数据验证 geo_position 已落库
+      const after = await request(app.getHttpServer())
+        .get(`/api/scenes/${testSceneId}`)
+        .expect(200)
+      const m = after.body.scene_models.find((x: any) => x.id === sceneModelId)
+      expect(m).toBeDefined()
+      expect(m.geo_position.longitude).toBe(100)
     })
 
     it('PUT /api/scenes/:id/geo 缺 models 应返回 400', async () => {

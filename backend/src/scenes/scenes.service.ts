@@ -213,7 +213,9 @@ export class ScenesService {
 
       }
       // 批量保存所有模型
-      await manager.save(SceneModel, Object.values(modelMap))
+      // 注意：必须用 Array.from(modelMap.values())，不能 Object.values(modelMap)，
+      //       后者对 Map 实例返回 []，导致 save 收到空数组（pending-issues.md pi-001）
+      await manager.save(SceneModel, Array.from(modelMap.values()))
     })
   }
 
