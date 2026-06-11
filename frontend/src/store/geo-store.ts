@@ -272,7 +272,8 @@ export const useGeoStore = create<GeoState>((set, get) => ({
           return p && typeof p.longitude === 'number' && typeof p.latitude === 'number'
         })?.id || null
 
-          const allowedOrigins = geoConfig?.allowedOrigins || null
+          // 保留 [] 语义：DB 显式配 [] = 拒绝一切，不应当被 || 归一成 null（用 referrer）
+          const allowedOrigins = geoConfig?.allowedOrigins ?? null
 
       set({
         mapData,
