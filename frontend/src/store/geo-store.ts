@@ -5,7 +5,7 @@ import { invalidateHttpCache } from '../api/client'
 import type { GeoPosition } from '../utils/geo-coords'
 import type { GeoMarkerData, PopupTarget } from '../types/geo-marker'
 import { DEFAULT_PROVIDER_ID } from '../utils/imagery-providers'
-import { getParentOrigin } from '../communication/parent-origin'
+import { getMessageBus } from '../hooks/useMessageBus'
 
 /** 注册在 CesiumViewer 中的 flyTo 实现，由 flyToGeo action 调用 */
 let _flyToGeoFn: ((lng: number, lat: number, alt: number, heading?: number, pitch?: number) => void) | undefined
@@ -265,8 +265,14 @@ export const useGeoStore = create<GeoState>((set, get) => ({
       const restoredImageryProvider = geoConfig?.imageryProvider || DEFAULT_PROVIDER_ID
       const restoredImageryType = geoConfig?.imageryType || 'satellite'
 
-      // 默认选中第一个有定位的模型
-      const firstLocatedModelId = models.find((m) => m.geo_position)?.id || null
+      // 默认选中第一个有经纬度定位的模型（不能只 truthy 检查：全 0 的占位对象会误判）
+      const firstLocatedModelId =
+        models.find((m) => {
+          const p = m.geo_position as GeoPosition | null
+          return p && typeof p.longitude === 'number' && typeof p.latitude === 'number'
+        })?.id || null
+
+          const allowedOrigins = geoConfig?.allowedOrigins || null
 
       set({
         mapData,
@@ -283,14 +289,15 @@ export const useGeoStore = create<GeoState>((set, get) => ({
         visibleFilter: geoConfig?.visibleModelIds ?? null,
         hiddenTools: new Set<string>(geoConfig?.hiddenTools || []),
         showMarkers: geoConfig?.showMarkers ?? true,
-        allowedOrigins: geoConfig?.allowedOrigins || null,
+        allowedOrigins,
       })
 
+      // 同步 allowlist 到 MessageBus（覆盖构造时的 URL 默认）
+      getMessageBus().setAllowedOrigins(allowedOrigins)
+
       // P1-2: 发送 geo-models-loaded 事件通知父页面
-      window.parent.postMessage({
-        type: 'geo-models-loaded',
-        payload: { mapId, modelCount: models.length },
-      }, getParentOrigin())
+      // 走 MessageBus，由其 allowlist 校验决定是否真的发出
+      getMessageBus().send('geo-models-loaded', { mapId, modelCount: models.length })
     } catch (err) {
       set({
         error: err instanceof Error ? err.message : '加载地图失败',
@@ -379,21 +386,17 @@ export const useGeoStore = create<GeoState>((set, get) => ({
       }
 
       // 4. 保存成功后：发送事件通知 + 同步内存状态
-      const targetOrigin = getParentOrigin()
-
-      // P1-3: 发送 geo-position-changed 事件
+      // 走 MessageBus，由其 allowlist 校验决定是否真的发出
+      const mapIdForEvent = get().mapId
+      // 注意：必须发新值（_pendingGeo），不是旧的 m.geo_position
       const savedModels = get().models
         .filter((m) => pendingModels.some((p) => p.id === m.id))
-        .map((m) => ({ modelId: m.id, geo_position: m.geo_position }))
-      window.parent.postMessage({
-        type: 'geo-position-changed',
-        payload: { savedModels },
-      }, targetOrigin)
-      // P1-2: 发送 geo-saved 事件
-      window.parent.postMessage({
-        type: 'geo-saved',
-        payload: { mapId: get().mapId, savedModelCount: savedModels.length },
-      }, targetOrigin)
+        .map((m) => ({
+          modelId: m.id,
+          geo_position: m._pendingGeo !== undefined ? m._pendingGeo : m.geo_position,
+        }))
+      getMessageBus().send('geo-position-changed', { savedModels })
+      getMessageBus().send('geo-saved', { mapId: mapIdForEvent, savedModelCount: savedModels.length })
 
       set((state) => ({
         models: state.models.map((m) => ({
@@ -520,17 +523,15 @@ export const useGeoStore = create<GeoState>((set, get) => ({
 
     set({ focusedMarkerId: markerId })
 
-    window.parent.postMessage({
-      type: 'marker-clicked',
-      payload: {
-        id: marker.id,
-        name: marker.name,
-        position: [marker.longitude, marker.latitude, marker.altitude],
-        action: marker.action,
-        popup: marker.popup,
-        linkUrl: marker.linkUrl,
-      },
-    }, getParentOrigin())
+    // 走 MessageBus，由其 allowlist 校验决定是否真的发出
+    getMessageBus().send('marker-clicked', {
+      id: marker.id,
+      name: marker.name,
+      position: [marker.longitude, marker.latitude, marker.altitude],
+      action: marker.action,
+      popup: marker.popup,
+      linkUrl: marker.linkUrl,
+    })
 
     if (marker.action === 'popup' || marker.action === 'iframe' || marker.action === 'link') {
       set({ activePopupTarget: { type: 'marker', id: marker.id } })

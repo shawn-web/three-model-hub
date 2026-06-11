@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import * as path from 'path'
-import { randomUUID } from 'crypto'
+import { createHash, randomUUID } from 'crypto'
 import { MinioService } from '../minio/minio.service'
 
 /** 上传进度回调类型（保留兼容） */
@@ -151,8 +151,7 @@ export class StorageService {
   /**
    * 计算文件 SHA256 哈希（保留兼容） */
   calculateHash(buffer: Buffer): string {
-    const crypto = require('crypto') as typeof import('crypto')
-    return crypto.createHash('sha256').update(buffer).digest('hex')
+    return createHash('sha256').update(buffer).digest('hex')
   }
 
   /** 检测文件格式（保留兼容） */
