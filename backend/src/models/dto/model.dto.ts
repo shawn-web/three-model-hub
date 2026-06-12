@@ -50,9 +50,35 @@ export class UpdateModelDto {
 }
 
 /**
- * 上传新版本 DTO
+ * 上传新版本 DTO（后端代理 multipart）
  */
 export class CreateVersionDto {
+  @IsOptional()
+  @IsString()
+  commit_message?: string
+}
+
+/**
+ * 前端分片上传完成后创建版本 DTO
+ *
+ * 流程：
+ *   1. 前端先调 /upload/multipart/* 完成上传，拿 { url, fileKey, fileSize }
+ *   2. 再调 POST /models/:id/versions 带本 DTO 落库
+ */
+export class CreateVersionFromUrlDto {
+  @IsString()
+  file_url: string
+
+  @IsString()
+  file_key: string
+
+  @IsNumber()
+  @Min(1, { message: '文件大小必须大于 0' })
+  file_size: number
+
+  @IsString()
+  file_name: string
+
   @IsOptional()
   @IsString()
   commit_message?: string

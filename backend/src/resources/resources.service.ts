@@ -132,6 +132,36 @@ export class ResourcesService {
     })
   }
 
+  /**
+   * 前端已完成 MinIO 上传后创建资源（JSON body 含 file_key/url/file_size）
+   * 流程：前端先调 /upload/* 完成 MinIO 上传，再调此接口落库
+   */
+  async createFromFileRef(metadata: {
+    name: string
+    type: ResourceType
+    url: string
+    file_key: string
+    file_size: number
+    mime_type?: string
+    width?: number
+    height?: number
+    duration?: number
+    group_id?: string
+  }): Promise<Resource> {
+    return this.createResource({
+      name: metadata.name,
+      type: metadata.type,
+      url: metadata.url,
+      file_size: metadata.file_size,
+      mime_type: metadata.mime_type,
+      width: metadata.width,
+      height: metadata.height,
+      duration: metadata.duration,
+      group_id: metadata.group_id,
+      file_key: metadata.file_key,
+    })
+  }
+
   // ===== 分组管理 =====
 
   /** 获取所有分组 */
