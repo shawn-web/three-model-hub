@@ -130,7 +130,7 @@ export class ResourcesController {
         type: body.type || ResourceType.IMAGE,
         url: body.url,
         file_key: body.file_key,
-        file_size: parseInt(body.file_size, 10) || body.file_size,
+        file_size: typeof body.file_size === 'number' ? body.file_size : parseInt(body.file_size, 10),
         mime_type: body.mime_type,
         width: body.width ? parseInt(body.width, 10) : undefined,
         height: body.height ? parseInt(body.height, 10) : undefined,
