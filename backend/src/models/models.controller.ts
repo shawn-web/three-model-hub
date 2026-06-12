@@ -112,10 +112,13 @@ export class ModelsController {
       return this.modelsService.uploadVersion(id, file, body.commit_message)
     }
     // 新路径：前端已完成 MinIO 上传，body 含 file_url/file_key/file_size/file_name
+    if (!body.file_url || !body.file_key || !body.file_size || !body.file_name) {
+      throw new BadRequestException('缺少版本文件信息（file_url / file_key / file_size / file_name）')
+    }
     const dto = new CreateVersionFromUrlDto()
     dto.file_url = body.file_url
     dto.file_key = body.file_key
-    dto.file_size = parseInt(body.file_size, 10) || body.file_size
+    dto.file_size = typeof body.file_size === 'number' ? body.file_size : parseInt(body.file_size, 10)
     dto.file_name = body.file_name
     dto.commit_message = body.commit_message
     return this.modelsService.createVersionFromUrl(id, dto)
