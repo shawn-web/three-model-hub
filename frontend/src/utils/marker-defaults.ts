@@ -3,7 +3,7 @@
  * 使用 localStorage 持久化自定义默认标点图标 URL
  */
 
-const STORAGE_KEY = 'threeMode_defaultMarkerUrl'
+const STORAGE_KEY = 'threeModelHub_defaultMarkerUrl'
 
 /** 获取自定义默认标点图标 URL，未设置时返回 null */
 export function getDefaultMarkerUrl(): string | null {

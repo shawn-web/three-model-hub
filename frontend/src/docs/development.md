@@ -6,7 +6,7 @@
 
 ```bash
 git clone <repo-url>
-cd threeMode
+cd three-model-hub
 ```
 
 ### 2. 安装 pnpm（如未安装）
@@ -27,7 +27,7 @@ pnpm install
 确保 MySQL 运行，创建数据库：
 
 ```sql
-CREATE DATABASE IF NOT EXISTS three_mode
+CREATE DATABASE IF NOT EXISTS three_model_hub
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
 ```
@@ -77,7 +77,7 @@ pnpm dev
 ## 目录结构说明
 
 ```
-threeMode/
+three-model-hub/
 ├── backend/                # NestJS 后端
 │   ├── src/
 │   │   ├── models/         # 模型 CRUD

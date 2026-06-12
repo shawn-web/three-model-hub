@@ -16,7 +16,7 @@ describe('CreateFromUrlDto', () => {
 
   const valid = {
     name: 'test',
-    file_url: 'http://localhost:9000/three-mode/labs/models/x.glb',
+    file_url: 'http://localhost:9000/three-model-hub/labs/models/x.glb',
     file_name: 'x.glb',
     file_size: 1024,
     file_key: 'labs/models/x.glb',

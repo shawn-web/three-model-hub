@@ -1,6 +1,32 @@
 {
-  "name": "three-mode",
+  "name": "three-model-hub",
+  "version": "0.1.0",
+  "description": "ThreeModelHub 是一个全栈 3D 模型管理与场景平台，支持 GLB/GLTF 模型上传、场景组合、标注、测量、剖面、Geo 地理和分享。",
   "private": true,
+  "license": "MIT",
+  "author": "ThreeModelHub Contributors",
+  "keywords": [
+    "3d",
+    "three.js",
+    "cesium",
+    "gltf",
+    "glb",
+    "model-management",
+    "scene-editor",
+    "geo",
+    "nestjs",
+    "react",
+    "typescript",
+    "self-hosted"
+  ],
+  "homepage": "https://github.com/three-model-hub/three-model-hub",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/three-model-hub/three-model-hub.git"
+  },
+  "bugs": {
+    "url": "https://github.com/three-model-hub/three-model-hub/issues"
+  },
   "scripts": {
     "frontend:dev": "cd frontend && pnpm dev",
     "frontend:build": "cd frontend && pnpm build",

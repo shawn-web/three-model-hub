@@ -36,7 +36,7 @@ const AppDataSource = new DataSource({
   port: parseInt(process.env.DB_PORT || '3306', 10),
   username: process.env.DB_USERNAME || 'root',
   password: process.env.DB_PASSWORD || 'root',
-  database: process.env.DB_DATABASE || 'three_mode',
+  database: process.env.DB_DATABASE || 'three_model_hub',
   charset: 'utf8mb4',
   synchronize: false,
   logging: process.env.DB_LOGGING === 'true',

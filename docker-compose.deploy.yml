@@ -1,21 +1,23 @@
-# ThreeMode 全栈本地部署
+# ThreeModelHub 全栈本地部署
 # 使用: docker compose -f docker-compose.deploy.yml up -d --build
 # 访问: http://localhost:8080
+#
+# 文件上传：内置 MinIO 服务，不依赖任何外部文件服务。
 
 services:
   mysql:
     image: mysql:8.0
-    container_name: threemode_mysql
+    container_name: threemodelhub_mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: three_mode
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-three_model_hub}
       MYSQL_CHARACTER_SET_SERVER: utf8mb4
       MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
     ports:
-      - "3308:3306"
+      - "${MYSQL_PORT:-3308}:3306"
     volumes:
-      - threemode_mysql_data:/var/lib/mysql
+      - threemodelhub_mysql_data:/var/lib/mysql
     command: --default-authentication-plugin=mysql_native_password
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
@@ -23,33 +25,28 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - threemode-net
+      - threemodelhub-net
 
   backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    container_name: threemode_backend
+    container_name: threemodelhub_backend
     restart: unless-stopped
     environment:
       NODE_ENV: development  # 首次启动需要 synchronize 创建表
       DB_HOST: mysql
       DB_PORT: 3306
-      DB_USERNAME: root
-      DB_PASSWORD: root
-      DB_DATABASE: three_mode
+      DB_USERNAME: ${DB_USERNAME:-root}
+      DB_PASSWORD: ${DB_PASSWORD:-root}
+      DB_DATABASE: ${DB_DATABASE:-three_model_hub}
       DB_LOGGING: "false"
-      FILE_SERVICE_URL: http://tapi.huazhukeji.cn:82/hz-file-upload/file/upload
-      FILE_SERVICE_TOKEN: ${FILE_SERVICE_TOKEN}
-      FILE_SERVICE_PATH: labs/models
-      FILE_SERVICE_CLIENT_ID: "1001"
-      FILE_SERVICE_PASSPORT_ID: ""
       PORT: 3000
     depends_on:
       mysql:
         condition: service_healthy
     networks:
-      - threemode-net
+      - threemodelhub-net
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/models"]
       interval: 15s
@@ -61,18 +58,18 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
-    container_name: threemode_frontend
+    container_name: threemodelhub_frontend
     restart: unless-stopped
     ports:
-      - "8080:80"
+      - "${FRONTEND_PORT:-8080}:80"
     depends_on:
       - backend
     networks:
-      - threemode-net
+      - threemodelhub-net
 
 networks:
-  threemode-net:
+  threemodelhub-net:
     driver: bridge
 
 volumes:
-  threemode_mysql_data:
+  threemodelhub_mysql_data:

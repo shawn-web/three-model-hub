@@ -22,7 +22,7 @@ describe('MinioService', () => {
         MINIO_USE_SSL: 'false',
         MINIO_ACCESS_KEY: 'minioadmin',
         MINIO_SECRET_KEY: 'minioadmin',
-        MINIO_BUCKET: 'three-mode',
+        MINIO_BUCKET: 'three-model-hubl-hub',
         MINIO_PUBLIC_URL: 'http://localhost:9000',
         MINIO_REGION: 'us-east-1',
         ...overrides,
@@ -65,8 +65,8 @@ describe('MinioService', () => {
 
       await service.onModuleInit()
 
-      expect(mockClient.bucketExists).toHaveBeenCalledWith('three-mode')
-      expect(mockClient.makeBucket).toHaveBeenCalledWith('three-mode', 'us-east-1')
+      expect(mockClient.bucketExists).toHaveBeenCalledWith('three-model-hubl-hub')
+      expect(mockClient.makeBucket).toHaveBeenCalledWith('three-model-hubl-hub', 'us-east-1')
       // 安全要求：不应设置任何 s3:GetObject 匿名读策略
       expect(mockClient.setBucketPolicy).not.toHaveBeenCalled()
     })
@@ -88,7 +88,7 @@ describe('MinioService', () => {
       await service.putObject('labs/test.glb', Buffer.from('data'), 'model/gltf-binary')
 
       expect(mockClient.putObject).toHaveBeenCalledWith(
-        'three-mode',
+        'three-model-hubl-hub',
         'labs/test.glb',
         expect.any(Buffer),
         4,
@@ -106,7 +106,7 @@ describe('MinioService', () => {
 
       expect(uploadId).toBe('up-123')
       expect(mockClient.initiateNewMultipartUpload).toHaveBeenCalledWith(
-        'three-mode',
+        'three-model-hubl-hub',
         'labs/test.glb',
         {},
       )
@@ -123,7 +123,7 @@ describe('MinioService', () => {
       // minio 8.x：uploadPart 接收单对象参数 { bucketName, objectName, uploadID, partNumber, headers }
       expect(mockClient.uploadPart).toHaveBeenCalledWith(
         expect.objectContaining({
-          bucketName: 'three-mode',
+          bucketName: 'three-model-hubl-hub',
           objectName: 'labs/test.glb',
           uploadID: 'up-1',
           partNumber: 1,
@@ -146,7 +146,7 @@ describe('MinioService', () => {
       expect(result.etag).toBe('final')
       // minio 8.x：etags 字段名是 `part`
       expect(mockClient.completeMultipartUpload).toHaveBeenCalledWith(
-        'three-mode',
+        'three-model-hubl-hub',
         'labs/test.glb',
         'up-1',
         [
@@ -164,7 +164,7 @@ describe('MinioService', () => {
       await service.abortMultipart('up-1', 'labs/test.glb')
 
       expect(mockClient.abortMultipartUpload).toHaveBeenCalledWith(
-        'three-mode',
+        'three-model-hubl-hub',
         'labs/test.glb',
         'up-1',
       )
@@ -191,7 +191,7 @@ describe('MinioService', () => {
 
       await service.removeObject('labs/test.glb')
 
-      expect(mockClient.removeObject).toHaveBeenCalledWith('three-mode', 'labs/test.glb')
+      expect(mockClient.removeObject).toHaveBeenCalledWith('three-model-hubl-hub', 'labs/test.glb')
     })
 
     it('失败时仅 warn 不抛错', async () => {
@@ -216,7 +216,7 @@ describe('MinioService', () => {
     it('应返回 NestJS 代理相对路径 /api/storage/{bucket}/{key}', () => {
       // 注：tapp → MinIO 重构后统一走 /api/storage 代理，
       //     避免浏览器跨域访问对象存储，前端只与 5173/3000 同源
-      expect(service.getPublicUrl('labs/test.glb')).toBe('/api/storage/three-mode/labs/test.glb')
+      expect(service.getPublicUrl('labs/test.glb')).toBe('/api/storage/three-model-hub/labs/test.glb')
     })
     it('空 key 应返回空字符串', () => {
       expect(service.getPublicUrl('')).toBe('')
@@ -225,7 +225,7 @@ describe('MinioService', () => {
 
   describe('getBucket', () => {
     it('应返回 bucket 名', () => {
-      expect(service.getBucket()).toBe('three-mode')
+      expect(service.getBucket()).toBe('three-model-hubl-hub')
     })
   })
 })

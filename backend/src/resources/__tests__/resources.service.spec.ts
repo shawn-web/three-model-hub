@@ -51,7 +51,7 @@ describe('ResourcesService', () => {
   describe('uploadAndCreate', () => {
     it('图片类型应传 labs/images 给 storageService.uploadFile', async () => {
       mockStorage.uploadFile.mockResolvedValue({
-        url: 'http://localhost:9000/three-mode/labs/images/uuid.png',
+        url: 'http://localhost:9000/three-model-hub/labs/images/uuid.png',
         fileKey: 'labs/images/2026/06/uuid.png',
       })
 
@@ -77,7 +77,7 @@ describe('ResourcesService', () => {
         'labs/images',
       )
       expect(result.file_key).toBe('labs/images/2026/06/uuid.png')
-      expect(result.url).toContain('three-mode')
+      expect(result.url).toContain('three-model-hub')
     })
 
     it('视频类型应传 labs/videos', async () => {

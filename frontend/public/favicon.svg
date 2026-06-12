@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="ThreeModelHub favicon">
+  <defs>
+    <linearGradient id="ft" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#7DD3FC"/>
+      <stop offset="100%" stop-color="#38BDF8"/>
+    </linearGradient>
+    <linearGradient id="fl" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0284C7"/>
+      <stop offset="100%" stop-color="#0369A1"/>
+    </linearGradient>
+    <linearGradient id="fr" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0EA5E9"/>
+      <stop offset="100%" stop-color="#075985"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="6" fill="#0F172A"/>
+  <g transform="translate(16 16)">
+    <polygon points="0,-7.5 6.5,-3.75 0,0 -6.5,-3.75" fill="url(#ft)" stroke="#0EA5E9" stroke-width="0.5"/>
+    <polygon points="-6.5,-3.75 0,0 0,7.5 -6.5,3.75" fill="url(#fl)" stroke="#0EA5E9" stroke-width="0.5"/>
+    <polygon points="6.5,-3.75 0,0 0,7.5 6.5,3.75" fill="url(#fr)" stroke="#0EA5E9" stroke-width="0.5"/>
+  </g>
+</svg>

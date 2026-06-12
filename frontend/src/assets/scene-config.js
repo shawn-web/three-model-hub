@@ -99,7 +99,7 @@ const sceneConfig = {
     {
         "id": "6673ba37-7f9f-4b74-9274-839fc367e51e",
         "type": "image",
-        "url": "https://oss.1357.cn/huazhu/labs/images/20260521/1776923671100-honaf5oeu4.jpeg",
+        "url": "/api/storage/three-model-hub/labs/images/示例图片-1.jpeg",
         "name": "1776923671100.jpeg",
         "width": 1920,
         "height": 1080,
@@ -130,7 +130,7 @@ const sceneConfig = {
     {
         "id": "dc3ceacd-72fa-4962-ba1e-f5bcb257712b",
         "type": "image",
-        "url": "http://tapp.huazhukeji.cn:32000/huazhu/labs/images/20260521/æ å»å®¤_alarm-43if1j36c7.png",
+        "url": "/api/storage/three-model-hub/labs/images/示例图片-2.png",
         "name": "标养室_alarm.png",
         "width": 144,
         "height": 152,

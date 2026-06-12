@@ -4,7 +4,7 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 ## 项目概述
 
-ThreeMode 是一个全栈 3D 模型管理与查看平台，支持 GLB/GLTF 模型上传、场景组合、标注、测量、剖面和分享。pnpm monorepo 结构，前后端分离。
+ThreeModelHub 是一个全栈 3D 模型管理与场景平台，支持 GLB/GLTF 模型上传、场景组合、标注、测量、剖面、Geo 地理和分享。pnpm monorepo 结构，前后端分离。
 
 ## 常用命令
 
@@ -89,7 +89,7 @@ NestJS 模块化组织，每个业务模块包含 `entities/`、`dto/`、`*.serv
 
 ### 前端代理配置
 
-`vite.config.ts` 中 `/api` 代理到 `localhost:3000`，`/hz-file-upload` 代理到外部文件服务，确保上传进度可追踪。
+`vite.config.ts` 中 `/api` 代理到 `localhost:3000`。所有文件上传走自带 MinIO + 后端分片上传，不依赖任何外部文件服务。
 
 ## 开发注意事项
 

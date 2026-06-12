@@ -20,7 +20,7 @@
 ┌─────────────────┐    ┌──────────────────────┐
 │  NestJS 后端     │    │  MinIO（本地对象存储） │
 │  (localhost:3000) │    │  (文件上传/下载)       │
-│  ├─ Models API   │    │  bucket=three-mode    │
+│  ├─ Models API   │    │  bucket=three-model-hub    │
 │  ├─ GeoMaps API  │    │  端口 9000（数据）     │
 │  ├─ Scenes API   │    │  端口 9001（控制台）   │
 │  ├─ Sharing API  │    └──────────────────────┘
@@ -35,7 +35,7 @@
          ▼
 ┌─────────────────┐
 │   MySQL 8.0     │
-│  (three_mode)   │
+│  (three_model_hub)   │
 └─────────────────┘
 ```
 
@@ -264,7 +264,7 @@ backend/src/
    - **< 8MB**：`POST /api/upload/simple`（一次性 multipart 上传）
    - **≥ 8MB**：`POST /api/upload/multipart/init` → N 次 `POST /api/upload/multipart/part` → `POST /api/upload/multipart/complete`（分片上传，支持断点续传）
 3. 后端通过 `MinioService` 将文件写入 MinIO
-4. 返回 `{ url: "/api/storage/three-mode/labs/...glb", fileKey, fileSize }` 给前端
+4. 返回 `{ url: "/api/storage/three-model-hub/labs/...glb", fileKey, fileSize }` 给前端
 5. 前端调 `POST /api/models/create` 传入 `{ file_url, file_key, file_size }` 创建模型记录
 6. 模型预览/加载时，前端通过 `/api/storage/:bucket/*` 代理下载
 

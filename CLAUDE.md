@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-ThreeMode 是一个全栈 3D 模型管理与查看平台，支持 GLB/GLTF 模型上传、场景组合、标注、测量、剖面和分享。pnpm monorepo 结构，前后端分离。
+ThreeModelHub 是一个全栈 3D 模型管理与场景平台，支持 GLB/GLTF 模型上传、场景组合、标注、测量、剖面、Geo 地理和分享。pnpm monorepo 结构，前后端分离。
 
 ## 常用命令
 

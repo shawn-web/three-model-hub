@@ -24,7 +24,7 @@
       "id": "uuid",
       "name": "建筑模型",
       "description": "示例描述",
-      "file_url": "/api/storage/three-mode/labs/models/2026/06/xxx.glb",
+      "file_url": "/api/storage/three-model-hub/labs/models/2026/06/xxx.glb",
       "file_name": "building.glb",
       "file_size": 1048576,
       "file_format": "glb",
@@ -53,7 +53,7 @@
 {
   "name": "建筑模型",
   "description": "可选",
-  "file_url": "/api/storage/three-mode/labs/models/2026/06/xxx.glb",
+  "file_url": "/api/storage/three-model-hub/labs/models/2026/06/xxx.glb",
   "file_name": "building.glb",
   "file_size": 1048576,
   "file_key": "labs/models/2026/06/xxx.glb",
@@ -140,7 +140,7 @@ Geo 页面预处理 GLB（移除法线贴图）。响应 `application/octet-stre
 
 ## 文件存储代理 `/api/storage`
 
-前端通过此代理读取 MinIO 中的文件。上传返回的 `url` 字段（如 `/api/storage/three-mode/labs/models/...glb`）可直接用于 `<img src>`、`fetch`、three.js `GLTFLoader`。
+前端通过此代理读取 MinIO 中的文件。上传返回的 `url` 字段（如 `/api/storage/three-model-hub/labs/models/...glb`）可直接用于 `<img src>`、`fetch`、three.js `GLTFLoader`。
 
 ### 列出文件
 `GET /api/storage/:bucket`
@@ -153,14 +153,14 @@ Geo 页面预处理 GLB（移除法线贴图）。响应 `application/octet-stre
 **响应示例：**
 ```json
 {
-  "bucket": "three-mode",
+  "bucket": "three-model-hub",
   "total": 3,
   "objects": [
     {
       "key": "labs/models/2026/06/xxx.glb",
       "size": 1048576,
       "lastModified": "2026-06-09T10:00:00Z",
-      "url": "/api/storage/three-mode/labs/models/2026/06/xxx.glb"
+      "url": "/api/storage/three-model-hub/labs/models/2026/06/xxx.glb"
     }
   ]
 }
@@ -229,8 +229,8 @@ Geo 页面预处理 GLB（移除法线贴图）。响应 `application/octet-stre
       },
       "visible": true,
       "sort_order": 0,
-      "file_url": "/api/storage/three-mode/labs/models/.../xxx.glb",
-      "thumbnail_url": "/api/storage/three-mode/labs/images/.../thumb.png",
+      "file_url": "/api/storage/three-model-hub/labs/models/.../xxx.glb",
+      "thumbnail_url": "/api/storage/three-model-hub/labs/images/.../thumb.png",
       "model_name": "building"
     }
   ]
@@ -347,8 +347,8 @@ Geo 页面预处理 GLB（移除法线贴图）。响应 `application/octet-stre
       "material_overrides": {},
       "visible": true,
       "sort_order": 0,
-      "file_url": "/api/storage/three-mode/labs/models/.../xxx.glb",
-      "thumbnail_url": "/api/storage/three-mode/labs/images/.../thumb.png"
+      "file_url": "/api/storage/three-model-hub/labs/models/.../xxx.glb",
+      "thumbnail_url": "/api/storage/three-model-hub/labs/images/.../thumb.png"
     }
   ]
 }

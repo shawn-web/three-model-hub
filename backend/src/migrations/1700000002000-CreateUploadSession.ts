@@ -18,7 +18,7 @@ export class CreateUploadSession1700000002000 implements MigrationInterface {
         \`id\` varchar(36) NOT NULL,
         \`upload_id\` varchar(100) NOT NULL,
         \`object_key\` varchar(1024) NOT NULL,
-        \`bucket\` varchar(100) NOT NULL DEFAULT 'three-mode',
+        \`bucket\` varchar(100) NOT NULL DEFAULT 'three-model-hub',
         \`file_name\` varchar(255) NOT NULL,
         \`file_size\` bigint NOT NULL,
         \`mime_type\` varchar(100) NULL,

@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="ThreeModelHub logo">
+  <title>ThreeModelHub</title>
+  <defs>
+    <!-- 中心立方体的渐变：体现 3D 立体感 -->
+    <linearGradient id="face-top" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#7DD3FC"/>
+      <stop offset="100%" stop-color="#38BDF8"/>
+    </linearGradient>
+    <linearGradient id="face-left" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0284C7"/>
+      <stop offset="100%" stop-color="#0369A1"/>
+    </linearGradient>
+    <linearGradient id="face-right" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0EA5E9"/>
+      <stop offset="100%" stop-color="#075985"/>
+    </linearGradient>
+    <linearGradient id="hub-glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FBBF24"/>
+      <stop offset="100%" stop-color="#F59E0B"/>
+    </linearGradient>
+    <radialGradient id="bg-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#1E293B"/>
+      <stop offset="100%" stop-color="#0F172A"/>
+    </radialGradient>
+  </defs>
+
+  <!-- 背景圆角方形（GitHub README / favicon 通用） -->
+  <rect x="0" y="0" width="256" height="256" rx="48" fill="url(#bg-glow)"/>
+
+  <!-- 中心立方体：等距投影，3 个面 -->
+  <g transform="translate(128 128)">
+    <!-- 顶面 -->
+    <polygon points="0,-60 52,-30 0,0 -52,-30" fill="url(#face-top)" stroke="#0EA5E9" stroke-width="2" stroke-linejoin="round"/>
+    <!-- 左面 -->
+    <polygon points="-52,-30 0,0 0,60 -52,30" fill="url(#face-left)" stroke="#0EA5E9" stroke-width="2" stroke-linejoin="round"/>
+    <!-- 右面 -->
+    <polygon points="52,-30 0,0 0,60 52,30" fill="url(#face-right)" stroke="#0EA5E9" stroke-width="2" stroke-linejoin="round"/>
+  </g>
+
+  <!-- "Hub" 中心点：6 个外围小立方体环绕中心立方体（暗示模型汇聚） -->
+  <!-- 12 点钟 -->
+  <g transform="translate(128 40)">
+    <polygon points="0,-12 10,-6 0,0 -10,-6" fill="#FBBF24" stroke="#92400E" stroke-width="1"/>
+    <polygon points="-10,-6 0,0 0,12 -10,6" fill="#D97706" stroke="#92400E" stroke-width="1"/>
+    <polygon points="10,-6 0,0 0,12 10,6" fill="#F59E0B" stroke="#92400E" stroke-width="1"/>
+  </g>
+  <!-- 2 点钟 -->
+  <g transform="translate(206 84)">
+    <polygon points="0,-12 10,-6 0,0 -10,-6" fill="#FBBF24" stroke="#92400E" stroke-width="1"/>
+    <polygon points="-10,-6 0,0 0,12 -10,6" fill="#D97706" stroke="#92400E" stroke-width="1"/>
+    <polygon points="10,-6 0,0 0,12 10,6" fill="#F59E0B" stroke="#92400E" stroke-width="1"/>
+  </g>
+  <!-- 4 点钟 -->
+  <g transform="translate(206 172)">
+    <polygon points="0,-12 10,-6 0,0 -10,-6" fill="#FBBF24" stroke="#92400E" stroke-width="1"/>
+    <polygon points="-10,-6 0,0 0,12 -10,6" fill="#D97706" stroke="#92400E" stroke-width="1"/>
+    <polygon points="10,-6 0,0 0,12 10,6" fill="#F59E0B" stroke="#92400E" stroke-width="1"/>
+  </g>
+  <!-- 6 点钟 -->
+  <g transform="translate(128 216)">
+    <polygon points="0,-12 10,-6 0,0 -10,-6" fill="#FBBF24" stroke="#92400E" stroke-width="1"/>
+    <polygon points="-10,-6 0,0 0,12 -10,6" fill="#D97706" stroke="#92400E" stroke-width="1"/>
+    <polygon points="10,-6 0,0 0,12 10,6" fill="#F59E0B" stroke="#92400E" stroke-width="1"/>
+  </g>
+  <!-- 8 点钟 -->
+  <g transform="translate(50 172)">
+    <polygon points="0,-12 10,-6 0,0 -10,-6" fill="#FBBF24" stroke="#92400E" stroke-width="1"/>
+    <polygon points="-10,-6 0,0 0,12 -10,6" fill="#D97706" stroke="#92400E" stroke-width="1"/>
+    <polygon points="10,-6 0,0 0,12 10,6" fill="#F59E0B" stroke="#92400E" stroke-width="1"/>
+  </g>
+  <!-- 10 点钟 -->
+  <g transform="translate(50 84)">
+    <polygon points="0,-12 10,-6 0,0 -10,-6" fill="#FBBF24" stroke="#92400E" stroke-width="1"/>
+    <polygon points="-10,-6 0,0 0,12 -10,6" fill="#D97706" stroke="#92400E" stroke-width="1"/>
+    <polygon points="10,-6 0,0 0,12 10,6" fill="#F59E0B" stroke="#92400E" stroke-width="1"/>
+  </g>
+</svg>
