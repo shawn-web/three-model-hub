@@ -25,6 +25,9 @@ export function GeoModelLayer({ viewer }: GeoModelLayerProps) {
   const entitiesRef = useRef<Map<string, any>>(new Map())
   /** 追踪已创建的 Blob URL，用于组件卸载或实体删除时释放 */
   const blobUrlsRef = useRef<Map<string, string>>(new Map())
+  /** 全局唯一的 postRender 监听器引用，所有待加载的实体共用同一个监听器 */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const postRenderListenerRef = useRef<((() => void) | null)>(null)
 
   // 加载/更新模型实体
   useEffect(() => {
@@ -130,62 +133,50 @@ export function GeoModelLayer({ viewer }: GeoModelLayerProps) {
         }
       }
 
-      // 第二遍：异步创建尚无实体的模型（GLB 预处理）
-      for (const model of newEntities) {
-        if (cancelled) return
-
-        const geo = getEffectiveGeo(model)
-        if (!geo) {
-          console.warn(`[GeoModelLayer] 模型 geo 为空，跳过: ${model.modelName} (${model.model_id})`)
-          continue
-        }
-
-        // 检查模型文件 URL 是否有效（空字符串会导致 Cesium 加载当前页面 HTML）
-        if (!model.downloadUrl) {
-          console.warn(`[GeoModelLayer] 模型 downloadUrl 为空，跳过: ${model.modelName} (${model.model_id})`)
-          continue
-        }
-
-        // 再次检查是否已有实体（可能在 await 期间被其他流程创建）
-        if (entitiesRef.current.has(model.id)) {
-          console.log(`[GeoModelLayer] 模型实体已存在，跳过: ${model.modelName} (${model.model_id})`)
-          continue
-        }
-
-        // 先通过后端代理预处理 GLB，移除法线贴图，绕过 Cesium shader bug
-        console.log(`[GeoModelLayer] 加载模型: ${model.modelName}, model_id=${model.model_id}, downloadUrl=${model.downloadUrl}`)
-        setModelLoading(model.id)
-        const modelUri = await removeNormalTexturesFromGlb(
-          model.model_id,
-          model.downloadUrl,
-          (percent) => {
-            // 可在此扩展更细粒度的进度显示（如传给 store 的进度百分比）
-            console.log(`[GeoModelLayer] 下载进度 ${model.modelName}: ${percent}%`)
-          },
-        )
-        if (!modelUri) {
-          setModelLoaded(model.id)
-          console.warn(`[GeoModelLayer] 模型文件不可用，跳过: ${model.modelName} (${model.model_id})`)
-          continue
-        }
-        // Blob URL 需要记录以便后续释放
-        if (modelUri.startsWith('blob:')) {
-          blobUrlsRef.current.set(model.id, modelUri)
-        }
-
-        if (cancelled) {
-          // 如果组件已卸载，释放刚创建的 blob URL
-          if (modelUri.startsWith('blob:')) {
-            URL.revokeObjectURL(modelUri)
-            blobUrlsRef.current.delete(model.id)
+      // 第二遍：异步创建尚无实体的模型（GLB 预处理 + 并发限流 3）
+      // 原实现是 for-await 串行，N 个模型耗时 N×单模型延迟；改为并发批处理
+      // 受 Cesium 同源连接数限制，并发上限设为 3 平衡速度与稳定性。
+      const CONCURRENCY = 3
+      /** 等待 Cesium Model primitive 加载完成的实体集合 */
+      const pendingReady = new Set<{ id: string; entity: any }>()
+      /** postRender 监听器仅注册一次，扫描 pendingReady 决定是否移除 loading 状态 */
+      const ensurePostRenderListener = () => {
+        if (postRenderListenerRef.current) return
+        const onPostRender = () => {
+          if (cancelled) {
+            viewer.scene.postRender.removeEventListener(onPostRender)
+            postRenderListenerRef.current = null
+            return
           }
-          return
+          const primitives = viewer.scene.primitives
+          for (let i = 0; i < primitives.length; i++) {
+            const p = primitives.get(i)
+            if (!(p instanceof C.Model || (p && p.constructor && p.constructor.name === 'Model'))) continue
+            for (const pending of pendingReady) {
+              if (p.id === pending.entity && p.ready) {
+                setModelLoaded(pending.id)
+                pendingReady.delete(pending)
+                break
+              }
+            }
+          }
+          if (pendingReady.size === 0) {
+            viewer.scene.postRender.removeEventListener(onPostRender)
+            postRenderListenerRef.current = null
+          }
         }
+        postRenderListenerRef.current = onPostRender
+        viewer.scene.postRender.addEventListener(onPostRender)
+      }
+
+      // 预处理 + 建实体的核心步骤，单个模型完整流程
+      const processEntity = async (model: typeof renderModels[number]): Promise<void> => {
+        if (cancelled || entitiesRef.current.has(model.id)) return
 
         // await 之后重新读取最新的 geo（可能在 await 期间被用户修改）
         const latest = useGeoStore.getState().models.find((m) => m.id === model.id)
-        const latestGeo = latest ? getEffectiveGeo(latest) : geo
-        if (!latestGeo) continue
+        const latestGeo = latest ? getEffectiveGeo(latest) : null
+        if (!latestGeo) return
 
         const position = C.Cartesian3.fromDegrees(
           latestGeo.longitude,
@@ -218,33 +209,65 @@ export function GeoModelLayer({ viewer }: GeoModelLayerProps) {
         })
 
         entitiesRef.current.set(model.id, entity)
+        pendingReady.add({ id: model.id, entity })
+        ensurePostRenderListener()
 
-        // 等待 Cesium Model primitive 实际加载完成后再移除 loading 状态
-        const startWait = performance.now()
-        const onPostRender = () => {
-          if (cancelled) {
-            viewer.scene.postRender.removeEventListener(onPostRender)
+        // 30s 超时保底：超过即移除 loading（避免无限转圈）
+        setTimeout(() => {
+          if (pendingReady.has({ id: model.id, entity })) {
+            pendingReady.delete({ id: model.id, entity })
+            setModelLoaded(model.id)
+          }
+        }, 30000)
+      }
+
+      // 简单的「并发限流」实现：把队列按 CONCURRENCY 切片并行处理
+      for (let i = 0; i < newEntities.length; i += CONCURRENCY) {
+        if (cancelled) return
+        const batch = newEntities.slice(i, i + CONCURRENCY)
+        await Promise.allSettled(batch.map(async (model) => {
+          const geo = getEffectiveGeo(model)
+          if (!geo) {
+            console.warn(`[GeoModelLayer] 模型 geo 为空，跳过: ${model.modelName} (${model.model_id})`)
             return
           }
-          const primitives = viewer.scene.primitives
-          for (let i = 0; i < primitives.length; i++) {
-            const p = primitives.get(i)
-            if (
-              (p instanceof C.Model || (p && p.constructor && p.constructor.name === 'Model')) &&
-              p.id === entity &&
-              p.ready
-            ) {
-              setModelLoaded(model.id)
-              viewer.scene.postRender.removeEventListener(onPostRender)
-              return
+          // 检查模型文件 URL 是否有效（空字符串会导致 Cesium 加载当前页面 HTML）
+          if (!model.downloadUrl) {
+            console.warn(`[GeoModelLayer] 模型 downloadUrl 为空，跳过: ${model.modelName} (${model.model_id})`)
+            return
+          }
+
+          console.log(`[GeoModelLayer] 加载模型: ${model.modelName}, model_id=${model.model_id}, downloadUrl=${model.downloadUrl}`)
+          setModelLoading(model.id)
+          const modelUri = await removeNormalTexturesFromGlb(
+            model.model_id,
+            model.downloadUrl,
+            (percent) => {
+              // 可在此扩展更细粒度的进度显示（如传给 store 的进度百分比）
+              console.log(`[GeoModelLayer] 下载进度 ${model.modelName}: ${percent}%`)
+            },
+          )
+          if (!modelUri) {
+            setModelLoaded(model.id)
+            console.warn(`[GeoModelLayer] 模型文件不可用，跳过: ${model.modelName} (${model.model_id})`)
+            return
+          }
+          // Blob URL 需要记录以便后续释放
+          if (modelUri.startsWith('blob:')) {
+            blobUrlsRef.current.set(model.id, modelUri)
+          }
+
+          if (cancelled) {
+            // 如果组件已卸载，释放刚创建的 blob URL
+            if (modelUri.startsWith('blob:')) {
+              URL.revokeObjectURL(modelUri)
+              blobUrlsRef.current.delete(model.id)
             }
+            return
           }
-          if (performance.now() - startWait > 30000) {
-            setModelLoaded(model.id) // 超时保底
-            viewer.scene.postRender.removeEventListener(onPostRender)
-          }
-        }
-        viewer.scene.postRender.addEventListener(onPostRender)
+
+          await processEntity(model)
+        }))
       }
     }
 

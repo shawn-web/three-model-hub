@@ -75,10 +75,8 @@ export function GeoLocationPanel() {
 
   const selectedModel = models.find((m) => m.id === selectedModelId)
 
-  // 当前编辑的 geo 值
-  const currentGeo = selectedModel
-    ? (selectedModel._pendingGeo !== undefined ? selectedModel._pendingGeo : selectedModel.geo_position)
-    : null
+  // 当前编辑的 geo 值（复用 store 的 getEffectiveGeo，避免分散的三态判断逻辑）
+  const currentGeo = selectedModel ? getEffectiveGeo(selectedModel) : null
 
   // 标点配置 Modal 状态
   const [markerConfigOpen, setMarkerConfigOpen] = useState(false)

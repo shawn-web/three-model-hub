@@ -81,7 +81,13 @@ export function CesiumViewer({ mapId, onViewerReady }: CesiumViewerProps) {
     }
   }, [onViewerReady])
 
-  // 页面加载后恢复保存的视角（仅在 viewer 和 mapData 都就绪时执行一次）
+  // 页面加载后恢复保存的视角（每次 mapId 变化时执行一次；同 mapId 内 viewpoint
+  // 已应用则跳过，避免后续 setState 触发重置）
+  const currentMapId = mapData?.id
+  useEffect(() => {
+    // 切换地图时重置 ref
+    viewpointAppliedRef.current = false
+  }, [currentMapId])
   useEffect(() => {
     const viewer = viewerRef.current
     const viewpoint = mapData?.config?.geo?.viewpoint as
@@ -98,7 +104,7 @@ export function CesiumViewer({ mapId, onViewerReady }: CesiumViewerProps) {
       },
     })
     viewpointAppliedRef.current = true
-  }, [mapData])
+  }, [mapData, currentMapId])
 
   useEffect(() => {
     const viewer = viewerRef.current
@@ -325,11 +331,8 @@ export function CesiumViewer({ mapId, onViewerReady }: CesiumViewerProps) {
           const prevId = selectedModelIdRef.current.replace("model-", "")
           selectedModelIdRef.current = null
           useGeoStore.getState().setSelectedModel(null)
-          // P1-2: 发送 geo-model-clicked 取消选中事件
-          window.parent.postMessage({
-            type: 'geo-model-clicked',
-            payload: { modelId: prevId, type: 'deselected' },
-          }, getParentOrigin())
+          // P1-2: 发送 geo-model-clicked 取消选中事件（走 MessageBus，allowlist 由 bus 校验）
+          getMessageBus().send('geo-model-clicked', { modelId: prevId, type: 'deselected' })
         }
       }
     }

@@ -57,9 +57,11 @@ export function parseUrlParams(search: string): UrlParams {
   const params = new URLSearchParams(search)
   const showMarkers = parseBooleanParam(params.get('showMarkers'))
   // 区分三种状态：未传（undefined）= 全部显示；传值=[]（空数组）= 全部隐藏；非空=白名单
-  // parseListParam('') 会返回 undefined（因为 split 后 filter 全空），需特判保留空值的"拒绝一切"语义
+  // 关键：params.has('visibleModelIds') 为 true 即视为显式配置（"过滤为空"），应当解析为 []。
+  // 因此不能依赖 parseListParam（它对纯逗号字符串 ',,,' 也会返回 undefined），
+  // 需在 has() 为真时强制赋 []，只有 has() 为假（参数未传）才返回 undefined。
   const visibleModelIds: string[] | null | undefined = params.has('visibleModelIds')
-    ? (params.get('visibleModelIds') === '' ? [] : (parseListParam(params.get('visibleModelIds')) ?? null))
+    ? (parseListParam(params.get('visibleModelIds')) ?? [])
     : undefined
 
   return {
