@@ -27,7 +27,7 @@ export class MinioService implements OnModuleInit {
     this.endpoint = this.config.get<string>('MINIO_ENDPOINT', 'localhost')
     this.port = parseInt(this.config.get<string>('MINIO_PORT', '9000'), 10)
     this.useSSL = this.config.get<string>('MINIO_USE_SSL') === 'true'
-    this.bucket = this.config.get<string>('MINIO_BUCKET', 'three-mode')
+    this.bucket = this.config.get<string>('MINIO_BUCKET', 'three-model-hub')
 
     // 客户端在构造函数中初始化（避免 onModuleInit 被测试覆盖）
     this.client = new Client({

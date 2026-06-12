@@ -2,7 +2,7 @@
 
 ## 概述
 
-ThreeMode 采用前后端分离的测试策略：
+ThreeModelHub 采用前后端分离的测试策略：
 
 - **前端**：Vitest + jsdom + React Testing Library，覆盖 store、工具函数、通信协议
 - **后端**：Jest + supertest + 真实数据库，覆盖 API 端到端测试

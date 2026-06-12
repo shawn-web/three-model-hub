@@ -1,0 +1,101 @@
+name: Bug 报告
+description: 报告 Bug，提交前请确认这不是安全漏洞（安全漏洞请走 SECURITY.md 流程）
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      content: |
+        感谢你提交 Bug 报告！请尽量详细填写以下信息，以帮助我们快速复现和修复问题。
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 发生了什么？
+      description: 简洁清晰地描述 Bug 现象
+      placeholder: |
+        启动后端时，控制台报错 "Cannot find module 'xxx'"，前端无法连接后端
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤
+      description: 触发 Bug 的最小操作序列
+      placeholder: |
+        1. 执行 `pnpm install`
+        2. 执行 `pnpm backend:dev`
+        3. 看到错误信息
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期行为
+      description: 你认为应该发生什么
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为
+      description: 实际发生了什么
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: ThreeModelHub 版本
+      description: 在 `package.json` 的 `version` 字段或 git tag 中查看
+      placeholder: "v0.1.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: 操作系统
+      options:
+        - Windows 11
+        - Windows 10
+        - macOS
+        - Ubuntu/Debian
+        - CentOS/RHEL
+        - 其他 Linux
+        - Docker
+    validations:
+      required: true
+
+  - type: textarea
+    id: env
+    attributes:
+      label: 环境信息
+      description: Node.js 版本、pnpm 版本、MySQL 版本、MinIO 版本等
+      placeholder: |
+        - Node.js 20.10.0
+        - pnpm 9.5.0
+        - MySQL 8.0.35
+        - MinIO 2024.01.31
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 错误日志
+      description: 粘贴相关错误日志（请用 ``` 包裹）
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: 截图
+      description: 如果是 UI 问题，请附上截图链接
+    validations:
+      required: false

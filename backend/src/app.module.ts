@@ -30,7 +30,7 @@ import { MinioModule } from './minio/minio.module'
       port: parseInt(process.env.DB_PORT || '3306', 10),
       username: process.env.DB_USERNAME || 'root',
       password: process.env.DB_PASSWORD || 'root',
-      database: process.env.DB_DATABASE || 'three_mode',
+      database: process.env.DB_DATABASE || 'three_model_hub',
       // 自动加载所有 Entity
       autoLoadEntities: true,
       // 开发环境自动同步表结构（生产环境应使用 migration）

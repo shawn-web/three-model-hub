@@ -7,7 +7,7 @@
  * 优化：预处理后的 GLB 缓存到 IndexedDB，避免每次页面刷新都重新下载和处理
  */
 
-const CACHE_DB_NAME = 'threeMode_glb_cache'
+const CACHE_DB_NAME = 'threeModelHub_glb_cache'
 const CACHE_STORE_NAME = 'processed_glbs'
 const CACHE_DB_VERSION = 2
 

@@ -42,7 +42,7 @@ describe('UploadService', () => {
       listParts: jest.fn(),
       putObject: jest.fn(),
       getPublicUrl: jest.fn(),
-      getBucket: jest.fn().mockReturnValue('three-mode'),
+      getBucket: jest.fn().mockReturnValue('three-model-hub'),
     } as any
 
     mockStorage = {
@@ -167,14 +167,14 @@ describe('UploadService', () => {
         object_key: 'labs/x.glb',
         file_size: 1000,
       })
-      mockMinio.getPublicUrl.mockReturnValue('http://localhost:9000/three-mode/labs/x.glb')
+      mockMinio.getPublicUrl.mockReturnValue('http://localhost:9000/three-model-hub/labs/x.glb')
 
       const result = await service.completeMultipart({
         uploadId: 'up-1',
         parts: [{ partNumber: 1, etag: 'e1' }],
       })
 
-      expect(result.url).toContain('three-mode')
+      expect(result.url).toContain('three-model-hub')
       expect(mockMinio.completeMultipart).not.toHaveBeenCalled()
     })
 
@@ -341,7 +341,7 @@ describe('UploadService', () => {
   describe('uploadSimple', () => {
     it('应调 minio.putObject 并返回 url/fileKey/fileSize', async () => {
       mockMinio.putObject.mockResolvedValue(undefined)
-      mockMinio.getPublicUrl.mockReturnValue('http://localhost:9000/three-mode/labs/x.png')
+      mockMinio.getPublicUrl.mockReturnValue('http://localhost:9000/three-model-hub/labs/x.png')
 
       const file = {
         originalname: 'a.png',
@@ -353,7 +353,7 @@ describe('UploadService', () => {
       const result = await service.uploadSimple(file, 'resource-image')
 
       expect(result.fileSize).toBe(100)
-      expect(result.url).toContain('three-mode')
+      expect(result.url).toContain('three-model-hub')
       expect(mockMinio.putObject).toHaveBeenCalledWith(
         'labs/models/2026/06/uuid.glb', // mockStorage 返回的
         file.buffer,

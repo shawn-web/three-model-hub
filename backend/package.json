@@ -1,7 +1,7 @@
 {
-  "name": "backend",
-  "version": "1.0.0",
-  "description": "",
+  "name": "three-model-hub-backend",
+  "version": "0.1.0",
+  "description": "ThreeModelHub 后端服务（NestJS + MySQL + MinIO）",
   "main": "index.js",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -18,8 +18,8 @@
     "lint:fix": "eslint src --fix"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "ThreeModelHub Contributors",
+  "license": "MIT",
   "type": "commonjs",
   "dependencies": {
     "@nestjs/common": "^11.1.21",

@@ -1,78 +1,100 @@
-# ThreeMode
+# ThreeModelHub
 
-ThreeMode 是一个全栈 3D 模型管理与查看平台，支持 GLB/GLTF 模型上传、场景组合、标注、测量、剖面和分享。
+![ThreeModelHub Logo](.github/assets/logo-256.png)
 
-## 核心功能
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
+[![Self-Hosted](https://img.shields.io/badge/Self--Hosted-Docker--Ready-2496ED.svg)](#docker-快速部署)
+[![Three.js](https://img.shields.io/badge/Three.js-3D-000000.svg)](https://threejs.org/)
+[![NestJS](https://img.shields.io/badge/NestJS-Backend-E0234E.svg)](https://nestjs.com/)
 
-- **模型管理**：GLB/GLTF 模型上传、版本控制、缩略图预览
-- **场景编辑器**：多模型组合、变换编辑（位置/旋转/缩放）、材质覆盖、图片标注
-- **3D 查看器**：基于 Three.js + React Three Fiber 的交互式渲染，支持 12 种插件（测量、剖面、透视、自动旋转等）
-- **视点保存**：保存和恢复相机视角
-- **批注系统**：在 3D 场景中添加文本批注
-- **场景分享**：通过 Token 机制分享场景链接
-- **资源管理**：通用文件资源分组管理，支持图片/视频预览
-- **iframe 嵌入**：支持将查看器嵌入第三方页面，通过消息总线通信
+> 全栈 3D 模型管理与场景平台：上传 GLB/GLTF，组合场景，添加标注和测量，部署 Geo 地理视图，通过 iframe 嵌入到任何系统。
 
-## 技术栈
+![Social Preview](.github/assets/social-preview.png)
+
+## ✨ 核心功能
+
+- **📦 模型管理**：GLB/GLTF 模型上传、版本控制、缩略图预览
+- **🎬 场景编辑器**：多模型组合、变换编辑（位置/旋转/缩放）、材质覆盖、图片标注
+- **🛰️ Geo 地理视图**：基于 Cesium 的 3D 地球，支持模型地理定位、底图配置、标点
+- **🔍 3D 查看器**：基于 Three.js + React Three Fiber 的交互式渲染，支持 12 种插件（测量、剖面、透视、自动旋转等）
+- **📍 视点保存**：保存和恢复相机视角
+- **💬 批注系统**：在 3D 场景中添加文本批注
+- **🔗 场景分享**：通过 Token 机制分享场景链接
+- **📁 资源管理**：通用文件资源分组管理，支持图片/视频预览
+- **🪟 iframe 嵌入**：支持将查看器嵌入第三方页面，通过消息总线通信
+
+## 🛠️ 技术栈
 
 | 层级 | 技术 |
 |------|------|
-| 前端框架 | React 19 + TypeScript 6 |
+| 前端框架 | React 19 + TypeScript |
 | 构建工具 | Vite 8 |
 | 3D 渲染 | Three.js + React Three Fiber + Drei |
+| 地理引擎 | Cesium |
 | UI 组件 | Ant Design 6 + Tailwind CSS |
 | 状态管理 | Zustand（zundo 提供撤销/重做） |
 | 后端框架 | NestJS 11 |
+| 对象存储 | MinIO（S3 兼容） |
+| 定时任务 | @nestjs/schedule |
 | 数据库 | MySQL 8.0 + TypeORM |
 | 包管理 | pnpm workspaces |
 
-## 快速开始
+## 🚀 快速开始
 
 ### 环境要求
 
 - Node.js 20.x LTS
 - pnpm 9.x
 - MySQL 8.0
+- Docker（推荐，用于 MySQL / MinIO）
 
-### 安装
+### 5 分钟快速启动（开发模式）
 
 ```bash
-# 克隆项目
-git clone <repo-url>
-cd threeMode
+# 1. 克隆仓库
+git clone https://github.com/three-model-hub/three-model-hub.git
+cd three-model-hub
 
-# 安装依赖
+# 2. 安装依赖
 pnpm install
+
+# 3. 启动 MySQL（Docker）
+docker-compose up -d mysql
+
+# 4. 启动 MinIO（无 Docker 方式）
+pnpm minio:start
+
+# 5. 复制后端环境变量并修改
+cp backend/.env.example backend/.env
+# 编辑 backend/.env，至少修改 DB_PASSWORD、MINIO_ACCESS_KEY、MINIO_SECRET_KEY
+
+# 6. 初始化数据库（首次启动）
+cd backend && pnpm migration:run && cd ..
+
+# 7. 一键启动前后端
+pnpm dev:full
 ```
 
-### 配置数据库
+启动后访问：
+
+- 前端：http://localhost:5173
+- 后端 API：http://localhost:3000/api
+- MinIO 控制台：http://localhost:9001（默认 `minioadmin / minioadmin123`）
+
+### 一行命令的 Docker 部署（生产模式）
+
+> 完整 Docker Compose 部署方案见 [`docs/deployment.md`](docs/deployment.md)
 
 ```bash
-# 启动 MySQL（Docker）
-docker-compose up -d
-
-# 创建数据库
-mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS three_mode CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+docker-compose -f docker-compose.deploy.yml up -d
 ```
 
-复制 `backend/.env.example` 为 `backend/.env` 并填写配置。
-
-### 启动开发服务
-
-```bash
-# 方式一：同时启动前后端
-pnpm dev:all
-
-# 方式二：分别启动
-pnpm backend:dev   # 后端 http://localhost:3000
-pnpm dev           # 前端 http://localhost:5173
-```
-
-## 项目结构
+## 📁 项目结构
 
 ```
-threeMode/
-├── frontend/          # React SPA（Vite）
+three-model-hub/
+├── frontend/        # React SPA（Vite）
 │   ├── src/
 │   │   ├── api/       # API 请求层
 │   │   ├── components/# 可复用组件
@@ -84,45 +106,87 @@ threeMode/
 │   │   ├── communication/ # iframe 通信协议
 │   │   └── theme/     # 主题配置
 │   └── tests/         # 单元测试（Vitest）
-├── backend/           # NestJS API
+├── backend/         # NestJS API
 │   ├── src/
 │   │   ├── models/    # 模型管理
 │   │   ├── scenes/    # 场景管理
+│   │   ├── geo-maps/  # 地理地图管理
 │   │   ├── sharing/   # 分享功能
 │   │   ├── viewpoints/# 视点保存
-│   │   ├── annotations/ # 批注系统
+│   │   ├── annotations/# 批注系统
 │   │   ├── resources/ # 资源管理
 │   │   ├── upload/    # 文件上传
-│   │   └── storage/   # 文件存储服务
+│   │   ├── storage/   # 文件存储服务
+│   │   └── minio/     # MinIO 基础设施
 │   └── test/          # e2e 测试（Jest）
-├── docs/              # 项目文档
+├── docs/            # 项目文档
 │   ├── api.md         # API 文档
 │   ├── architecture.md# 架构文档
 │   ├── development.md # 开发指南
-│   └── deployment.md  # 部署文档
-├── docker-compose.yml # MySQL 开发环境
-└── package.json       # 根目录脚本
+│   ├── deployment.md  # 部署文档
+│   └── geo-improvement-plan.md # Geo 模块迭代计划
+├── docker-compose.yml       # MySQL 开发环境
+├── docker-compose.deploy.yml # 生产部署方案
+├── nginx/                   # Nginx 反向代理配置
+├── .github/
+│   ├── assets/      # Logo / 社交预览图
+│   ├── workflows/   # CI/CD
+│   └── ISSUE_TEMPLATE/
+└── package.json     # 根目录脚本（pnpm workspaces）
 ```
 
-## 常用命令
+## 📜 常用命令
 
 | 命令 | 说明 |
 |------|------|
-| `pnpm dev:all` | 同时启动前后端开发服务 |
+| `pnpm dev:full` | 一键启动 MinIO + MySQL + 前后端 |
+| `pnpm dev:all` | 启动前后端（需先启动 MinIO + MySQL） |
 | `pnpm dev` | 启动前端开发服务 |
 | `pnpm build` | 构建前端生产版本 |
 | `pnpm backend:dev` | 启动后端开发服务 |
-| `pnpm backend:test` | 运行后端测试 |
-| `cd frontend && pnpm test:run` | 运行前端测试 |
+| `pnpm backend:test` | 运行后端测试（Jest） |
+| `cd frontend && pnpm test:run` | 运行前端测试（Vitest） |
+| `pnpm minio:start` | 启动 MinIO（数据存 `.minio-data/`） |
+| `pnpm minio:status` | 检查 MinIO 健康状态 |
+| `pnpm minio:stop` | 停止 MinIO 进程 |
+| `pnpm minio:reset` | 清理 MinIO 数据 |
 | `docker-compose up -d` | 启动 MySQL 容器 |
 
-## 文档
+## 🌐 浏览器兼容性
+
+ThreeModelHub 需要支持 **WebGL 2.0** 的现代浏览器：
+
+- Chrome / Edge 90+
+- Firefox 88+
+- Safari 14+
+
+> **不支持** IE 和旧版 Edge。移动端仅查看模式可用，编辑器模式需要桌面端。
+
+## 📚 文档
 
 - [API 文档](docs/api.md) — 后端 API 接口详情
 - [架构文档](docs/architecture.md) — 系统架构、模块划分、核心流程
 - [开发指南](docs/development.md) — 环境搭建、代码规范、添加新功能
 - [部署文档](docs/deployment.md) — 生产环境部署步骤
+- [测试文档](docs/testing.md) — 测试策略与运行方法
+- [Geo 改进计划](docs/geo-improvement-plan.md) — Geo 模块迭代记录
 
-## 许可证
+## 🤝 贡献
 
-MIT
+欢迎通过 Issue 报告 Bug、提出功能建议，或直接提交 PR。
+
+- 阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 了解开发规范
+- 阅读 [架构文档](docs/architecture.md) 了解代码组织
+- 提交前请运行 `pnpm test:all` 确保测试通过
+
+## 📄 许可证
+
+本项目基于 [MIT](LICENSE) 许可证开源。
+
+## 🙏 致谢
+
+- [Three.js](https://threejs.org/) — 3D 渲染引擎
+- [Cesium](https://cesium.com/) — 3D 地理可视化
+- [NestJS](https://nestjs.com/) — Node.js 服务端框架
+- [Ant Design](https://ant.design/) — UI 设计语言
+- 所有为开源生态贡献的依赖项目
