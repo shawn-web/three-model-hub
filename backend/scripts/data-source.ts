@@ -27,6 +27,8 @@ const { Annotation } = require('../src/annotations/entities/annotation.entity')
 const { Resource } = require('../src/resources/entities/resource.entity')
 const { ResourceGroup } = require('../src/resources/entities/resource-group.entity')
 const { UploadSession } = require('../src/upload/entities/upload-session.entity')
+const { GeoMap } = require('../src/geo-maps/entities/geo-map.entity')
+const { GeoMapModel } = require('../src/geo-maps/entities/geo-map-model.entity')
 
 const AppDataSource = new DataSource({
   type: 'mysql',
@@ -41,7 +43,7 @@ const AppDataSource = new DataSource({
   entities: [
     Model, ModelVersion, Scene, SceneModel, SceneImage,
     ShareLink, Viewpoint, Annotation, Resource, ResourceGroup,
-    UploadSession,
+    UploadSession, GeoMap, GeoMapModel,
   ],
 })
 
