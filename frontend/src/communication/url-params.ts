@@ -56,8 +56,10 @@ function parseCameraParam(value: string | null): UrlParams['camera'] {
 export function parseUrlParams(search: string): UrlParams {
   const params = new URLSearchParams(search)
   const showMarkers = parseBooleanParam(params.get('showMarkers'))
-  const visibleModelIds = params.has('visibleModelIds')
-    ? parseListParam(params.get('visibleModelIds')) ?? null
+  // 区分三种状态：未传（undefined）= 全部显示；传值=[]（空数组）= 全部隐藏；非空=白名单
+  // parseListParam('') 会返回 undefined（因为 split 后 filter 全空），需特判保留空值的"拒绝一切"语义
+  const visibleModelIds: string[] | null | undefined = params.has('visibleModelIds')
+    ? (params.get('visibleModelIds') === '' ? [] : (parseListParam(params.get('visibleModelIds')) ?? null))
     : undefined
 
   return {

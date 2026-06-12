@@ -85,8 +85,14 @@ describe('parseUrlParams', () => {
       expect(parseUrlParams('?').visibleModelIds).toBeUndefined()
     })
 
-    it('visibleModelIds 显式传空值时应为 null（区分"未设置"和"过滤为空"）', () => {
-      expect(parseUrlParams('?visibleModelIds=').visibleModelIds).toBeNull()
+    it('visibleModelIds 显式传空值时（?visibleModelIds=）应解析为 []，区分"未设置"和"过滤为空"语义', () => {
+      // 之前用 || ?? 错误地把 '' 折叠成 null（视为"不过滤"），
+      // 修后 '?visibleModelIds=' = "全部隐藏"，与 undefined（"全部显示"）语义分离
+      expect(parseUrlParams('?visibleModelIds=').visibleModelIds).toEqual([])
+    })
+
+    it('visibleModelIds 未传时应为 undefined（不过滤）', () => {
+      expect(parseUrlParams('?').visibleModelIds).toBeUndefined()
     })
   })
 

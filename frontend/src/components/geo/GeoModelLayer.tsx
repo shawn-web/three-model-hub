@@ -183,11 +183,8 @@ export function GeoModelLayer({ viewer }: GeoModelLayerProps) {
         }
 
         // await 之后重新读取最新的 geo（可能在 await 期间被用户修改）
-        const latestGeo = (() => {
-          const latest = useGeoStore.getState().models.find((m) => m.id === model.id)
-          if (!latest) return geo
-          return latest._pendingGeo !== undefined ? latest._pendingGeo : latest.geo_position
-        })()
+        const latest = useGeoStore.getState().models.find((m) => m.id === model.id)
+        const latestGeo = latest ? getEffectiveGeo(latest) : geo
         if (!latestGeo) continue
 
         const position = C.Cartesian3.fromDegrees(

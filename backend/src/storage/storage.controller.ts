@@ -95,6 +95,17 @@ export class StorageController {
 
       // 流式 pipe 到响应
       stream.pipe(res)
+      // 中途流错误（MinIO 断流、网络抖动、pod 重启）必须显式 abort，
+      // 否则 res 头已发、客户端等待 Content-Length 字节永不抵达，挂死。
+      stream.on('error', (err) => {
+        // headers 可能已 flush，无法再发 5xx；只能 destroy 流让客户端超时断开
+        if (!res.headersSent) {
+          res.destroy(err)
+        } else {
+          res.destroy()
+        }
+        console.error(`[StorageController] 流式传输 ${objectKey} 中途失败：`, err?.message)
+      })
     } catch (e: any) {
       if (e?.code === 'NotFound' || e?.code === 'NoSuchKey') {
         throw new NotFoundException(`文件不存在：${objectKey}`)
