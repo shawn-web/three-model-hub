@@ -206,6 +206,8 @@ export class ScenesService {
   ): Promise<void> {
     if (!manager) await this.findOne(sceneId)
 
+    if (items.length === 0) return
+
     const itemIds = items.map((item) => item.id)
     const repo = manager ? manager.getRepository(SceneModel) : this.sceneModelRepo
     const sceneModels = await repo
