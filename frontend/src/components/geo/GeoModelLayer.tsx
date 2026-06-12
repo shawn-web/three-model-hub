@@ -221,6 +221,7 @@ export function GeoModelLayer({ viewer }: GeoModelLayerProps) {
                 URL.revokeObjectURL(modelUri)
                 blobUrlsRef.current.delete(model.id)
               }
+              setModelLoaded(model.id)
               return
             }
 
