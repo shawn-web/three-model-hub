@@ -8,7 +8,7 @@ import { getEffectiveGeo } from "../../store/geo-store"
 import { getImageryProvider } from "../../utils/imagery-providers"
 import { getCs } from "../../utils/cesium-instance"
 import { focusGeoModel } from "../../utils/geo-focus"
-import { getParentOrigin } from "../../communication/parent-origin"
+import { getMessageBus } from "../../hooks/useMessageBus"
 import type { GeoMarkerData } from "../../types/geo-marker"
 
 const CLICK_THRESHOLD = 5
@@ -314,11 +314,8 @@ export function CesiumViewer({ mapId, onViewerReady }: CesiumViewerProps) {
         } else {
           selectedModelIdRef.current = modelId
           useGeoStore.getState().setSelectedModel(realId)
-          // P1-2: 发送 geo-model-clicked 事件
-          window.parent.postMessage({
-            type: 'geo-model-clicked',
-            payload: { modelId: realId, type: 'selected' },
-          }, getParentOrigin())
+          // P1-2: 发送 geo-model-clicked 事件（走 MessageBus，allowlist 由 bus 校验）
+          getMessageBus().send('geo-model-clicked', { modelId: realId, type: 'selected' })
         }
       } else {
         if (useGeoStore.getState().addingMarker) {
@@ -349,11 +346,8 @@ export function CesiumViewer({ mapId, onViewerReady }: CesiumViewerProps) {
         const isDeselect = selectedModelIdRef.current === modelId
         selectedModelIdRef.current = isDeselect ? null : modelId
         useGeoStore.getState().setSelectedModel(isDeselect ? null : realId)
-        // P1-2: 发送 geo-model-clicked 事件
-        window.parent.postMessage({
-          type: 'geo-model-clicked',
-          payload: { modelId: realId, type: isDeselect ? 'deselected' : 'selected' },
-        }, getParentOrigin())
+        // P1-2: 发送 geo-model-clicked 事件（走 MessageBus，allowlist 由 bus 校验）
+        getMessageBus().send('geo-model-clicked', { modelId: realId, type: isDeselect ? 'deselected' : 'selected' })
       }
     }
 

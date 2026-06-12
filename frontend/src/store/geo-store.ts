@@ -366,7 +366,8 @@ export const useGeoStore = create<GeoState>((set, get) => ({
         visibleModelIds: get().visibleFilter,
         hiddenTools: Array.from(get().hiddenTools),
         showMarkers: get().showMarkers,
-        allowedOrigins: get().allowedOrigins || undefined,
+        // 保留 [] 语义：显式 [] = 拒绝一切，|| 会把 [] 折叠成 undefined（顺带清空 DB 端拒绝策略）
+        allowedOrigins: get().allowedOrigins === null ? undefined : get().allowedOrigins,
         toolbar: get().showToolbar,
         panel: get().showPanel,
       }
@@ -515,7 +516,11 @@ export const useGeoStore = create<GeoState>((set, get) => ({
   setShowMarkers: (show: boolean) => {
     set((state) => ({
       showMarkers: show,
-      activePopupTarget: show ? state.activePopupTarget : null,
+      // 只关闭 marker 弹窗；模型弹窗跟标点显示无关，不应被连带关闭
+      activePopupTarget:
+        !show && state.activePopupTarget?.type === 'marker'
+          ? null
+          : state.activePopupTarget,
     }))
   },
   triggerMarkerAction: (markerId: string) => {
