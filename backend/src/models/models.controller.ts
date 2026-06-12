@@ -115,10 +115,14 @@ export class ModelsController {
     if (!body.file_url || !body.file_key || !body.file_size || !body.file_name) {
       throw new BadRequestException('缺少版本文件信息（file_url / file_key / file_size / file_name）')
     }
+    const fileSize = typeof body.file_size === 'number' ? body.file_size : parseInt(body.file_size, 10)
+    if (!Number.isFinite(fileSize) || fileSize <= 0) {
+      throw new BadRequestException('file_size 必须为正整数')
+    }
     const dto = new CreateVersionFromUrlDto()
     dto.file_url = body.file_url
     dto.file_key = body.file_key
-    dto.file_size = typeof body.file_size === 'number' ? body.file_size : parseInt(body.file_size, 10)
+    dto.file_size = fileSize
     dto.file_name = body.file_name
     dto.commit_message = body.commit_message
     return this.modelsService.createVersionFromUrl(id, dto)

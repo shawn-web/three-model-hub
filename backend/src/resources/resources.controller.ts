@@ -125,12 +125,16 @@ export class ResourcesController {
       if (!body.file_key || !body.url || !body.file_size) {
         throw new BadRequestException('缺少文件信息（file_key / url / file_size）')
       }
+      const fileSize = typeof body.file_size === 'number' ? body.file_size : parseInt(body.file_size, 10)
+      if (!Number.isFinite(fileSize) || fileSize <= 0) {
+        throw new BadRequestException('file_size 必须为正整数')
+      }
       return await this.resourcesService.createFromFileRef({
         name: body.name || '未命名资源',
         type: body.type || ResourceType.IMAGE,
         url: body.url,
         file_key: body.file_key,
-        file_size: typeof body.file_size === 'number' ? body.file_size : parseInt(body.file_size, 10),
+        file_size: fileSize,
         mime_type: body.mime_type,
         width: body.width ? parseInt(body.width, 10) : undefined,
         height: body.height ? parseInt(body.height, 10) : undefined,
