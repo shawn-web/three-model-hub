@@ -70,10 +70,11 @@ describe('removeNormalTexturesFromGlb', () => {
       expect(fetchSpy).toHaveBeenCalled()
     })
 
-    it('fallbackUrl 为相对路径（不以 http(s) 开头）时应返回 null', async () => {
+    it('fallbackUrl 为相对路径（以 / 开头）时应返回该路径（MinIO 迁移后 file_url 为相对路径）', async () => {
       vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeResponse(new ArrayBuffer(0), false))
       const result = await removeNormalTexturesFromGlb('m1', '/relative/path.glb')
-      expect(result).toBeNull()
+      // MinIO 迁移后 getPublicUrl 返回相对路径 /api/storage/...，相对路径对 Cesium Entity.model.uri 合法
+      expect(result).toBe('/relative/path.glb')
     })
 
     it('fallbackUrl 为 javascript: 伪协议时也应返回 null', async () => {

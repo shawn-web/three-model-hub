@@ -120,8 +120,8 @@ export async function removeNormalTexturesFromGlb(
 /** 检查回退 URL 是否可用，无效则返回 null */
 function tryFallbackUrl(fallbackUrl: string): string | null {
   if (!fallbackUrl) return null
-  // 简单检查：URL 必须以 http 开头（排除空字符串、相对路径等）
-  if (!fallbackUrl.startsWith('http://') && !fallbackUrl.startsWith('https://')) {
+  // 接受 http(s) 绝对 URL 和 / 开头的相对路径（MinIO 迁移后 file_url 为相对路径）
+  if (!fallbackUrl.startsWith('http://') && !fallbackUrl.startsWith('https://') && !fallbackUrl.startsWith('/')) {
     console.warn(`[GLB修复] 回退 URL 无效: "${fallbackUrl}"`)
     return null
   }
