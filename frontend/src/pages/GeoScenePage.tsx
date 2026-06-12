@@ -59,7 +59,14 @@ export function GeoScenePage() {
       // 使用原生 confirm 避免 antd Modal 静态方法无法消费 context 的警告
       const save = window.confirm('你有未保存的坐标修改，是否保存后再离开？\n\n确定 = 保存并离开，取消 = 直接离开')
       if (save) {
-        await useGeoStore.getState().saveAndNotify()
+        // saveAndNotify 内部 catch 不会抛出，但保存失败时留在页面更安全
+        // 直接调用 saveGeoPositions（失败会抛出），保存失败时不跳转
+        try {
+          await useGeoStore.getState().saveGeoPositions()
+        } catch {
+          // 保存失败时留在当前页面，避免丢失未保存数据
+          return
+        }
       }
       navigate('/maps')
     } else {
