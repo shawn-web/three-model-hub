@@ -118,6 +118,16 @@ export function CesiumViewer({ mapId, onViewerReady }: CesiumViewerProps) {
     } else {
       baseLayer = provider.satellite()
     }
+    // 先移除上一轮由本 effect 添加的图层，避免叠加残留
+    const toRemoveOld: unknown[] = []
+    for (let i = 0; i < viewer.imageryLayers.length; i++) {
+      const layer = viewer.imageryLayers.get(i)
+      if (layer.name === "base-switch-layer" || layer.name === "overlay-reference-layer") {
+        toRemoveOld.push(layer)
+      }
+    }
+    for (const layer of toRemoveOld) viewer.imageryLayers.remove(layer as never)
+
     const newLayer = viewer.imageryLayers.addImageryProvider(baseLayer)
     newLayer.name = "base-switch-layer"
     if (effectiveImageryType === "satellite") {
@@ -135,14 +145,6 @@ export function CesiumViewer({ mapId, onViewerReady }: CesiumViewerProps) {
         refLayer.name = "overlay-reference-layer"
       }
     }
-    const toRemove: unknown[] = []
-    for (let i = 0; i < viewer.imageryLayers.length; i++) {
-      const layer = viewer.imageryLayers.get(i)
-      if (layer === newLayer) continue
-      if (layer.name === "overlay-reference-layer") continue
-      toRemove.push(layer)
-    }
-    for (const layer of toRemove) viewer.imageryLayers.remove(layer as never)
     return () => {
       if (viewer.isDestroyed?.()) return
       viewer.imageryLayers.remove(newLayer)

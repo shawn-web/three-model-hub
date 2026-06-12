@@ -681,6 +681,8 @@ export const useGeoStore = create<GeoState>((set, get) => ({
     set({ isLoading: true })
     try {
       await removeGeoMapModel(mapId, mapModelId)
+      // 清除缓存，避免后续 loadMap / addModelToMap 拿到含已删除模型的旧数据
+      invalidateHttpCache(`/geo-maps/${mapId}`)
       // 本地移除，无需重载；同时清理该模型的锁定状态
       set((state) => {
         const nextLocked = state.lockedModelIds.has(mapModelId)
