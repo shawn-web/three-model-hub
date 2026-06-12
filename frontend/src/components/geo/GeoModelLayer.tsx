@@ -177,6 +177,8 @@ export function GeoModelLayer({ viewer }: GeoModelLayerProps) {
         viewer.scene.postRender.removeEventListener(postRenderListenerRef.current)
       }
       postRenderListenerRef.current = onPostRender
+      // 立即注册监听器（Cesium Event.addEventListener 对同一函数引用不会重复添加）
+      viewer.scene.postRender.addEventListener(onPostRender)
 
       // 简单的「并发限流」：按 CONCURRENCY 切片并行处理
       for (let i = 0; i < newEntities.length; i += MODEL_LOAD_CONCURRENCY) {
@@ -269,10 +271,6 @@ export function GeoModelLayer({ viewer }: GeoModelLayerProps) {
 
             entitiesRef.current.set(model.id, entity)
             pendingReady.set(model.id, entity)
-            // 注册 postRender 监听器（仅首次时注册，后续复用）
-            if (!viewer.scene.postRender.getCbs?.().includes(onPostRender)) {
-              viewer.scene.postRender.addEventListener(onPostRender)
-            }
 
             // 30s 超时保底
             const timerId = setTimeout(() => {
@@ -328,6 +326,10 @@ export function GeoModelLayer({ viewer }: GeoModelLayerProps) {
       pendingReadyRef.current.clear()
       timeoutIdsRef.current.forEach((id) => clearTimeout(id))
       timeoutIdsRef.current.clear()
+      // 清理残留的 loading 状态（模型在 await 期间组件卸载时 setModelLoaded 不会被调用）
+      useGeoStore.getState().loadingModelIds.forEach((id) => {
+        useGeoStore.getState().setModelLoaded(id)
+      })
     }
   }, [viewer])
 
