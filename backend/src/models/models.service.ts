@@ -7,7 +7,7 @@ import { SceneModel } from '../scenes/entities/scene-model.entity'
 import { Scene } from '../scenes/entities/scene.entity'
 import { StorageService } from '../storage/storage.service'
 import { MulterFile } from '../common/types'
-import { CreateModelDto, UpdateModelDto, CreateFromUrlDto } from './dto/model.dto'
+import { CreateModelDto, UpdateModelDto, CreateFromUrlDto, CreateVersionFromUrlDto } from './dto/model.dto'
 
 /**
  * 模型管理服务
@@ -276,6 +276,51 @@ export class ModelsService {
     model.file_size = file.size
     model.file_name = file.originalname
     model.file_key = uploadResult.fileKey
+    await this.modelRepo.save(model)
+
+    return savedVersion
+  }
+
+  /**
+   * 前端分片上传完成后创建版本
+   * 流程：前端先调 /upload/multipart/* 完成上传，再调此接口落库
+   *
+   * 校验：
+   *   - dto.file_key 在 MinIO 中必须真实存在（防伪造 URL）
+   */
+  async createVersionFromUrl(modelId: string, dto: CreateVersionFromUrlDto): Promise<ModelVersion> {
+    const model = await this.findOne(modelId)
+
+    // 校验 fileKey 真实性
+    const { exists, size } = await this.storageService.verifyObject(dto.file_key)
+    if (!exists) {
+      throw new BadRequestException('文件不存在或上传未完成，请重新上传')
+    }
+    if (size !== undefined && size !== Number(dto.file_size)) {
+      this.logger.warn(
+        `版本文件大小不一致：DTO=${dto.file_size}, MinIO=${size}, key=${dto.file_key}`,
+      )
+    }
+
+    // 版本号自增
+    const newVersionNumber = model.version_count + 1
+
+    const version = this.versionRepo.create({
+      model_id: modelId,
+      version_number: newVersionNumber,
+      file_url: dto.file_url,
+      file_size: dto.file_size,
+      file_key: dto.file_key,
+      commit_message: dto.commit_message || `版本 ${newVersionNumber}`,
+    })
+    const savedVersion = await this.versionRepo.save(version)
+
+    // 更新模型的版本计数和文件引用
+    model.version_count = newVersionNumber
+    model.file_url = dto.file_url
+    model.file_size = dto.file_size
+    model.file_name = dto.file_name
+    model.file_key = dto.file_key
     await this.modelRepo.save(model)
 
     return savedVersion
