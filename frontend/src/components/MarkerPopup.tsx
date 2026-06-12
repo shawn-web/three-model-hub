@@ -57,7 +57,7 @@ export function MarkerPopupEditor({
   /** 上传标点图片 */
   const handleUploadImage = useCallback(async (file: File) => {
     try {
-      const result = await uploadFile(file)
+      const result = await uploadFile(file, { bizType: 'marker-icon' })
       const newImg: MarkerImage = {
         id: `mi-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         url: result.url,

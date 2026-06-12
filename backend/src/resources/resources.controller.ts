@@ -27,6 +27,9 @@ import {
 } from './dto/resource.dto'
 import { MulterFile } from '../common/types'
 
+/** 文件大小上限（MB） */
+const MAX_UPLOAD_SIZE_MB = parseInt(process.env.MAX_UPLOAD_SIZE_MB || '1024', 10)
+
 /**
  * 资源管理控制器
  */
@@ -92,33 +95,54 @@ export class ResourcesController {
     })
   }
 
-  /** 上传并创建资源 */
+  /**
+   * 上传并创建资源
+   * 支持两种模式：
+   *   - 新模式（JSON body）：前端先走 /upload/* 完成 MinIO 上传，再传 file_key/url/file_size 等字段落库
+   *   - 旧模式（multipart）：后端代理上传（FileInterceptor 接收文件，内部走 MinIO）
+   */
   @Post('upload')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 500 * 1024 * 1024 } }))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_UPLOAD_SIZE_MB * 1024 * 1024 } }))
   async upload(
     @UploadedFile() file: MulterFile,
-    @Body('name') name?: string,
-    @Body('type') type?: ResourceType,
-    @Body('group_id') group_id?: string,
-    @Body('width') widthStr?: string,
-    @Body('height') heightStr?: string,
-    @Body('duration') durationStr?: string,
-    @Body('mime_type') mime_type?: string,
+    @Body() body: Record<string, any>,
   ) {
-    if (!file) {
-      throw new BadRequestException('未收到上传文件')
-    }
     try {
-      return await this.resourcesService.uploadAndCreate(file, {
-        name: name || file.originalname,
-        type: type || ResourceType.IMAGE,
-        group_id: group_id || undefined,
-        width: widthStr ? parseInt(widthStr, 10) : undefined,
-        height: heightStr ? parseInt(heightStr, 10) : undefined,
-        duration: durationStr ? parseFloat(durationStr) : undefined,
-        mime_type: mime_type || undefined,
+      if (file) {
+        // 旧路径：后端代理 multipart 上传
+        return await this.resourcesService.uploadAndCreate(file, {
+          name: body.name || file.originalname,
+          type: body.type || ResourceType.IMAGE,
+          group_id: body.group_id || undefined,
+          width: body.width ? parseInt(body.width, 10) : undefined,
+          height: body.height ? parseInt(body.height, 10) : undefined,
+          duration: body.duration ? parseFloat(body.duration) : undefined,
+          mime_type: body.mime_type || undefined,
+        })
+      }
+
+      // 新路径：前端已完成 MinIO 上传，JSON body 带 file_key/url/file_size
+      if (!body.file_key || !body.url || !body.file_size) {
+        throw new BadRequestException('缺少文件信息（file_key / url / file_size）')
+      }
+      const fileSize = typeof body.file_size === 'number' ? body.file_size : parseInt(body.file_size, 10)
+      if (!Number.isFinite(fileSize) || fileSize <= 0) {
+        throw new BadRequestException('file_size 必须为正整数')
+      }
+      return await this.resourcesService.createFromFileRef({
+        name: body.name || '未命名资源',
+        type: body.type || ResourceType.IMAGE,
+        url: body.url,
+        file_key: body.file_key,
+        file_size: fileSize,
+        mime_type: body.mime_type,
+        width: body.width ? parseInt(body.width, 10) : undefined,
+        height: body.height ? parseInt(body.height, 10) : undefined,
+        duration: body.duration ? parseFloat(body.duration) : undefined,
+        group_id: body.group_id,
       })
     } catch (err) {
+      if (err instanceof BadRequestException) throw err
       console.error('[资源上传] 失败:', err)
       throw new InternalServerErrorException(
         `文件上传失败: ${err instanceof Error ? err.message : '未知错误'}`,

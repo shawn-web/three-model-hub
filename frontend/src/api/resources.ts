@@ -1,4 +1,5 @@
 import apiClient, { invalidateHttpCache } from './client'
+import { uploadFile } from './upload'
 import type { ResourceType, ResourceItem, ResourceGroup } from '../types/resource'
 
 // ===== 资源接口 =====
@@ -15,7 +16,13 @@ export async function getResources(params?: {
   return data as { items: ResourceItem[]; total: number; page: number; limit: number }
 }
 
-/** 上传并创建资源 */
+/**
+ * 上传并创建资源（tapp → MinIO 迁移后）
+ *
+ * 流程：
+ *   1. uploadFile 调 /upload/multipart/* 或 /upload/simple 完成 MinIO 上传
+ *   2. 拿到 { url, fileKey, fileSize } 后 POST /resources/upload 落库
+ */
 export async function uploadResource(
   file: File,
   metadata: {
@@ -27,20 +34,22 @@ export async function uploadResource(
     duration?: number
     mime_type?: string
   },
+  onProgress?: (percent: number) => void,
 ) {
-  const formData = new FormData()
-  formData.append('file', file)
-  formData.append('name', metadata.name)
-  formData.append('type', metadata.type)
-  if (metadata.group_id) formData.append('group_id', metadata.group_id)
-  if (metadata.width) formData.append('width', String(metadata.width))
-  if (metadata.height) formData.append('height', String(metadata.height))
-  if (metadata.duration) formData.append('duration', String(metadata.duration))
-  if (metadata.mime_type) formData.append('mime_type', metadata.mime_type)
+  const bizType = metadata.type === 'video' ? 'resource-video' : 'resource-image'
+  const { url, fileKey, fileSize } = await uploadFile(file, { bizType, onProgress })
 
-  const { data } = await apiClient.post('/resources/upload', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-    timeout: 300000,
+  const { data } = await apiClient.post('/resources/upload', {
+    name: metadata.name,
+    type: metadata.type,
+    group_id: metadata.group_id,
+    url,
+    file_key: fileKey,
+    file_size: fileSize,
+    mime_type: metadata.mime_type || file.type,
+    width: metadata.width,
+    height: metadata.height,
+    duration: metadata.duration,
   })
   invalidateHttpCache('/resources')
   return data as ResourceItem
@@ -72,17 +81,17 @@ export async function getResourceGroups() {
 export async function createResourceGroup(dto: { name: string; sort_order?: number }) {
   const { data } = await apiClient.post('/resources/groups', dto)
   invalidateHttpCache('/resources')
-  return data as ResourceGroup
+  return data
 }
 
-/** 更新分组 */
+/** 更新资源分组 */
 export async function updateResourceGroup(id: string, dto: { name?: string; sort_order?: number }) {
   const { data } = await apiClient.patch(`/resources/groups/${id}`, dto)
   invalidateHttpCache('/resources')
-  return data as ResourceGroup
+  return data
 }
 
-/** 删除分组 */
+/** 删除资源分组 */
 export async function deleteResourceGroup(id: string) {
   const { data } = await apiClient.delete(`/resources/groups/${id}`)
   invalidateHttpCache('/resources')

@@ -1,5 +1,6 @@
-import { IsString, IsOptional, IsBoolean, IsNumber, IsObject, IsArray, ValidateNested } from 'class-validator'
+﻿import { IsString, IsOptional, IsNumber, IsObject, IsArray, ValidateNested, ValidateIf, ArrayMaxSize, ArrayMinSize } from 'class-validator'
 import { Type } from 'class-transformer'
+import { GeoPositionDto } from './geo-position.dto'
 
 /**
  * 创建场景 DTO
@@ -48,7 +49,7 @@ export class UpdateSceneDto {
 }
 
 /**
- * 添加模型到场景 DTO
+ * 添加模型到场�?DTO
  */
 export class AddSceneModelDto {
   @IsString()
@@ -76,6 +77,12 @@ export class AddSceneModelDto {
   @IsOptional()
   @IsString()
   display_name?: string
+
+  @IsOptional()
+  @ValidateIf((o) => o.geo_position !== null)
+  @ValidateNested()
+  @Type(() => GeoPositionDto)
+  geo_position?: GeoPositionDto | null
 }
 
 /**
@@ -100,6 +107,12 @@ export class UpdateSceneModelDto {
   @IsOptional()
   @IsString()
   display_name?: string
+
+  @IsOptional()
+  @ValidateIf((o) => o.geo_position !== null)
+  @ValidateNested()
+  @Type(() => GeoPositionDto)
+  geo_position?: GeoPositionDto | null
 }
 
 /** 批量更新场景模型 DTO 中的单项 */
@@ -121,11 +134,19 @@ export class BatchSceneModelItemDto {
   @IsOptional()
   @IsString()
   display_name?: string
+
+  @IsOptional()
+  @ValidateIf((o) => o.geo_position !== null)
+  @ValidateNested()
+  @Type(() => GeoPositionDto)
+  geo_position?: GeoPositionDto | null
 }
 
 /** 批量更新场景模型 DTO */
 export class BatchUpdateSceneModelsDto {
   @IsArray()
+  @ArrayMaxSize(100)
+  @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => BatchSceneModelItemDto)
   models: BatchSceneModelItemDto[]
@@ -347,3 +368,4 @@ export class BatchSaveSceneImagesDto {
   @Type(() => BatchSceneImageItemDto)
   images: BatchSceneImageItemDto[]
 }
+

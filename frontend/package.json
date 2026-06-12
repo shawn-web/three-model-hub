@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "postinstall": "node -e \"const fs=require('fs'),path=require('path');const src='node_modules/cesium/Build/Cesium',dst='public/cesium';if(!fs.existsSync(dst)){fs.mkdirSync(dst,{recursive:true});}fs.cpSync(src,dst,{recursive:true,dereference:true});\""
   },
   "dependencies": {
     "@ant-design/icons": "^6.2.3",
@@ -21,6 +22,7 @@
     "@react-three/fiber": "^9.6.1",
     "antd": "^6.4.3",
     "axios": "^1.16.1",
+    "cesium": "^1.141.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-easy-crop": "^5.5.7",
@@ -34,6 +36,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^24.12.3",
     "@types/react": "^19.2.14",
@@ -51,6 +54,7 @@
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
     "vite": "^8.0.12",
+    "vite-plugin-checker": "^0.14.1",
     "vitest": "^4.1.6"
   }
 }

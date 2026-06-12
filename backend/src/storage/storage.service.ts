@@ -1,50 +1,72 @@
-import { Injectable } from '@nestjs/common'
-import { ConfigService } from '@nestjs/config'
-import axios from 'axios'
-import * as crypto from 'crypto'
+import { Injectable, Logger } from '@nestjs/common'
 import * as path from 'path'
-import FormData = require('form-data')
+import { createHash, randomUUID } from 'crypto'
+import { MinioService } from '../minio/minio.service'
 
-/** 上传进度回调类型 */
+/** 上传进度回调类型（保留兼容） */
 export type ProgressCallback = (percent: number) => void
 
-/** 上传结果 */
+/** 上传结果（保留兼容） */
 export interface UploadResult {
-  /** 文件访问 URL */
+  /** 文件公开访问 URL */
   url: string
-  /** 文件在存储服务中的 key/fileName */
+  /** 文件在 MinIO 中的 objectKey */
   fileKey: string
 }
 
+/** 业务类型映射表 */
+const BIZ_TYPE_PATH: Record<string, string> = {
+  'model': 'labs/models',
+  'model-version': 'labs/models',
+  'resource-image': 'labs/images',
+  'resource-video': 'labs/videos',
+  'marker-icon': 'labs/icons',
+  'thumbnail': 'labs/thumbnails',
+}
+
+/** MIME 类型映射（按扩展名） */
+const MIME_BY_EXT: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+  '.bmp': 'image/bmp',
+  '.ico': 'image/x-icon',
+  '.glb': 'model/gltf-binary',
+  '.gltf': 'model/gltf+json',
+  '.pdf': 'application/pdf',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mov': 'video/quicktime',
+}
+
 /**
- * 文件存储服务
- * 对接已有的文件上传服务，支持单文件和分片上传
+ * 文件存储服务（tapp → MinIO 重构）
+ *
+ * 保留 uploadFile/deleteFile 旧方法签名（内部走 MinIO）：
+ *   - ModelsController / ResourcesController 仍以 multipart 接收整文件（后端代理）
+ *   - 单文件 ≤ 8MB 时走 storageService.uploadFile
+ *
+ * 新增能力：
+ *   - generateObjectKey: 按 bizType + 文件名生成 labs/{bizPath}/{yyyy}/{MM}/{uuid}.{ext}
+ *   - verifyObject: 用 MinIO statObject 校验文件是否存在
+ *   - getPublicUrl: 拼 ${MINIO_PUBLIC_URL}/${bucket}/${key}
  */
 @Injectable()
 export class StorageService {
-  private readonly uploadUrl: string
-  private readonly deleteUrl: string
-  private readonly token: string
-  private readonly basePath: string
+  private readonly logger = new Logger(StorageService.name)
 
-  constructor(private configService: ConfigService) {
-    const baseUrl = this.configService.get<string>('FILE_SERVICE_URL') || ''
-    this.uploadUrl = baseUrl
-    // 删除接口地址：从上传 URL 推导出服务根地址
-    const urlObj = new URL(baseUrl)
-    this.deleteUrl = `${urlObj.protocol}//${urlObj.host}/hz-file-upload/file/delete`
-    this.token = this.configService.get<string>('FILE_SERVICE_TOKEN') || ''
-    this.basePath = this.configService.get<string>('FILE_SERVICE_PATH') || 'libs/model'
-  }
+  constructor(
+    private readonly minioService: MinioService,
+  ) {}
+
+  // ── 旧接口（保留兼容） ─────────────────────────────────────────
 
   /**
-   * 上传文件到文件服务
-   * @param fileBuffer 文件二进制数据
-   * @param fileName 文件名
-   * @param subPath 子路径（可选，如模型ID）
-   * @param onProgress 上传进度回调（0-100）
-   * @param customBasePath 自定义基础路径（可选，覆盖默认 basePath）
-   * @returns 上传结果（URL、fileKey）
+   * 单文件上传（≤ 8MB 走这里，给后端代理路径用）
+   * 内部走 MinIO putObject
    */
   async uploadFile(
     fileBuffer: Buffer,
@@ -53,125 +75,93 @@ export class StorageService {
     onProgress?: ProgressCallback,
     customBasePath?: string,
   ): Promise<UploadResult> {
-    const basePath = customBasePath || this.basePath
-    const uploadPath = subPath
-      ? `${basePath}/${subPath}`
-      : basePath
-
-    const formData = new FormData()
-
-    // 文件服务不支持中文文件名，非 ASCII 时生成纯 ASCII 安全名称（保留扩展名）
-    const safeFileName = /[^\x00-\x7F]/.test(fileName)
-      ? `file_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${path.extname(fileName).toLowerCase()}`
-      : fileName
-
-    // 根据文件扩展名设置正确的 MIME 类型（文件服务会校验）
     const ext = path.extname(fileName).toLowerCase()
-    const mimeTypes: Record<string, string> = {
-      '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
-      '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml',
-      '.bmp': 'image/bmp', '.ico': 'image/x-icon',
-      '.glb': 'model/gltf-binary', '.gltf': 'model/gltf+json',
-      '.pdf': 'application/pdf',
-    }
-    const contentType = mimeTypes[ext] || 'application/octet-stream'
-    formData.append('file', fileBuffer, { filename: safeFileName, contentType })
-    formData.append('path', uploadPath)
+    const mimeType = MIME_BY_EXT[ext] || 'application/octet-stream'
 
-    let response: any
-    try {
-      response = await axios.post(this.uploadUrl, formData, {
-        headers: {
-          ...formData.getHeaders(),
-          'token': this.token,
-        },
-        maxContentLength: Infinity,
-        maxBodyLength: Infinity,
-        onUploadProgress: (e) => {
-          if (e.total && onProgress) {
-            onProgress(Math.round((e.loaded / e.total) * 100))
-          }
-        },
-      })
-    } catch (err: any) {
-      const status = err?.response?.status
-      const data = err?.response?.data
-      console.error('[StorageService] 文件上传请求失败:', {
-        status,
-        data,
-        message: err?.message,
-        uploadPath,
-        fileName,
-      })
-      throw new Error(`文件上传失败：文件服务返回错误 (${status || '未知'}) - ${typeof data === 'string' ? data : JSON.stringify(data)}`)
+    // 兼容旧调用方式：customBasePath 包含 'labs/images'、'labs/videos' 等
+    // 新调用方式应使用 generateObjectKey
+    let key: string
+    if (customBasePath) {
+      // 防御性检查：subPath 若包含 '/' 或 '..' 会污染路径，置为 undefined
+      // 历史 bug：uploadVersion 曾误把 modelId 当 subPath 传入，导致 objectKey
+      // 变成 labs/models/{modelId}/2026/06/{uuid}.glb（应当是 labs/models/2026/06/...）
+      const safeSubPath =
+        subPath && !subPath.includes('/') && !subPath.includes('\\') && subPath !== '..' && subPath !== '.'
+          ? subPath
+          : undefined
+      const base = safeSubPath ? `${customBasePath}/${safeSubPath}` : customBasePath
+      key = `${base}/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${randomUUID()}${ext || '.bin'}`
+    } else {
+      key = this.generateObjectKey('model', fileName)
     }
 
-    // 文件服务返回结构：{ statusCode: "200", data: { resultUrl: "https://...", fileName: "xxx" } }
-    console.log('[StorageService] 上传响应:', JSON.stringify(response.data))
-    if (response.data) {
-      const data = response.data
-      // 检查业务错误码（文件服务 HTTP 200 但业务可能失败）
-      if (data.statusCode && data.statusCode !== '200') {
-        throw new Error(`文件上传失败：${data.statusMessage || '未知错误'}`)
-      }
-      const innerData = data.data || data
+    await this.minioService.putObject(key, fileBuffer, mimeType)
 
-      const url = innerData.resultUrl || innerData.url
-      if (url) {
-        const fileKey = innerData.fileName || innerData.fileKey || this.extractFileNameFromUrl(url)
-        return { url, fileKey }
-      }
-      if (typeof data === 'string') {
-        const fileKey = this.extractFileNameFromUrl(data)
-        return { url: data, fileKey }
-      }
+    // 旧 onProgress 兼容：单次 PUT，无真实进度
+    onProgress?.(100)
+
+    return {
+      url: this.minioService.getPublicUrl(key),
+      fileKey: key,
     }
-
-    console.error('[StorageService] 文件上传响应解析失败:', JSON.stringify(response.data))
-    throw new Error('文件上传失败：未获取到文件 URL')
   }
 
   /**
    * 删除文件
-   * @param fileName 文件名
    */
-  async deleteFile(fileName: string): Promise<void> {
-    await axios.delete(this.deleteUrl, {
-      params: { bucket: 'huazhu', fileName },
-      headers: {
-        'token': this.token,
-      },
-    })
+  async deleteFile(fileKey: string): Promise<void> {
+    if (!fileKey) return
+    await this.minioService.removeObject(fileKey)
   }
 
-  /** 从 URL 中提取文件名 */
-  private extractFileNameFromUrl(url: string): string {
+  // ── 新接口 ─────────────────────────────────────────
+
+  /**
+   * 生成 MinIO objectKey
+   * 格式：labs/{bizPath}/{yyyy}/{MM}/{uuid}.{ext}
+   */
+  generateObjectKey(
+    bizType: keyof typeof BIZ_TYPE_PATH | string,
+    fileName: string,
+  ): string {
+    const basePath = BIZ_TYPE_PATH[bizType] || 'labs/misc'
+    const ext = path.extname(fileName).toLowerCase() || '.bin'
+    const d = new Date()
+    const yyyy = d.getFullYear()
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    return `${basePath}/${yyyy}/${mm}/${randomUUID()}${ext}`
+  }
+
+  /**
+   * 校验 objectKey 是否真实存在于 MinIO
+   * @returns { exists, size? }
+   */
+  async verifyObject(fileKey: string): Promise<{ exists: boolean; size?: number }> {
+    if (!fileKey) return { exists: false }
     try {
-      const urlObj = new URL(url)
-      const parts = urlObj.pathname.split('/').filter(Boolean)
-      return parts[parts.length - 1] || ''
-    } catch {
-      return url.split('/').pop() || ''
+      const stat = await this.minioService.statObject(fileKey)
+      return { exists: true, size: stat.size }
+    } catch (e: any) {
+      this.logger.warn(`verifyObject(${fileKey}) 失败: ${e?.message || e}`)
+      return { exists: false }
     }
   }
 
-  /** 获取上传配置，供前端直传文件服务使用 */
-  getUploadConfig() {
-    return {
-      url: this.uploadUrl,
-      token: this.token,
-      path: this.basePath,
-      clientId: this.configService.get<string>('FILE_SERVICE_CLIENT_ID') || '1001',
-      passportId: this.configService.get<string>('FILE_SERVICE_PASSPORT_ID') || '',
-    }
+  /**
+   * 公开访问 URL
+   */
+  getPublicUrl(fileKey: string): string {
+    if (!fileKey) return ''
+    return this.minioService.getPublicUrl(fileKey)
   }
 
-  /** 计算文件 SHA256 哈希 */
+  /**
+   * 计算文件 SHA256 哈希（保留兼容） */
   calculateHash(buffer: Buffer): string {
-    return crypto.createHash('sha256').update(buffer).digest('hex')
+    return createHash('sha256').update(buffer).digest('hex')
   }
 
-  /** 检测文件格式 */
+  /** 检测文件格式（保留兼容） */
   detectFormat(fileName: string): string {
     const ext = path.extname(fileName).toLowerCase().replace('.', '')
     return ext || 'glb'

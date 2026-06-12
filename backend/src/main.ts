@@ -6,8 +6,19 @@ import { ExceptionFilter } from './common/exception.filter'
 import helmet from 'helmet'
 import compression from 'compression'
 
-// 生产环境必要的环境变量校验
-const requiredEnvVars = ['DB_HOST', 'DB_USERNAME', 'DB_PASSWORD', 'DB_DATABASE', 'FILE_SERVICE_URL', 'FILE_SERVICE_TOKEN']
+// 必要的环境变量校验
+// 数据库：DB_* 4 项
+// MinIO：MINIO_ENDPOINT / MINIO_ACCESS_KEY / MINIO_SECRET_KEY / MINIO_BUCKET 4 项
+const requiredEnvVars = [
+  'DB_HOST',
+  'DB_USERNAME',
+  'DB_PASSWORD',
+  'DB_DATABASE',
+  'MINIO_ENDPOINT',
+  'MINIO_ACCESS_KEY',
+  'MINIO_SECRET_KEY',
+  'MINIO_BUCKET',
+]
 for (const varName of requiredEnvVars) {
   if (!process.env[varName]) {
     console.error(`[启动失败] 缺少必要环境变量: ${varName}`)

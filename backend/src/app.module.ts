@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
 import { TypeOrmModule } from '@nestjs/typeorm'
+import { ScheduleModule } from '@nestjs/schedule'
 import { ModelsModule } from './models/models.module'
 import { ScenesModule } from './scenes/scenes.module'
 import { SharingModule } from './sharing/sharing.module'
@@ -8,6 +9,8 @@ import { ViewpointsModule } from './viewpoints/viewpoints.module'
 import { AnnotationsModule } from './annotations/annotations.module'
 import { UploadModule } from './upload/upload.module'
 import { ResourcesModule } from './resources/resources.module'
+import { GeoMapsModule } from './geo-maps/geo-maps.module'
+import { MinioModule } from './minio/minio.module'
 
 /**
  * 根模块
@@ -35,6 +38,10 @@ import { ResourcesModule } from './resources/resources.module'
       charset: 'utf8mb4',
       logging: process.env.DB_LOGGING === 'true',
     }),
+    // 定时任务模块（用于 UploadCleanupService 清理孤儿 session）
+    ScheduleModule.forRoot(),
+    // MinIO 基础设施（@Global() 全局可用）
+    MinioModule,
     ModelsModule,
     ScenesModule,
     SharingModule,
@@ -42,6 +49,7 @@ import { ResourcesModule } from './resources/resources.module'
     AnnotationsModule,
     UploadModule,
     ResourcesModule,
+    GeoMapsModule,
   ],
 })
 export class AppModule {}
