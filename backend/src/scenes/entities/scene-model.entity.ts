@@ -53,4 +53,11 @@ export class SceneModel {
   /** 显示名称，可覆盖原始模型名 */
   @Column({ length: 255, nullable: true })
   display_name: string
+
+  /**
+   * 地理定位信息（WGS84）
+   * { longitude, latitude, altitude, heading, pitch, roll, scale }
+   */
+  @Column({ type: 'json', nullable: true, comment: '地理定位信息' })
+  geo_position: Record<string, any>
 }

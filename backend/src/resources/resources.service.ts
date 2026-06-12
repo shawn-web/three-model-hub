@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { Repository } from 'typeorm'
 import { Resource, ResourceType } from './entities/resource.entity'
@@ -17,6 +17,8 @@ import { MulterFile } from '../common/types'
  */
 @Injectable()
 export class ResourcesService {
+  private readonly logger = new Logger(ResourcesService.name)
+
   constructor(
     @InjectRepository(Resource)
     private resourceRepo: Repository<Resource>,
@@ -129,6 +131,50 @@ export class ResourcesService {
       duration: metadata.duration,
       group_id: metadata.group_id,
       file_key: result.fileKey,
+    })
+  }
+
+  /**
+   * 前端已完成 MinIO 上传后创建资源（JSON body 含 file_key/url/file_size）
+   * 流程：前端先调 /upload/* 完成 MinIO 上传，再调此接口落库
+   *
+   * 校验：
+   *   - metadata.file_key 在 MinIO 中必须真实存在（防伪造 URL）
+   */
+  async createFromFileRef(metadata: {
+    name: string
+    type: ResourceType
+    url: string
+    file_key: string
+    file_size: number
+    mime_type?: string
+    width?: number
+    height?: number
+    duration?: number
+    group_id?: string
+  }): Promise<Resource> {
+    // 校验 fileKey 真实性：MinIO 中必须存在该对象
+    const { exists, size } = await this.storageService.verifyObject(metadata.file_key)
+    if (!exists) {
+      throw new BadRequestException('文件不存在或上传未完成，请重新上传')
+    }
+    if (size !== undefined && size !== Number(metadata.file_size)) {
+      this.logger.warn(
+        `资源文件大小不一致：DTO=${metadata.file_size}, MinIO=${size}, key=${metadata.file_key}`,
+      )
+    }
+
+    return this.createResource({
+      name: metadata.name,
+      type: metadata.type,
+      url: metadata.url,
+      file_size: metadata.file_size,
+      mime_type: metadata.mime_type,
+      width: metadata.width,
+      height: metadata.height,
+      duration: metadata.duration,
+      group_id: metadata.group_id,
+      file_key: metadata.file_key,
     })
   }
 

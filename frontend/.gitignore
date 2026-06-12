@@ -1,0 +1,34 @@
+# 依赖目录
+node_modules
+.pnpm-store
+
+# 构建产物
+dist
+dist-ssr
+
+# Cesium 静态资源（通过 postinstall 从 node_modules 复制）
+public/cesium
+
+# 本地环境变量
+*.local
+.env.local
+
+# 编辑器
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# 日志
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# 测试覆盖率
+coverage
+
+# 缓存
+.eslintcache
+.vite
+*.tsbuildinfo

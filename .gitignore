@@ -17,6 +17,17 @@ backend/dist
 # 环境变量
 .env
 
+# MinIO 数据目录（根目录和 backend 目录下都可能存在）
+/.minio-data/
+/backend/.minio-data/
+
+# Claude Code：本机用户级权限、临时 worktree（不入仓）
+.claude/settings.local.json
+.claude/worktrees/
+
+# 前端 public 不应放大型二进制资源（GLB 走 MinIO 上传后通过 /api/storage 拉取）
+frontend/public/*.glb
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

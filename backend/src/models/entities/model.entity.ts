@@ -27,8 +27,8 @@ export class Model {
   @Column({ type: 'json', nullable: true })
   tags: string[]
 
-  /** 文件服务返回的文件访问 URL */
-  @Column({ length: 500 })
+  /** 文件服务返回的文件访问 URL（MinIO 公开访问 URL，可能较长） */
+  @Column({ length: 1024 })
   file_url: string
 
   /** 原始文件名 */
@@ -43,12 +43,12 @@ export class Model {
   @Column({ length: 20, default: 'glb' })
   file_format: string
 
-  /** 文件在存储服务中的 key/fileName，用于删除文件 */
-  @Column({ length: 500, nullable: true })
+  /** 文件在 MinIO 中的 objectKey（格式：labs/models/yyyy/MM/{uuid}.glb），用于删除/复制 */
+  @Column({ length: 1024, nullable: true })
   file_key: string
 
-  /** 缩略图 URL，默认使用占位图 */
-  @Column({ length: 500, nullable: true })
+  /** 缩略图 URL（公开访问 URL，可能较长） */
+  @Column({ length: 1024, nullable: true })
   thumbnail_url: string
 
   /** 版本总数 */

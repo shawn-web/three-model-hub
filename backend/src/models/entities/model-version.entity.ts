@@ -28,16 +28,16 @@ export class ModelVersion {
   @Column()
   version_number: number
 
-  /** 该版本文件的 URL */
-  @Column({ length: 500 })
+  /** 该版本文件的 URL（MinIO 公开访问 URL，可能较长） */
+  @Column({ length: 1024 })
   file_url: string
 
   /** 文件大小（字节） */
   @Column({ type: 'bigint', default: 0 })
   file_size: number
 
-  /** 文件在存储服务中的 key/fileName，用于删除文件 */
-  @Column({ length: 500, nullable: true })
+  /** 文件在 MinIO 中的 objectKey，用于删除/复制 */
+  @Column({ length: 1024, nullable: true })
   file_key: string
 
   /** SHA256 哈希值，用于完整性校验 */

@@ -43,11 +43,6 @@
 ### 获取单个模型
 `GET /api/models/:id`
 
-### 获取上传配置
-`GET /api/models/upload/config`
-
-返回模型上传所需的配置信息（文件大小限制、支持格式等）。
-
 ### 创建模型记录
 `POST /api/models/create`
 
