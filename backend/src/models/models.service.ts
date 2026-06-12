@@ -244,11 +244,12 @@ export class ModelsService {
   ): Promise<ModelVersion> {
     const model = await this.findOne(modelId)
 
-    // 上传文件
+    // 上传文件（注意：uploadFile 的 3rd 参数是 subPath，应传 undefined，
+    // 否则会把 modelId 当成路径段拼到 objectKey 里，导致版本文件落到错误的子目录）
     const uploadResult = await this.storageService.uploadFile(
       file.buffer,
       file.originalname,
-      modelId,
+      undefined,
       undefined,
       'labs/models',
     )

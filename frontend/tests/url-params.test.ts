@@ -91,6 +91,12 @@ describe('parseUrlParams', () => {
       expect(parseUrlParams('?visibleModelIds=').visibleModelIds).toEqual([])
     })
 
+    it('visibleModelIds 仅传逗号（?visibleModelIds=,,,）也应解析为 []，与空值语义一致', () => {
+      // 之前 parseListParam(',,,') 会被 filter 成 [] 后返回 undefined（视作"不过滤"），
+      // 修后只要 has() 为真就强制赋 []，保持"显式配置 = 全部隐藏"语义
+      expect(parseUrlParams('?visibleModelIds=,,,').visibleModelIds).toEqual([])
+    })
+
     it('visibleModelIds 未传时应为 undefined（不过滤）', () => {
       expect(parseUrlParams('?').visibleModelIds).toBeUndefined()
     })

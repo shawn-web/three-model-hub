@@ -82,7 +82,14 @@ export class StorageService {
     // 新调用方式应使用 generateObjectKey
     let key: string
     if (customBasePath) {
-      const base = subPath ? `${customBasePath}/${subPath}` : customBasePath
+      // 防御性检查：subPath 若包含 '/' 或 '..' 会污染路径，置为 undefined
+      // 历史 bug：uploadVersion 曾误把 modelId 当 subPath 传入，导致 objectKey
+      // 变成 labs/models/{modelId}/2026/06/{uuid}.glb（应当是 labs/models/2026/06/...）
+      const safeSubPath =
+        subPath && !subPath.includes('/') && !subPath.includes('\\') && subPath !== '..' && subPath !== '.'
+          ? subPath
+          : undefined
+      const base = safeSubPath ? `${customBasePath}/${safeSubPath}` : customBasePath
       key = `${base}/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${randomUUID()}${ext || '.bin'}`
     } else {
       key = this.generateObjectKey('model', fileName)
