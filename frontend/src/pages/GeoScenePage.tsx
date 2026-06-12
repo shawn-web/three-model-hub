@@ -84,7 +84,7 @@ export function GeoScenePage() {
   // 允许的 postMessage 来源域名（从 URL 参数获取）
   const allowedOrigins = useMemo(() => {
     const origins = searchParams.get('allowedOrigins')
-    return origins ? origins.split(',') : null
+    return origins ? origins.split(',').map((o) => o.trim()).filter((o) => o.length > 0) : null
   }, [searchParams])
 
   // 把 URL 解析的 allowedOrigins 推到 MessageBus（覆盖构造时的默认值）
