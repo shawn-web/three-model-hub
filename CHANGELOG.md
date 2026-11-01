@@ -10,8 +10,11 @@
 - **契约**：`getIframeConfig` 的 `frameAncestors` 统一返回不带引号的 origin（与 `docs/api.md` 一致）
 - **仓库卫生**：移除被跟踪的 `*.tsbuildinfo`、两份 npm 锁文件、AI 工具配置；`docs/superpowers/` 更名为 `docs/design/`；重写 `.gitignore`
 - **CI**：修复 `setup-node` 的 pnpm 缓存早于 pnpm 安装的顺序缺陷；新增编码检查、lint、typecheck、文档同步校验作业
-- **安全**：从 Git 全历史中移除曾提交的 `backend/.env`
+- **安全**：重写 Git 历史，从全部 74 个提交中移除曾提交的 `backend/.env`（含 `FILE_SERVICE_TOKEN`、`DB_PASSWORD`），并清除 238MB 的 `外立面.glb` 二进制文件；仓库 `.git` 从 46MB 降至 2.4MB
+- **元信息**：统一全部历史提交的作者身份为 `shawn-web <shawn-web@users.noreply.github.com>`
 - **文档**：新增 `docs/iframe-integration.md`（路由/参数/消息协议/安全模型）
+- **发布**：主仓库迁至 Gitee（`lishuaistart/three-model`），GitHub 镜像为 `shawn-web/three-model-hub`，README 增加 CI 状态徽章
+- **配置**：`pnpm.onlyBuiltDependencies` 从 `backend/package.json` 上移到工作区根，消除 pnpm 告警
 
 ## 2026-06-02
 

@@ -3,6 +3,7 @@
 ![three-model-hub Logo](.github/assets/logo-256.png)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![CI](https://github.com/shawn-web/three-model-hub/actions/workflows/ci.yml/badge.svg)](https://github.com/shawn-web/three-model-hub/actions/workflows/ci.yml)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
 [![Self-Hosted](https://img.shields.io/badge/Self--Hosted-Docker--Ready-2496ED.svg)](#docker-快速部署)
 [![Three.js](https://img.shields.io/badge/Three.js-3D-000000.svg)](https://threejs.org/)
