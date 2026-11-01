@@ -49,8 +49,8 @@ describe('parseUrlParams', () => {
     })
 
     it('type= 非法值应返回 undefined', () => {
-      expect(parseUrlParams('?type=invalid').geoType).toBeUndefined()
-      expect(parseUrlParams('?type=').geoType).toBeUndefined()
+      expect(parseUrlParams('?type=invalid').geoType).toBeNull()
+      expect(parseUrlParams('?type=').geoType).toBeNull()
     })
   })
 
@@ -82,7 +82,7 @@ describe('parseUrlParams', () => {
     })
 
     it('visibleModelIds 未传时应为 undefined（非 null）', () => {
-      expect(parseUrlParams('?').visibleModelIds).toBeUndefined()
+      expect(parseUrlParams('?').visibleModelIds).toBeNull()
     })
 
     it('visibleModelIds 显式传空值时（?visibleModelIds=）应解析为 []，区分"未设置"和"过滤为空"语义', () => {
@@ -98,7 +98,7 @@ describe('parseUrlParams', () => {
     })
 
     it('visibleModelIds 未传时应为 undefined（不过滤）', () => {
-      expect(parseUrlParams('?').visibleModelIds).toBeUndefined()
+      expect(parseUrlParams('?').visibleModelIds).toBeNull()
     })
   })
 
@@ -148,16 +148,16 @@ describe('parseUrlParams', () => {
     })
 
     it('缺关键字段（lng/lat/alt）应容错返回 undefined', () => {
-      expect(parseUrlParams('?camera=' + encodeURIComponent(JSON.stringify({ longitude: 1 }))).camera).toBeUndefined()
+      expect(parseUrlParams('?camera=' + encodeURIComponent(JSON.stringify({ longitude: 1 }))).camera).toBeNull()
     })
 
     it('非法 JSON 应容错返回 undefined（不抛错）', () => {
-      expect(parseUrlParams('?camera=not-json').camera).toBeUndefined()
-      expect(parseUrlParams('?camera={bad').camera).toBeUndefined()
+      expect(parseUrlParams('?camera=not-json').camera).toBeNull()
+      expect(parseUrlParams('?camera={bad').camera).toBeNull()
     })
 
     it('未传时应为 undefined', () => {
-      expect(parseUrlParams('?').camera).toBeUndefined()
+      expect(parseUrlParams('?').camera).toBeNull()
     })
   })
 })

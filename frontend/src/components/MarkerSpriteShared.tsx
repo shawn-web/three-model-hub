@@ -1,4 +1,4 @@
-/* eslint-disable react-refresh/only-export-components */
+ 
 /**
  * 共享标点精灵组件
  *
@@ -16,36 +16,7 @@ import type { ThreeEvent } from '@react-three/fiber'
 import * as THREE from 'three'
 import type { MarkerData, MarkerPopup, MarkerIframe } from '../types/edit-data'
 import { getDefaultMarkerUrl } from '../utils/marker-defaults'
-
-/** 生成默认标点图标（红色定位 pin）的 Data URL */
-let _defaultMarkerDataUrl: string | null = null
-export function createDefaultMarkerImage(): string {
-  if (_defaultMarkerDataUrl) return _defaultMarkerDataUrl
-  const size = 64
-  const canvas = document.createElement('canvas')
-  canvas.width = size
-  canvas.height = size
-  const ctx = canvas.getContext('2d')!
-
-  ctx.beginPath()
-  ctx.arc(32, 22, 16, Math.PI, 0, false)
-  ctx.quadraticCurveTo(48, 38, 32, 56)
-  ctx.quadraticCurveTo(16, 38, 16, 22)
-  ctx.closePath()
-  ctx.fillStyle = '#ff4444'
-  ctx.fill()
-  ctx.strokeStyle = '#ffffff'
-  ctx.lineWidth = 2
-  ctx.stroke()
-
-  ctx.beginPath()
-  ctx.arc(32, 22, 8, 0, Math.PI * 2)
-  ctx.fillStyle = '#ffffff'
-  ctx.fill()
-
-  _defaultMarkerDataUrl = canvas.toDataURL('image/png')
-  return _defaultMarkerDataUrl
-}
+import { createDefaultMarkerImage } from '../utils/default-marker-image'
 
 /** 按形状裁切纹理，返回处理后的 CanvasTexture */
 function clipTexture(source: THREE.Texture, shape: string): THREE.CanvasTexture | null {
@@ -101,6 +72,7 @@ interface MarkerSpriteProps {
 export function MarkerSpriteShared({ marker, isSelected, onClick }: MarkerSpriteProps) {
   const spriteRef = useRef<THREE.Sprite | THREE.Mesh>(null)
   const textureRef = useRef<THREE.Texture | null>(null)
+  const popupGroupRef = useRef<THREE.Group>(null)
   const { camera } = useThree()
   const [rawTexture, setRawTexture] = useState<THREE.Texture | null>(null)
   const [hovered, setHovered] = useState(false)
@@ -209,6 +181,16 @@ export function MarkerSpriteShared({ marker, isSelected, onClick }: MarkerSprite
       // 回退球体保持较小尺寸，不随距离放大
       spriteRef.current.scale.set(1, 1, 1)
     }
+
+    // 弹窗锚点跟随标点顶部，避免弹窗遮挡标点
+    if (popupGroupRef.current) {
+      const anchorPos = new THREE.Vector3(marker.position[0], marker.position[1] + yOffset, marker.position[2])
+      const anchorDist = camera.position.distanceTo(anchorPos)
+      const markerH = (marker.height ?? 1) * 0.5
+      const markerScreenFactor = marker.fixedSize ? 1 : anchorDist * 0.12
+      const spriteHeight = displayTexture ? Math.max(markerH * markerScreenFactor, 0.001) : 0.15
+      popupGroupRef.current.position.set(marker.position[0], marker.position[1] + yOffset + spriteHeight, marker.position[2])
+    }
   })
 
   const position = useMemo(
@@ -233,6 +215,7 @@ export function MarkerSpriteShared({ marker, isSelected, onClick }: MarkerSprite
           <sprite
             ref={spriteRef}
             position={position}
+            center={[0.5, 0]}
             onClick={handleClick}
             onPointerOver={() => setHovered(true)}
             onPointerOut={() => setHovered(false)}
@@ -260,15 +243,19 @@ export function MarkerSpriteShared({ marker, isSelected, onClick }: MarkerSprite
       </group>
 
       {expanded && marker.action === 'popup' && marker.popup && (
-        <Html position={position} style={{ pointerEvents: 'auto', transform: 'translate(-50%, calc(-100% - 24px))', zIndex: 100 }}>
-          <MarkerPopupDom popup={marker.popup} onClose={() => setExpanded(false)} />
-        </Html>
+        <group ref={popupGroupRef}>
+          <Html position={[0, 0, 0]} style={{ pointerEvents: 'auto', transform: 'translate(-50%, -100%)', marginTop: '-8px', zIndex: 100 }}>
+            <MarkerPopupDom popup={marker.popup} onClose={() => setExpanded(false)} />
+          </Html>
+        </group>
       )}
 
       {expanded && marker.action === 'iframe' && marker.iframe && (
-        <Html position={position} style={{ pointerEvents: 'auto', transform: 'translate(-50%, calc(-100% - 24px))', zIndex: 100 }}>
-          <MarkerIframeDom iframe={marker.iframe} onClose={() => setExpanded(false)} />
-        </Html>
+        <group ref={popupGroupRef}>
+          <Html position={[0, 0, 0]} style={{ pointerEvents: 'auto', transform: 'translate(-50%, -100%)', marginTop: '-8px', zIndex: 100 }}>
+            <MarkerIframeDom iframe={marker.iframe} onClose={() => setExpanded(false)} />
+          </Html>
+        </group>
       )}
     </>
   )

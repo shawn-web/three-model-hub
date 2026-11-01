@@ -1,8 +1,9 @@
-﻿import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { Layout as AntdLayout, Menu, Switch, ConfigProvider, theme as antdTheme } from 'antd'
 import { SunOutlined, MoonOutlined } from '@ant-design/icons'
 import { Home20, Cube20, LayerScene20, Image20, Location20 as GlobalOutlined } from './FluentIcon'
+import { Logo } from './Logo'
 import { useThemeStore } from '../store/theme-store'
 import { getThemeConfig } from '../theme'
 import { QuestionCircleOutlined } from '@ant-design/icons'
@@ -71,12 +72,13 @@ export function Layout() {
       <AntdLayout className="min-h-screen h-screen">
         {/* 顶部导航栏 */}
         <Header className="flex items-center px-6 sticky top-0 z-[100] shadow-[0_1px_4px_rgba(0,0,0,0.08)]">
-          {/* 站点标题 */}
+          {/* 站点 Logo + 标题 */}
           <div
-            className="text-base font-bold text-[--ant-color-primary] mr-8 whitespace-nowrap cursor-pointer"
+            className="flex items-center gap-2 mr-8 whitespace-nowrap cursor-pointer select-none"
             onClick={() => navigate('/')}
           >
-            3D 模型平台
+            <Logo size={28} />
+            <span className="text-base font-bold text-[--ant-color-primary]">3D 模型平台</span>
           </div>
 
           {/* 导航菜单 */}

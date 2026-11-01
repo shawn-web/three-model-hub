@@ -28,8 +28,8 @@ export class ViewpointsService {
   /**
    * 获取单个视点详情
    */
-  async findOne(id: string): Promise<Viewpoint> {
-    const viewpoint = await this.viewpointRepo.findOne({ where: { id } })
+  async findOne(sceneId: string, id: string): Promise<Viewpoint> {
+    const viewpoint = await this.viewpointRepo.findOne({ where: { id, scene_id: sceneId } })
     if (!viewpoint) {
       throw new NotFoundException(`视点不存在: ${id}`)
     }
@@ -56,8 +56,8 @@ export class ViewpointsService {
   /**
    * 更新视点
    */
-  async update(id: string, dto: UpdateViewpointDto): Promise<Viewpoint> {
-    const viewpoint = await this.findOne(id)
+  async update(sceneId: string, id: string, dto: UpdateViewpointDto): Promise<Viewpoint> {
+    const viewpoint = await this.findOne(sceneId, id)
     if (dto.name !== undefined) viewpoint.name = dto.name
     if (dto.camera_position_x !== undefined || dto.camera_position_y !== undefined || dto.camera_position_z !== undefined) {
       viewpoint.camera_position = {
@@ -87,8 +87,8 @@ export class ViewpointsService {
   /**
    * 删除视点
    */
-  async remove(id: string): Promise<void> {
-    const viewpoint = await this.findOne(id)
+  async remove(sceneId: string, id: string): Promise<void> {
+    const viewpoint = await this.findOne(sceneId, id)
     await this.viewpointRepo.remove(viewpoint)
   }
 }

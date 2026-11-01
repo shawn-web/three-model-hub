@@ -50,7 +50,7 @@ export class RotationModePlugin implements ViewerPlugin {
   sceneComponent: FC = RotationModeScene
   toolbarComponent: FC<{ plugin: ViewerPlugin }> = RotationModeToolbarButton
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   install(_context: ViewerContext): void {}
   uninstall(): void {}
   activate(): void { this.active = true }

@@ -1,13 +1,13 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
-import { Repository } from 'typeorm'
+import { Repository, DataSource } from 'typeorm'
 import { Model } from './entities/model.entity'
 import { ModelVersion } from './entities/model-version.entity'
 import { SceneModel } from '../scenes/entities/scene-model.entity'
 import { Scene } from '../scenes/entities/scene.entity'
 import { StorageService } from '../storage/storage.service'
-import { MulterFile } from '../common/types'
-import { CreateModelDto, UpdateModelDto, CreateFromUrlDto, CreateVersionFromUrlDto } from './dto/model.dto'
+import { ModelCompressionService } from './model-compression.service'
+import { UpdateModelDto, CreateFromUrlDto, CreateVersionFromUrlDto } from './dto/model.dto'
 
 /**
  * 模型管理服务
@@ -30,6 +30,8 @@ export class ModelsService {
     @InjectRepository(SceneModel)
     private sceneModelRepo: Repository<SceneModel>,
     private storageService: StorageService,
+    private compressionService: ModelCompressionService,
+    private dataSource: DataSource,
   ) {}
 
   /**
@@ -86,7 +88,9 @@ export class ModelsService {
    * 校验：
    *   - dto.file_key 在 MinIO 中必须真实存在（防伪造 URL）
    */
-  async createFromUrl(dto: CreateFromUrlDto): Promise<Model> {
+  async createFromUrl(
+    dto: CreateFromUrlDto,
+  ): Promise<{ model: Model; compressionTaskId?: string }> {
     // 校验 fileKey 真实性：MinIO 中必须存在该对象
     const { exists, size } = await this.storageService.verifyObject(dto.file_key)
     if (!exists) {
@@ -101,75 +105,48 @@ export class ModelsService {
 
     const fileFormat = this.storageService.detectFormat(dto.file_name)
 
-    const model = this.modelRepo.create({
-      name: dto.name || dto.file_name.replace(/\.[^.]+$/, ''),
-      description: dto.description,
-      tags: dto.tags || [],
-      file_url: dto.file_url,
-      file_name: dto.file_name,
-      file_size: dto.file_size,
-      file_format: fileFormat,
-      file_key: dto.file_key,
-      version_count: 1,
+    // 事务：落库 model + version
+    const savedModel = await this.dataSource.transaction(async (manager) => {
+      const model = manager.create(Model, {
+        name: dto.name || dto.file_name.replace(/\.[^.]+$/, ''),
+        description: dto.description,
+        tags: dto.tags || [],
+        file_url: dto.file_url,
+        file_name: dto.file_name,
+        file_size: dto.file_size,
+        file_format: fileFormat,
+        file_key: dto.file_key,
+        version_count: 1,
+      })
+      const saved = await manager.save(Model, model)
+
+      const version = manager.create(ModelVersion, {
+        model_id: saved.id,
+        version_number: 1,
+        file_url: dto.file_url,
+        file_size: dto.file_size,
+        file_key: dto.file_key,
+        commit_message: dto.commit_message || '初始版本',
+      })
+      await manager.save(ModelVersion, version)
+
+      return saved
     })
-    const savedModel = await this.modelRepo.save(model)
 
-    const version = this.versionRepo.create({
-      model_id: savedModel.id,
-      version_number: 1,
-      file_url: dto.file_url,
-      file_size: dto.file_size,
-      file_key: dto.file_key,
-      commit_message: dto.commit_message || '初始版本',
-    })
-    await this.versionRepo.save(version)
+    // 事务提交后再触发压缩（startCompression 用非事务 Repository 查询，
+    // 事务内未提交的数据对其他连接不可见，会导致 NotFoundException）
+    // 注：压缩本身是异步 best-effort，触发失败不应阻塞已落库的 model，
+    // 仅 warn 日志 + 不返回 compressionTaskId（前端可手动触发压缩）
+    let compressionTaskId: string | undefined
+    if (dto.compress) {
+      try {
+        compressionTaskId = (await this.compressionService.startCompression(savedModel.id, undefined)).taskId
+      } catch (e: any) {
+        this.logger.warn(`上传后触发压缩失败（model 已落库）: ${e?.message || e}`)
+      }
+    }
 
-    return savedModel
-  }
-
-  /**
-   * 后端代理上传（备用方案，整文件 multipart 接收，内部走 MinIO）
-   */
-  async create(
-    file: MulterFile,
-    dto: CreateModelDto,
-  ): Promise<Model> {
-    const uploadResult = await this.storageService.uploadFile(
-      file.buffer,
-      file.originalname,
-      undefined,
-      undefined,
-      'labs/models',
-    )
-
-    const fileHash = this.storageService.calculateHash(file.buffer)
-    const fileFormat = this.storageService.detectFormat(file.originalname)
-
-    const model = this.modelRepo.create({
-      name: dto.name || file.originalname.replace(/\.[^.]+$/, ''),
-      description: dto.description,
-      tags: dto.tags || [],
-      file_url: uploadResult.url,
-      file_name: file.originalname,
-      file_size: file.size,
-      file_format: fileFormat,
-      file_key: uploadResult.fileKey,
-      version_count: 1,
-    })
-    const savedModel = await this.modelRepo.save(model)
-
-    const version = this.versionRepo.create({
-      model_id: savedModel.id,
-      version_number: 1,
-      file_url: uploadResult.url,
-      file_size: file.size,
-      file_hash: fileHash,
-      file_key: uploadResult.fileKey,
-      commit_message: dto.commit_message || '初始版本',
-    })
-    await this.versionRepo.save(version)
-
-    return savedModel
+    return { model: savedModel, compressionTaskId }
   }
 
   /**
@@ -235,62 +212,16 @@ export class ModelsService {
   }
 
   /**
-   * 上传新版本（后端代理 multipart，内部走 MinIO）
-   */
-  async uploadVersion(
-    modelId: string,
-    file: MulterFile,
-    commitMessage?: string,
-  ): Promise<ModelVersion> {
-    const model = await this.findOne(modelId)
-
-    // 上传文件（注意：uploadFile 的 3rd 参数是 subPath，应传 undefined，
-    // 否则会把 modelId 当成路径段拼到 objectKey 里，导致版本文件落到错误的子目录）
-    const uploadResult = await this.storageService.uploadFile(
-      file.buffer,
-      file.originalname,
-      undefined,
-      undefined,
-      'labs/models',
-    )
-
-    const fileHash = this.storageService.calculateHash(file.buffer)
-
-    // 版本号自增
-    const newVersionNumber = model.version_count + 1
-
-    const version = this.versionRepo.create({
-      model_id: modelId,
-      version_number: newVersionNumber,
-      file_url: uploadResult.url,
-      file_size: file.size,
-      file_hash: fileHash,
-      file_key: uploadResult.fileKey,
-      commit_message: commitMessage || `版本 ${newVersionNumber}`,
-    })
-    const savedVersion = await this.versionRepo.save(version)
-
-    // 更新模型的版本计数和文件引用
-    model.version_count = newVersionNumber
-    model.file_url = uploadResult.url
-    model.file_size = file.size
-    model.file_name = file.originalname
-    model.file_key = uploadResult.fileKey
-    await this.modelRepo.save(model)
-
-    return savedVersion
-  }
-
-  /**
    * 前端分片上传完成后创建版本
    * 流程：前端先调 /upload/multipart/* 完成上传，再调此接口落库
    *
    * 校验：
    *   - dto.file_key 在 MinIO 中必须真实存在（防伪造 URL）
    */
-  async createVersionFromUrl(modelId: string, dto: CreateVersionFromUrlDto): Promise<ModelVersion> {
-    const model = await this.findOne(modelId)
-
+  async createVersionFromUrl(
+    modelId: string,
+    dto: CreateVersionFromUrlDto,
+  ): Promise<{ version: ModelVersion; compressionTaskId?: string }> {
     // 校验 fileKey 真实性
     const { exists, size } = await this.storageService.verifyObject(dto.file_key)
     if (!exists) {
@@ -302,28 +233,57 @@ export class ModelsService {
       )
     }
 
-    // 版本号自增
-    const newVersionNumber = model.version_count + 1
+    // 事务：落库 version + 更新 model
+    const fileFormat = this.storageService.detectFormat(dto.file_name)
+    const savedVersion = await this.dataSource.transaction(async (manager) => {
+      // 对 model 行加写锁，防止并发读改写导致 version_number 重复
+      const model = await manager.findOne(Model, {
+        where: { id: modelId },
+        lock: { mode: 'pessimistic_write' },
+      })
+      if (!model) {
+        throw new NotFoundException(`模型不存在: ${modelId}`)
+      }
 
-    const version = this.versionRepo.create({
-      model_id: modelId,
-      version_number: newVersionNumber,
-      file_url: dto.file_url,
-      file_size: dto.file_size,
-      file_key: dto.file_key,
-      commit_message: dto.commit_message || `版本 ${newVersionNumber}`,
+      // 版本号自增
+      const newVersionNumber = model.version_count + 1
+
+      const version = manager.create(ModelVersion, {
+        model_id: modelId,
+        version_number: newVersionNumber,
+        file_url: dto.file_url,
+        file_size: dto.file_size,
+        file_key: dto.file_key,
+        commit_message: dto.commit_message || `版本 ${newVersionNumber}`,
+      })
+      const saved = await manager.save(ModelVersion, version)
+
+      // 更新模型的版本计数和文件引用
+      model.version_count = newVersionNumber
+      model.file_url = dto.file_url
+      model.file_size = dto.file_size
+      model.file_name = dto.file_name
+      model.file_key = dto.file_key
+      model.file_format = fileFormat
+      await manager.save(Model, model)
+
+      return saved
     })
-    const savedVersion = await this.versionRepo.save(version)
 
-    // 更新模型的版本计数和文件引用
-    model.version_count = newVersionNumber
-    model.file_url = dto.file_url
-    model.file_size = dto.file_size
-    model.file_name = dto.file_name
-    model.file_key = dto.file_key
-    await this.modelRepo.save(model)
+    // 事务提交后再触发压缩（startCompression 用非事务 Repository 查询，
+    // 事务内未提交的数据对其他连接不可见，会导致 NotFoundException）
+    // 注：压缩本身是异步 best-effort，触发失败不应阻塞已落库的 version，
+    // 仅 warn 日志 + 不返回 compressionTaskId（前端可手动触发压缩）
+    let compressionTaskId: string | undefined
+    if (dto.compress) {
+      try {
+        compressionTaskId = (await this.compressionService.startCompression(modelId, undefined)).taskId
+      } catch (e: any) {
+        this.logger.warn(`上传新版本后触发压缩失败（version 已落库）: ${e?.message || e}`)
+      }
+    }
 
-    return savedVersion
+    return { version: savedVersion, compressionTaskId }
   }
 
   /**
@@ -342,39 +302,47 @@ export class ModelsService {
   async copy(id: string): Promise<Model> {
     const original = await this.findOne(id)
 
-    const copy = this.modelRepo.create({
-      name: `${original.name} (副本)`,
-      description: original.description,
-      tags: original.tags,
-      file_url: original.file_url,
-      file_name: original.file_name,
-      file_size: original.file_size,
-      file_format: original.file_format,
-      thumbnail_url: original.thumbnail_url,
-      file_key: original.file_key,
-      version_count: 1,
-    })
-    const savedCopy = await this.modelRepo.save(copy)
-
-    // 复制最新版本
-    const latestVersion = await this.versionRepo.findOne({
-      where: { model_id: id },
-      order: { version_number: 'DESC' },
-    })
-    if (latestVersion) {
-      const versionCopy = this.versionRepo.create({
-        model_id: savedCopy.id,
-        version_number: 1,
-        file_url: latestVersion.file_url,
-        file_size: latestVersion.file_size,
-        file_hash: latestVersion.file_hash,
-        file_key: latestVersion.file_key,
-        commit_message: `复制自 ${original.name}`,
+    return this.dataSource.transaction(async (manager) => {
+      // 对原模型行加写锁，防止并发读改写导致版本号/计数异常
+      await manager.findOne(Model, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
       })
-      await this.versionRepo.save(versionCopy)
-    }
 
-    return savedCopy
+      const copy = manager.create(Model, {
+        name: `${original.name} (副本)`,
+        description: original.description,
+        tags: original.tags,
+        file_url: original.file_url,
+        file_name: original.file_name,
+        file_size: original.file_size,
+        file_format: original.file_format,
+        thumbnail_url: original.thumbnail_url,
+        file_key: original.file_key,
+        version_count: 1,
+      })
+      const savedCopy = await manager.save(Model, copy)
+
+      // 复制最新版本
+      const latestVersion = await manager.findOne(ModelVersion, {
+        where: { model_id: id },
+        order: { version_number: 'DESC' },
+      })
+      if (latestVersion) {
+        const versionCopy = manager.create(ModelVersion, {
+          model_id: savedCopy.id,
+          version_number: 1,
+          file_url: latestVersion.file_url,
+          file_size: latestVersion.file_size,
+          file_hash: latestVersion.file_hash,
+          file_key: latestVersion.file_key,
+          commit_message: `复制自 ${original.name}`,
+        })
+        await manager.save(ModelVersion, versionCopy)
+      }
+
+      return savedCopy
+    })
   }
 
   /**

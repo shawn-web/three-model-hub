@@ -72,7 +72,6 @@ async function uploadFileSimple(
   formData.append('bizType', options.bizType)
 
   const { data } = await apiClient.post<UploadResult>('/upload/simple', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
     timeout: 300000,
     signal: options.signal,
     onUploadProgress: (e) => {
@@ -142,6 +141,12 @@ async function uploadFileByChunk(
 
   // 5. 并发上传分片
   const etagMap = new Map<number, string>()
+  // 共享 AbortController：任一 worker 失败时取消其余 worker，避免孤儿上传
+  const internalAbort = new AbortController()
+  const onExternalAbort = () => internalAbort.abort()
+  options.signal?.addEventListener('abort', onExternalAbort)
+  const effectiveSignal = internalAbort.signal
+
   const workers = Array.from(
     { length: Math.min(MAX_CONCURRENT_PARTS, queue.length) },
     () => worker(),
@@ -149,7 +154,7 @@ async function uploadFileByChunk(
 
   async function worker() {
     while (queue.length > 0) {
-      if (options.signal?.aborted) {
+      if (effectiveSignal.aborted) {
         throw new DOMException('Upload aborted', 'AbortError')
       }
 
@@ -158,14 +163,24 @@ async function uploadFileByChunk(
       const end = Math.min(start + partSize, file.size)
       const blob = file.slice(start, end)
 
-      const etag = await uploadPartWithRetry(init.uploadId, partNumber, blob, options.signal)
-      etagMap.set(partNumber, etag)
-      uploadedBytes += blob.size
-      updateProgress()
+      try {
+        const etag = await uploadPartWithRetry(init.uploadId, partNumber, blob, effectiveSignal)
+        etagMap.set(partNumber, etag)
+        uploadedBytes += blob.size
+        updateProgress()
+      } catch (e) {
+        // 任一 worker 失败，取消其余 worker
+        internalAbort.abort()
+        throw e
+      }
     }
   }
 
-  await Promise.all(workers)
+  try {
+    await Promise.all(workers)
+  } finally {
+    options.signal?.removeEventListener('abort', onExternalAbort)
+  }
 
   // 6. 合并
   const parts = Array.from(etagMap.entries())

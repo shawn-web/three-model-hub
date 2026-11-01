@@ -127,7 +127,7 @@ describe('uploadFile', () => {
       const file = makeFile(16 * 1024 * 1024, 'big.glb', 'model/gltf-binary')
 
       // 使用 mockImplementation 根据 URL 路由：避免 mockResolvedValueOnce 顺序问题
-      mockPost.mockImplementation(async (url: string, body?: any, config?: any) => {
+      mockPost.mockImplementation(async (url: string, body?: any, _config?: any) => {
         if (url === '/upload/multipart/init') {
           return {
             data: { uploadId: 'up-1', objectKey: 'labs/big.glb', partSize: 8 * 1024 * 1024, totalParts: 2 },

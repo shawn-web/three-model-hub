@@ -45,7 +45,7 @@ describe('Geo Maps & Scenes /geo API 端到端测试', () => {
           port: parseInt(process.env.DB_PORT || '3306', 10),
           username: process.env.DB_USERNAME || 'root',
           password: process.env.DB_PASSWORD || 'root',
-          database: process.env.DB_DATABASE || 'three_model_hub',
+          database: process.env.DB_DATABASE || 'three_model_hub_test',
           entities: [
             Model,
             ModelVersion,
@@ -56,6 +56,7 @@ describe('Geo Maps & Scenes /geo API 端到端测试', () => {
             GeoMapModel,
           ],
           synchronize: true,
+          dropSchema: true,
           charset: 'utf8mb4',
           logging: false,
         }),
@@ -71,10 +72,6 @@ describe('Geo Maps & Scenes /geo API 端到端测试', () => {
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
     await app.init()
     dataSource = moduleFixture.get(DataSource)
-
-    // 修复既有 schema：synchronize 不会修改已有列的约束
-    // geo_map_models.model_id 历史 schema 含 DEFAULT NULL，与 entity 的 @Column() 不匹配
-    await dataSource.query('ALTER TABLE geo_map_models MODIFY model_id VARCHAR(255) NOT NULL')
 
     // 直接通过 TypeORM 仓库创建依赖数据（避免 HTTP 调用链副作用）
     const modelRepo = dataSource.getRepository(Model)

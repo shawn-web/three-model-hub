@@ -22,7 +22,7 @@ export class MeasurementPlugin implements ViewerPlugin {
   // Listener for state changes from scene components
   private stateListener: ((measurements: MeasurementData[], pendingStart: THREE.Vector3 | null) => void) | null = null
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   install(_context: ViewerContext): void {
     // 场景交互由 PluginScene 组件处理，无需 context
   }
@@ -38,8 +38,7 @@ export class MeasurementPlugin implements ViewerPlugin {
 
   deactivate(): void {
     this.active = false
-    this.pendingStart = null
-    this.notifyListener()
+    this.clearAll()
   }
 
   isActive(): boolean {

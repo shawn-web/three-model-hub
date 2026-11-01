@@ -10,6 +10,7 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js'
+import { configureMeshopt } from './meshopt-setup'
 
 /* ──────────────── 模型缓存 ──────────────── */
 
@@ -63,7 +64,7 @@ async function setToBrowserCache(url: string, data: ArrayBuffer): Promise<void> 
 }
 
 /** 内部默认 GLTFLoader 实例，供 loadGLBWithCache(url) 简化调用使用 */
-const defaultGLTFLoader = new GLTFLoader()
+const defaultGLTFLoader = configureMeshopt(new GLTFLoader())
 
 /** 已完成的模型缓存：URL → CacheEntry */
 const modelCache = new Map<string, CacheEntry>()
@@ -114,22 +115,20 @@ function setCachedModel(
 export async function loadGLBWithCache(
   gltfLoaderOrUrl: GLTFLoader | string,
   urlOrOnProgress?: string | ((event: ProgressEvent) => void),
-  onProgress?: (event: ProgressEvent) => void,
+  // 预留：当前加载链路走 fetch + parseAsync，暂未接入进度回调
+  _onProgress?: (event: ProgressEvent) => void,
 ): Promise<{ scene: THREE.Group; fromCache: boolean }> {
   // 支持多种调用方式：
   // loadGLBWithCache(url[, onProgress])
   // loadGLBWithCache(loader, url[, onProgress])
   let loader: GLTFLoader
   let fileUrl: string
-  let progressCb: ((event: ProgressEvent) => void) | undefined
   if (typeof gltfLoaderOrUrl === 'string') {
     loader = defaultGLTFLoader
     fileUrl = gltfLoaderOrUrl
-    progressCb = typeof urlOrOnProgress === 'function' ? urlOrOnProgress : undefined
   } else {
     loader = gltfLoaderOrUrl
     fileUrl = urlOrOnProgress as string
-    progressCb = onProgress
   }
   // 1. 检查已完成缓存
   const cached = getCachedModel(fileUrl)
@@ -162,32 +161,22 @@ export async function loadGLBWithCache(
     }
   }
 
-  // 4. 发起新的加载请求（使用 fetch 获取原始数据以便缓存）
-  const loadPromise = new Promise<Awaited<ReturnType<GLTFLoader['loadAsync']>>>((resolve, reject) => {
-    loader.load(
-      fileUrl,
-      (gltf) => resolve(gltf),
-      (event) => {
-        if (progressCb && event.lengthComputable) {
-          progressCb(event)
-        }
-      },
-      (err) => reject(err),
-    )
-  })
-  loadingCache.set(fileUrl, { promise: loadPromise })
-
+  // 4. 发起新的加载请求（先 fetch 拿 ArrayBuffer 再 parseAsync，避免重复下载）
   try {
+    const response = await fetch(fileUrl)
+    if (!response.ok) {
+      throw new Error(`加载 GLB 失败: ${response.status} ${response.statusText}`)
+    }
+    const arrayBuffer = await response.arrayBuffer()
+    // 后台写入浏览器缓存（不阻塞返回）
+    setToBrowserCache(fileUrl, arrayBuffer).catch(() => {})
+
+    const loadPromise = loader.parseAsync(arrayBuffer, '')
+    loadingCache.set(fileUrl, { promise: loadPromise })
+
     const gltf = await loadPromise
     setCachedModel(fileUrl, gltf)
-    // 后台写入浏览器缓存（不阻塞返回）
-    fetch(fileUrl).then((res) => {
-      if (res.ok) return res.arrayBuffer()
-      return null
-    }).then((buf) => {
-      if (buf) setToBrowserCache(fileUrl, buf)
-    }).catch(() => {})
-    return { scene: gltf.scene as THREE.Group, fromCache: false }
+    return { scene: SkeletonUtils.clone(gltf.scene) as THREE.Group, fromCache: false }
   } finally {
     loadingCache.delete(fileUrl)
   }
@@ -324,7 +313,7 @@ export async function loadSceneModels(
   const rootGroup = new THREE.Group()
   rootGroup.name = 'SceneModels'
 
-  const gltfLoader = new GLTFLoader()
+  const gltfLoader = configureMeshopt(new GLTFLoader())
   const total = sceneModels.length
   let loaded = 0
   const errors: string[] = []
@@ -386,6 +375,9 @@ export async function loadSceneModels(
       if (sm.material_overrides?.components) {
         const components = sm.material_overrides.components
         console.log('[Load] model:', displayName, 'override keys:', Object.keys(components))
+        // 复用单个 TextureLoader，避免每个 mesh 都新建
+        const texLoader = new THREE.TextureLoader()
+        texLoader.setCrossOrigin('anonymous')
         model.traverse((child) => {
           // 按优先级查找：name → 索引路径 → uuid
           const path = getNodePath(child, model)
@@ -414,8 +406,6 @@ export async function loadSceneModels(
               m.opacity = override.opacity
             }
             // 应用 PBR 贴图覆盖
-            const texLoader = new THREE.TextureLoader()
-            texLoader.setCrossOrigin('anonymous')
             const texChannels: Array<{
               url: string | null | undefined
               mapKey: keyof Pick<THREE.MeshStandardMaterial, 'map' | 'normalMap' | 'roughnessMap' | 'metalnessMap' | 'emissiveMap'>

@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { UploadService } from './upload.service'
-import { InitMultipartDto } from './dto/init-multipart.dto'
+import { InitMultipartDto, BIZ_TYPES } from './dto/init-multipart.dto'
 import { CompleteMultipartDto } from './dto/complete-multipart.dto'
 import { AbortDto } from './dto/abort.dto'
 import { UploadPartQueryDto } from './dto/upload-part.dto'
@@ -49,8 +49,8 @@ export class UploadController {
     if (!file) {
       throw new BadRequestException('请选择要上传的文件')
     }
-    if (!bizType) {
-      throw new BadRequestException('bizType 不能为空')
+    if (!bizType || !BIZ_TYPES.includes(bizType as any)) {
+      throw new BadRequestException(`bizType 必须是以下值之一：${BIZ_TYPES.join(', ')}`)
     }
     return this.uploadService.uploadSimple(file, bizType)
   }

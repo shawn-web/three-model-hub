@@ -31,7 +31,6 @@ export function GeoModelLayer({ viewer }: GeoModelLayerProps) {
   /** 追踪已创建的 Blob URL，用于组件卸载或实体删除时释放 */
   const blobUrlsRef = useRef<Map<string, string>>(new Map())
   /** 全局唯一的 postRender 监听器引用，所有待加载的实体共用同一个监听器 */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const postRenderListenerRef = useRef<((() => void) | null)>(null)
   /** 待检测 ready 的模型：Map<modelId, entity>，用 string key 避免 Set object identity 问题 */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

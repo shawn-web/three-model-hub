@@ -29,6 +29,7 @@ describe('UploadService', () => {
     mockSessionRepo = {
       create: jest.fn((dto) => ({ id: 'session-1', ...dto })),
       save: jest.fn(async (s) => s),
+      update: jest.fn(async () => undefined),
       findOne: jest.fn(),
       // 默认返回受影响的行数 1（让成功路径走通）；具体测试可覆盖
       query: jest.fn().mockResolvedValue([{ affectedRows: 1 }]),
@@ -127,7 +128,7 @@ describe('UploadService', () => {
       // 验证走的是原子 UPDATE 而不是 read-modify-write save
       expect(mockSessionRepo.query).toHaveBeenCalledWith(
         expect.stringContaining('JSON_SET'),
-        expect.arrayContaining(['$.1', 'etag-1', 'up-1']),
+        expect.arrayContaining(['$."1"', 'etag-1', 'up-1']),
       )
       expect(mockSessionRepo.save).not.toHaveBeenCalled()
     })
@@ -180,6 +181,7 @@ describe('UploadService', () => {
 
     it('成功时调 minio.completeMultipart + 标记 status=completed', async () => {
       mockSessionRepo.findOne.mockResolvedValue({
+        id: 'session-1',
         upload_id: 'up-1',
         status: 'pending',
         object_key: 'labs/x.glb',
@@ -198,6 +200,7 @@ describe('UploadService', () => {
       })
 
       expect(result.fileSize).toBe(16 * 1024 * 1024)
+      // 走 save() 标记 status=completed（complete 时已无并发 uploadPart，save 安全）
       expect(mockSessionRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({ status: 'completed' }),
       )
@@ -256,6 +259,48 @@ describe('UploadService', () => {
           parts: [{ partNumber: 1, etag: 'e1' }],
         }),
       ).rejects.toBeInstanceOf(BadRequestException)
+    })
+
+    it('跳片（非连续编号）时抛 BadRequestException', async () => {
+      mockSessionRepo.findOne.mockResolvedValue({
+        upload_id: 'up-1',
+        status: 'pending',
+        object_key: 'labs/x.glb',
+        file_size: 16 * 1024 * 1024,
+        uploaded_parts: { '1': 'e1', '3': 'e3' },
+      })
+
+      await expect(
+        service.completeMultipart({
+          uploadId: 'up-1',
+          parts: [
+            { partNumber: 1, etag: 'e1' },
+            { partNumber: 3, etag: 'e3' },
+          ],
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException)
+      expect(mockMinio.completeMultipart).not.toHaveBeenCalled()
+    })
+
+    it('分片编号不从 1 开始时抛 BadRequestException', async () => {
+      mockSessionRepo.findOne.mockResolvedValue({
+        upload_id: 'up-1',
+        status: 'pending',
+        object_key: 'labs/x.glb',
+        file_size: 16 * 1024 * 1024,
+        uploaded_parts: { '2': 'e2', '3': 'e3' },
+      })
+
+      await expect(
+        service.completeMultipart({
+          uploadId: 'up-1',
+          parts: [
+            { partNumber: 2, etag: 'e2' },
+            { partNumber: 3, etag: 'e3' },
+          ],
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException)
+      expect(mockMinio.completeMultipart).not.toHaveBeenCalled()
     })
   })
 

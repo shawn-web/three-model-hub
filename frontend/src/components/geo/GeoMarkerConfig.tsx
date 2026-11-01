@@ -3,41 +3,15 @@
  * 三 Tab 设计：基础（图标选择+默认图标管理） / 位置 / 行为
  * 参考 MarkerConfigPanel 的 UI 模式
  */
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import { Modal, Tabs, Input, InputNumber, Select, Button, Space, ColorPicker, Switch, Upload, message, Popconfirm } from 'antd'
 import { PushpinOutlined, EnvironmentOutlined, ThunderboltOutlined, UploadOutlined, UndoOutlined, PictureOutlined } from '@ant-design/icons'
 import { useGeoStore } from '../../store/geo-store'
 import type { GeoMarkerData, GeoMarkerPopup, GeoMarkerPopupStyle, GeoMarkerIframe } from '../../types/geo-marker'
 import { ResourcePicker } from '../ResourcePicker'
 import { uploadFile } from '../../api/upload'
-import { getDefaultMarkerUrl, migrateLegacyMarkerUrl, setDefaultMarkerUrl, resetDefaultMarkerUrl } from '../../utils/marker-defaults'
-
-/** 生成默认 Canvas pin 图标的 data URL */
-let _defaultPinDataUrl: string | null = null
-function createDefaultPinDataUrl(): string {
-  if (_defaultPinDataUrl) return _defaultPinDataUrl
-  const size = 64
-  const canvas = document.createElement('canvas')
-  canvas.width = size
-  canvas.height = size
-  const ctx = canvas.getContext('2d')!
-  ctx.beginPath()
-  ctx.arc(32, 22, 16, Math.PI, 0, false)
-  ctx.quadraticCurveTo(48, 38, 32, 56)
-  ctx.quadraticCurveTo(16, 38, 16, 22)
-  ctx.closePath()
-  ctx.fillStyle = '#ff4444'
-  ctx.fill()
-  ctx.strokeStyle = '#ffffff'
-  ctx.lineWidth = 2
-  ctx.stroke()
-  ctx.beginPath()
-  ctx.arc(32, 22, 8, 0, Math.PI * 2)
-  ctx.fillStyle = '#ffffff'
-  ctx.fill()
-  _defaultPinDataUrl = canvas.toDataURL('image/png')
-  return _defaultPinDataUrl
-}
+import { useDefaultMarkerUrl } from '../../hooks/useDefaultMarkerUrl'
+import { createDefaultMarkerImage } from '../../utils/default-marker-image'
 
 interface GeoMarkerConfigProps {
   open: boolean
@@ -52,26 +26,15 @@ export function GeoMarkerConfig({ open, markerId, onClose }: GeoMarkerConfigProp
 
   const marker = markers.find((m) => m.id === markerId) ?? null
 
-  // 本地编辑状态
-  const [form, setForm] = useState<GeoMarkerData | null>(null)
-  const [lastMarkerId, setLastMarkerId] = useState<string | null>(null)
+  // 本地编辑状态：父组件用 key={markerId} 保证切换标点时组件重挂载，
+  // 因此 form 仅需在挂载时从 marker 初始化，无需手工同步 markerId。
+  const [form, setForm] = useState<GeoMarkerData | null>(marker ? { ...marker } : null)
 
   // 图标选择器
   const [iconPickerOpen, setIconPickerOpen] = useState(false)
 
   // 默认图标管理
-  const [customDefault, setCustomDefault] = useState<string | null>(getDefaultMarkerUrl())
-  // 旧 key 迁移必须在副作用里跑（render 路径写 localStorage 会破坏 React 纯渲染契约）
-  useEffect(() => {
-    migrateLegacyMarkerUrl()
-    setCustomDefault(getDefaultMarkerUrl())
-  }, [])
-
-  // markerId 变化时重置表单
-  if (markerId !== lastMarkerId) {
-    setLastMarkerId(markerId)
-    setForm(marker ? { ...marker } : null)
-  }
+  const { customDefault, setDefault, resetDefault } = useDefaultMarkerUrl()
 
   // 从资源管理器选择图标
   const handleIconSelect = useCallback((resources: { url: string; name: string }[]) => {
@@ -85,21 +48,19 @@ export function GeoMarkerConfig({ open, markerId, onClose }: GeoMarkerConfigProp
   const handleUploadDefault = useCallback(async (file: File) => {
     try {
       const result = await uploadFile(file, { bizType: 'marker-icon' })
-      setDefaultMarkerUrl(result.url)
-      setCustomDefault(result.url)
+      setDefault(result.url)
       message.success('默认标点图标已更新')
     } catch {
       message.error('上传失败')
     }
     return false
-  }, [])
+  }, [setDefault])
 
   // 还原默认图标
   const handleResetDefault = useCallback(() => {
-    resetDefaultMarkerUrl()
-    setCustomDefault(null)
+    resetDefault()
     message.success('已还原为默认图标')
-  }, [])
+  }, [resetDefault])
 
   if (!form) return null
 
@@ -169,7 +130,7 @@ export function GeoMarkerConfig({ open, markerId, onClose }: GeoMarkerConfigProp
   }
 
   // 当前使用的图标预览
-  const currentIconUrl = form.iconUrl || customDefault || createDefaultPinDataUrl()
+  const currentIconUrl = form.iconUrl || customDefault || createDefaultMarkerImage()
 
   return (
     <Modal
@@ -240,7 +201,7 @@ export function GeoMarkerConfig({ open, markerId, onClose }: GeoMarkerConfigProp
                   <label style={{ display: 'block', marginBottom: 4, fontSize: 13 }}>默认图标管理</label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <img
-                      src={customDefault || createDefaultPinDataUrl()}
+                      src={customDefault || createDefaultMarkerImage()}
                       alt="默认图标"
                       style={{ width: 28, height: 28, objectFit: 'contain', borderRadius: 4, background: 'rgba(255,255,255,0.08)' }}
                     />

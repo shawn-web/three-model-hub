@@ -1,11 +1,11 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useCallback } from 'react'
 import { Button, message, Upload, Popconfirm, theme as antdTheme } from 'antd'
 import { Icon } from '@iconify/react'
 import { uploadIcon, undo2Icon, moveIcon, settingsIcon, trash2Icon, mapPinIcon } from './Icons'
 import { useEditStore } from '../store/edit-store'
 import { uploadFile } from '../api/upload'
-import { getDefaultMarkerUrl, migrateLegacyMarkerUrl, setDefaultMarkerUrl, resetDefaultMarkerUrl } from '../utils/marker-defaults'
-import { createDefaultMarkerImage } from './MarkerSpriteShared'
+import { useDefaultMarkerUrl } from '../hooks/useDefaultMarkerUrl'
+import { createDefaultMarkerImage } from '../utils/default-marker-image'
 import type { MarkerData } from '../types/edit-data'
 
 /** 标点列表组件：显示所有标点，支持配置、重定位和删除 */
@@ -17,12 +17,7 @@ export function MarkerList({ onEditMarker }: { onEditMarker: (marker: MarkerData
   const selectedMarkerId = useEditStore((s) => s.selectedMarkerId)
   const setSelectedMarkerId = useEditStore((s) => s.setSelectedMarkerId)
   const setEditingMarkerId = useEditStore((s) => s.setEditingMarkerId)
-  const [customDefault, setCustomDefault] = useState<string | null>(getDefaultMarkerUrl())
-  // 旧 key 迁移必须在副作用里跑（render 路径写 localStorage 会破坏 React 纯渲染契约）
-  useEffect(() => {
-    migrateLegacyMarkerUrl()
-    setCustomDefault(getDefaultMarkerUrl())
-  }, [])
+  const { customDefault, setDefault, resetDefault } = useDefaultMarkerUrl()
   const { token } = antdTheme.useToken()
 
   const actionLabel: Record<string, string> = { popup: '弹窗', iframe: 'iframe', link: '链接', none: '' }
@@ -30,20 +25,18 @@ export function MarkerList({ onEditMarker }: { onEditMarker: (marker: MarkerData
   const handleUploadDefault = useCallback(async (file: File) => {
     try {
       const result = await uploadFile(file, { bizType: 'marker-icon' })
-      setDefaultMarkerUrl(result.url)
-      setCustomDefault(result.url)
+      setDefault(result.url)
       message.success('默认标点图标已更新')
     } catch {
       message.error('上传失败')
     }
     return false
-  }, [])
+  }, [setDefault])
 
   const handleResetDefault = useCallback(() => {
-    resetDefaultMarkerUrl()
-    setCustomDefault(null)
+    resetDefault()
     message.success('已还原为默认图标')
-  }, [])
+  }, [resetDefault])
 
   return (
     <>

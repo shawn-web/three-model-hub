@@ -5,12 +5,11 @@ import { Resource, ResourceType } from './entities/resource.entity'
 import { ResourceGroup } from './entities/resource-group.entity'
 import { StorageService } from '../storage/storage.service'
 import {
-  CreateResourceDto,
+  UploadResourceDto,
   UpdateResourceDto,
   CreateResourceGroupDto,
   UpdateResourceGroupDto,
 } from './dto/resource.dto'
-import { MulterFile } from '../common/types'
 
 /**
  * 资源管理服务
@@ -71,7 +70,19 @@ export class ResourcesService {
   }
 
   /** 创建资源记录 */
-  async createResource(dto: CreateResourceDto): Promise<Resource> {
+  async createResource(dto: {
+    name: string
+    type: ResourceType
+    url: string
+    file_size?: number
+    mime_type?: string
+    width?: number
+    height?: number
+    duration?: number
+    thumbnail_url?: string
+    group_id?: string
+    file_key?: string
+  }): Promise<Resource> {
     const resource = this.resourceRepo.create(dto)
     return this.resourceRepo.save(resource)
   }
@@ -97,43 +108,6 @@ export class ResourcesService {
     await this.resourceRepo.remove(resource)
   }
 
-  /** 上传文件并创建资源 */
-  async uploadAndCreate(
-    file: MulterFile,
-    metadata: {
-      name: string
-      type: ResourceType
-      group_id?: string
-      width?: number
-      height?: number
-      duration?: number
-      mime_type?: string
-    },
-  ): Promise<Resource> {
-    const basePath = metadata.type === ResourceType.VIDEO ? 'labs/videos' : 'labs/images'
-
-    const result = await this.storageService.uploadFile(
-      file.buffer,
-      file.originalname,
-      undefined,
-      undefined,
-      basePath,
-    )
-
-    return this.createResource({
-      name: metadata.name,
-      type: metadata.type,
-      url: result.url,
-      file_size: file.size,
-      mime_type: metadata.mime_type || file.mimetype,
-      width: metadata.width,
-      height: metadata.height,
-      duration: metadata.duration,
-      group_id: metadata.group_id,
-      file_key: result.fileKey,
-    })
-  }
-
   /**
    * 前端已完成 MinIO 上传后创建资源（JSON body 含 file_key/url/file_size）
    * 流程：前端先调 /upload/* 完成 MinIO 上传，再调此接口落库
@@ -141,18 +115,7 @@ export class ResourcesService {
    * 校验：
    *   - metadata.file_key 在 MinIO 中必须真实存在（防伪造 URL）
    */
-  async createFromFileRef(metadata: {
-    name: string
-    type: ResourceType
-    url: string
-    file_key: string
-    file_size: number
-    mime_type?: string
-    width?: number
-    height?: number
-    duration?: number
-    group_id?: string
-  }): Promise<Resource> {
+  async createFromFileRef(metadata: UploadResourceDto): Promise<Resource> {
     // 校验 fileKey 真实性：MinIO 中必须存在该对象
     const { exists, size } = await this.storageService.verifyObject(metadata.file_key)
     if (!exists) {

@@ -63,7 +63,7 @@ export class AutoRotatePlugin implements ViewerPlugin {
   sceneComponent: FC = AutoRotateScene
   toolbarComponent: FC<{ plugin: ViewerPlugin }> = AutoRotateToolbar
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   install(_context: ViewerContext): void {
     this.active = true
   }

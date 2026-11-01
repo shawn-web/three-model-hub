@@ -1,28 +1,7 @@
-import { IsString, IsOptional, IsArray, IsNumber, Min, Max } from 'class-validator'
+import { IsString, IsOptional, IsArray, IsNumber, IsBoolean, Min, Max } from 'class-validator'
 
 /** 全局文件大小上限（MB → 字节） */
 const MAX_UPLOAD_SIZE_BYTES = parseInt(process.env.MAX_UPLOAD_SIZE_MB || '1024', 10) * 1024 * 1024
-
-/**
- * 创建模型 DTO
- */
-export class CreateModelDto {
-  @IsString()
-  name: string
-
-  @IsOptional()
-  @IsString()
-  description?: string
-
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  tags?: string[]
-
-  @IsOptional()
-  @IsString()
-  commit_message?: string
-}
 
 /**
  * 更新模型 DTO
@@ -50,15 +29,6 @@ export class UpdateModelDto {
 }
 
 /**
- * 上传新版本 DTO（后端代理 multipart）
- */
-export class CreateVersionDto {
-  @IsOptional()
-  @IsString()
-  commit_message?: string
-}
-
-/**
  * 前端分片上传完成后创建版本 DTO
  *
  * 流程：
@@ -82,6 +52,17 @@ export class CreateVersionFromUrlDto {
   @IsOptional()
   @IsString()
   commit_message?: string
+
+  /**
+   * 上传新版本后是否自动触发压缩
+   * - true：异步触发 meshopt 压缩 + 写入新版本（v+1）
+   * - false / 不传：仅上传，不自动压缩
+   *
+   * 前端轮询 /models/compression-tasks/:taskId 获取进度
+   */
+  @IsOptional()
+  @IsBoolean()
+  compress?: boolean
 }
 
 /**
@@ -123,4 +104,15 @@ export class CreateFromUrlDto {
   @IsOptional()
   @IsString()
   commit_message?: string
+
+  /**
+   * 上传完成后是否自动触发压缩
+   * - true：异步触发 meshopt 压缩 + 写入 v1 后再生成压缩版（v2）
+   * - false / 不传：仅上传，不自动压缩
+   *
+   * 前端轮询 /models/compression-tasks/:taskId 获取进度
+   */
+  @IsOptional()
+  @IsBoolean()
+  compress?: boolean
 }

@@ -16,7 +16,16 @@ export class ExceptionFilter {
 
     if (exception instanceof HttpException) {
       status = exception.getStatus()
-      message = exception.message
+      // ValidationPipe 把 class-validator 错误放进 getResponse()，默认 exception.message 只有
+      // 'Bad Request Exception'，会丢失字段级错误。这里同时打印 response 让日志可定位
+      const resp = exception.getResponse()
+      if (typeof resp === 'string') {
+        message = resp
+      } else {
+        const respMessage = (resp as { message?: unknown } | undefined)?.message
+        message = typeof respMessage === 'string' ? respMessage : exception.message
+      }
+      console.error('[异常过滤器] 响应体:', resp)
     }
 
     console.error('[异常过滤器] 状态:', status)

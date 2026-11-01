@@ -195,17 +195,27 @@ export function ViewerPage() {
     loadData()
   }, [sceneId, typeHint, messageBus, searchParams, loadAsModel, loadAsScene])
 
-  // 独立的消息监听，不受 loadedRef 影响
+  // 通过 MessageBus 监听 scene-config 配置消息（origin 校验由 MessageBus allowlist 统一处理）
   useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      const data = event.data
-      if (!data || data.type !== 'scene-config') return
+    /** 结构化校验：确保 data 含已知配置字段，避免无效消息污染 store */
+    const handler = (payload: unknown) => {
+      const data = payload as Record<string, unknown> | null
+      // 至少包含一个已知配置字段才应用，防止无关消息触发配置重置
+      if (!data || typeof data !== 'object') return
+      const knownKeys = [
+        'background', 'ambientIntensity', 'lightIntensity', 'lightColor',
+        'autoRotate', 'autoRotateAxis', 'autoRotateSpeed', 'gridVisible',
+        'viewCubeVisible', 'toolbarVisible', 'treeVisible', 'hiddenTools',
+        'rotationMode', 'camera', 'markers', 'sceneImages', 'models', 'components',
+      ]
+      const hasKnownField = knownKeys.some((k) => k in data)
+      if (!hasKnownField) return
       applyExternalConfig(data, useViewerStore.getState(), useSceneStore.getState())
     }
 
-    window.addEventListener('message', handleMessage)
-    return () => window.removeEventListener('message', handleMessage)
-  }, [])
+    messageBus.on(MESSAGE_TYPES.SCENE_CONFIG, handler)
+    return () => messageBus.off(MESSAGE_TYPES.SCENE_CONFIG, handler)
+  }, [messageBus])
 
   const handleFitView = useCallback(() => {
     const store = useSceneStore.getState()

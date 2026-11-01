@@ -31,7 +31,7 @@ export class AnnotationsController {
     @Param('sceneId', ParseUUIDPipe) sceneId: string,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.annotationsService.findOne(id)
+    return this.annotationsService.findOne(sceneId, id)
   }
 
   /** 创建批注 */
@@ -50,7 +50,7 @@ export class AnnotationsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateAnnotationDto,
   ) {
-    return this.annotationsService.update(id, dto)
+    return this.annotationsService.update(sceneId, id, dto)
   }
 
   /** 删除批注 */
@@ -59,7 +59,7 @@ export class AnnotationsController {
     @Param('sceneId', ParseUUIDPipe) sceneId: string,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    await this.annotationsService.remove(id)
+    await this.annotationsService.remove(sceneId, id)
     return { success: true }
   }
 }

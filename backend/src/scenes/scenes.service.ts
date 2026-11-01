@@ -1,4 +1,4 @@
-﻿import { Injectable, NotFoundException } from '@nestjs/common'
+import { Injectable, NotFoundException } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { Repository, DataSource, EntityManager, In } from 'typeorm'
 import { Scene } from './entities/scene.entity'
@@ -104,6 +104,12 @@ export class ScenesService {
    */
   async addModel(sceneId: string, dto: AddSceneModelDto): Promise<SceneModel> {
     await this.findOne(sceneId)
+
+    // 校验 model_id 是否存在
+    const model = await this.modelRepo.findOne({ where: { id: dto.model_id } })
+    if (!model) {
+      throw new NotFoundException(`模型不存在: ${dto.model_id}`)
+    }
 
     const sceneModel = this.sceneModelRepo.create({
       scene_id: sceneId,
@@ -413,9 +419,11 @@ export class ScenesService {
     await this.dataSource.transaction(async (manager) => {
       await manager.delete(SceneImage, { scene_id: sceneId })
 
+      // 批量构建后一次性 save：避免 N 次 round-trip（逐条 await save）造成的性能损耗
+      const images: SceneImage[] = []
       for (let i = 0; i < items.length; i++) {
         const item = items[i]
-        const image = manager.create(SceneImage, {
+        images.push(manager.create(SceneImage, {
           scene_id: sceneId,
           type: item.type || 'image',
           url: item.url || null,
@@ -435,8 +443,10 @@ export class ScenesService {
           fontSize: item.fontSize || null,
           fontColor: item.fontColor || null,
           iframeUrl: item.iframeUrl || null,
-        })
-        await manager.save(SceneImage, image)
+        }))
+      }
+      if (images.length > 0) {
+        await manager.save(SceneImage, images)
       }
     })
   }

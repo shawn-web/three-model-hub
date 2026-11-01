@@ -28,8 +28,8 @@ export class AnnotationsService {
   /**
    * 获取单条批注详情
    */
-  async findOne(id: string): Promise<Annotation> {
-    const annotation = await this.annotationRepo.findOne({ where: { id } })
+  async findOne(sceneId: string, id: string): Promise<Annotation> {
+    const annotation = await this.annotationRepo.findOne({ where: { id, scene_id: sceneId } })
     if (!annotation) {
       throw new NotFoundException(`批注不存在: ${id}`)
     }
@@ -52,8 +52,8 @@ export class AnnotationsService {
   /**
    * 更新批注
    */
-  async update(id: string, dto: UpdateAnnotationDto): Promise<Annotation> {
-    const annotation = await this.findOne(id)
+  async update(sceneId: string, id: string, dto: UpdateAnnotationDto): Promise<Annotation> {
+    const annotation = await this.findOne(sceneId, id)
     if (dto.x !== undefined || dto.y !== undefined || dto.z !== undefined) {
       annotation.position = {
         x: dto.x ?? annotation.position.x,
@@ -69,8 +69,8 @@ export class AnnotationsService {
   /**
    * 删除批注
    */
-  async remove(id: string): Promise<void> {
-    const annotation = await this.findOne(id)
+  async remove(sceneId: string, id: string): Promise<void> {
+    const annotation = await this.findOne(sceneId, id)
     await this.annotationRepo.remove(annotation)
   }
 }

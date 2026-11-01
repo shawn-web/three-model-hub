@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   Table,
   Button,
@@ -12,10 +12,20 @@ import {
   Image,
   Tooltip,
   Upload,
+  Checkbox,
 } from 'antd'
 import { ArrowUpload20, Edit20, Copy20, ArrowDownload20, Delete20, Eye20, Cube20, Search20 } from '../components/FluentIcon'
 import type { ColumnsType } from 'antd/es/table'
-import { getModels, uploadModel, deleteModel, updateModel, copyModel } from '../api/models'
+import {
+  getModels,
+  uploadModel,
+  deleteModel,
+  updateModel,
+  copyModel,
+  downloadModelWithProgress,
+  getCompressionTask,
+} from '../api/models'
+import type { CompressionTask } from '../api/models'
 import { invalidateHttpCache } from '../api/client'
 
 /** 模型数据类型 */
@@ -44,6 +54,14 @@ export function ModelsPage() {
   const [uploadProgress, setUploadProgress] = useState(0)
   const [, setUploadPhase] = useState<'idle' | 'uploading' | 'processing'>('idle')
 
+  /* 上传时是否开启压缩（用户主动选择） */
+  const [compressOnUpload, setCompressOnUpload] = useState(false)
+  /* 压缩任务进度（上传成功且勾选压缩后才进入此状态） */
+  const [compressing, setCompressing] = useState(false)
+  const [compressStage, setCompressStage] = useState<string>('')
+  const [compressPercent, setCompressPercent] = useState(0)
+  const compressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   /* 编辑弹窗状态 */
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editingModel, setEditingModel] = useState<ModelItem | null>(null)
@@ -71,19 +89,83 @@ export function ModelsPage() {
     return () => { cancelled = true }
   }, [page, search, refreshKey])
 
+  /** 卸载时清理压缩轮询定时器 */
+  useEffect(() => {
+    return () => {
+      if (compressTimerRef.current) {
+        clearTimeout(compressTimerRef.current)
+        compressTimerRef.current = null
+      }
+    }
+  }, [])
+
   /** 手动触发刷新 */
   const reloadModels = useCallback(() => setRefreshKey((k) => k + 1), [])
+
+  /**
+   * 轮询压缩任务进度，直到 completed / failed
+   * 上传成功且勾选压缩时调用，用 message 提示阶段
+   */
+  const pollCompression = useCallback((taskId: string) => {
+    setCompressing(true)
+    setCompressPercent(0)
+    setCompressStage('')
+    const hide = message.loading('模型压缩中...', 0)
+
+    const poll = async () => {
+      try {
+        const task: CompressionTask = await getCompressionTask(taskId)
+        setCompressStage(task.stage || '')
+        setCompressPercent(task.percentage)
+        if (task.status === 'completed') {
+          hide()
+          const ratio = task.compressionRatio
+            ? `${(task.compressionRatio * 100).toFixed(0)}%`
+            : '未知'
+          message.success(`压缩完成（压缩率 ${ratio}），已生成新版本`)
+          setCompressing(false)
+          invalidateHttpCache('/models')
+          reloadModels()
+          return
+        }
+        if (task.status === 'failed') {
+          hide()
+          message.error('压缩失败：' + (task.errorMessage || '请稍后重试'))
+          setCompressing(false)
+          return
+        }
+      } catch {
+        // 单次查询失败不中断轮询（网络抖动等）
+      }
+      compressTimerRef.current = setTimeout(poll, 1500)
+    }
+    poll()
+  }, [reloadModels])
+
   const handleUpload = async (file: File) => {
     setUploading(true)
     setUploadPhase('uploading')
     setUploadProgress(0)
     try {
-      await uploadModel(file, { name: file.name.replace(/\.[^.]+$/, '') }, (percent) => {
-        setUploadProgress(percent)
-      })
-      message.success('上传成功')
-      invalidateHttpCache('/models')
-      reloadModels()
+      const result = await uploadModel(
+        file,
+        { name: file.name.replace(/\.[^.]+$/, '') },
+        (percent) => {
+          setUploadProgress(percent)
+        },
+        compressOnUpload,
+      )
+      // 若勾选压缩且后端成功触发，进入压缩进度轮询
+      if (result.compressionTaskId) {
+        setUploading(false)
+        setUploadPhase('idle')
+        setUploadProgress(0)
+        pollCompression(result.compressionTaskId)
+      } else {
+        message.success('上传成功')
+        invalidateHttpCache('/models')
+        reloadModels()
+      }
     } catch (err) {
       console.error('上传失败:', err)
       message.error('上传失败，请重试')
@@ -152,12 +234,6 @@ export function ModelsPage() {
       console.error('更新失败:', err)
       message.error('更新失败')
     }
-  }
-
-  /** 获取模型下载地址 */
-  const getModelDownloadUrl = (id: string) => {
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
-    return `${baseUrl}/models/${id}/download`
   }
 
   /** 表格列定义 */
@@ -235,7 +311,12 @@ export function ModelsPage() {
               type="text"
               size="small"
               icon={<ArrowDownload20 />}
-              onClick={() => window.open(getModelDownloadUrl(record.id), '_blank')}
+              onClick={() => {
+                downloadModelWithProgress(record.id).catch((e) => {
+                  console.error('下载失败:', e)
+                  message.error('下载失败：' + (e?.message || '请稍后重试'))
+                })
+              }}
             />
           </Tooltip>
           <Popconfirm
@@ -277,25 +358,45 @@ export function ModelsPage() {
           className="w-80"
           allowClear
         />
-        <Upload
-          accept=".glb,.gltf"
-          showUploadList={false}
-          beforeUpload={(file) => { handleUpload(file); return false }}
-        >
-          <Button
-            type="primary"
-            icon={uploading ? undefined : <ArrowUpload20 />}
-            loading={uploading}
-            disabled={uploading}
+        <Space size={12} align="center">
+          <Tooltip title="勾选后，上传完成会自动触发 meshopt 几何压缩 + 纹理转 WebP，生成更小的新版本">
+            <Checkbox
+              checked={compressOnUpload}
+              onChange={(e) => setCompressOnUpload(e.target.checked)}
+              disabled={uploading || compressing}
+            >
+              上传后压缩
+            </Checkbox>
+          </Tooltip>
+          <Upload
+            accept=".glb,.gltf"
+            showUploadList={false}
+            beforeUpload={(file) => { handleUpload(file); return false }}
           >
-            {uploading
-              ? uploadProgress >= 95
-                ? '处理中...'
-                : `上传中 ${uploadProgress}%`
-              : '上传模型'}
-          </Button>
-        </Upload>
+            <Button
+              type="primary"
+              icon={uploading || compressing ? undefined : <ArrowUpload20 />}
+              loading={uploading || compressing}
+              disabled={uploading || compressing}
+            >
+              {compressing
+                ? `压缩中 ${compressPercent}%`
+                : uploading
+                  ? uploadProgress >= 95
+                    ? '处理中...'
+                    : `上传中 ${uploadProgress}%`
+                  : '上传模型'}
+            </Button>
+          </Upload>
+        </Space>
       </div>
+
+      {/* 压缩阶段提示（仅压缩中显示） */}
+      {compressing && compressStage && (
+        <div className="mb-3 text-sm text-[var(--ant-color-text-secondary)] animate-fade-in-up">
+          当前阶段：{compressStage}
+        </div>
+      )}
 
       {/* 模型列表表格 */}
       <div

@@ -496,25 +496,28 @@ function MeasurementScene({ pluginManager }: { pluginManager: PluginManager }) {
   )
 }
 
-function MeasurementPoint({ position, scale, isPending, camera }: {
+function MeasurementPoint({ position, isPending, camera }: {
   position: THREE.Vector3
   scale: number
   isPending?: boolean
   camera: THREE.Camera
 }) {
   const meshRef = useRef<THREE.Mesh>(null)
-  const baseRadius = Math.max(scale * 0.005, 0.006)
+  // 固定基准半径，用 1 作为单位球
+  const baseRadius = 1
 
   useFrame(() => {
     if (!meshRef.current) return
     const dist = camera.position.distanceTo(position)
-    const screenRadius = baseRadius * dist * 0.1
+    // 屏幕固定大小：半径与相机距离成正比，不受模型大小影响
+    // 比例 0.01 使点在屏幕上约 1% 视高
+    const screenRadius = dist * 0.01
     meshRef.current.scale.setScalar(screenRadius / baseRadius)
   })
 
   return (
     <mesh ref={meshRef} position={position}>
-      <sphereGeometry args={[baseRadius, 12, 12]} />
+      <sphereGeometry args={[baseRadius, 16, 16]} />
       <meshBasicMaterial
         color={isPending ? '#ffaa44' : '#4a9eff'}
         depthTest={false}

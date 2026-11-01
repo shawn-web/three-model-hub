@@ -1,23 +1,58 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="ThreeModelHub favicon">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
   <defs>
-    <linearGradient id="ft" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#7DD3FC"/>
-      <stop offset="100%" stop-color="#38BDF8"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0B1220"/>
+      <stop offset="100%" stop-color="#020617"/>
     </linearGradient>
-    <linearGradient id="fl" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#0284C7"/>
-      <stop offset="100%" stop-color="#0369A1"/>
+    <linearGradient id="top" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#0EA5E9"/>
     </linearGradient>
-    <linearGradient id="fr" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#0EA5E9"/>
-      <stop offset="100%" stop-color="#075985"/>
+    <linearGradient id="left" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#4338CA"/>
     </linearGradient>
+    <linearGradient id="right" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#22D3EE"/>
+      <stop offset="100%" stop-color="#0891B2"/>
+    </linearGradient>
+    <linearGradient id="top2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#A78BFA"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
+    </linearGradient>
+    <linearGradient id="left2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#818CF8"/>
+      <stop offset="100%" stop-color="#4F46E5"/>
+    </linearGradient>
+    <linearGradient id="right2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#67E8F9"/>
+      <stop offset="100%" stop-color="#0E7490"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.4"/>
+      <stop offset="70%" stop-color="#6366F1" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#6366F1" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="0.7" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
   </defs>
-  <rect width="32" height="32" rx="6" fill="#0F172A"/>
-  <g transform="translate(16 16)">
-    <polygon points="0,-7.5 6.5,-3.75 0,0 -6.5,-3.75" fill="url(#ft)" stroke="#0EA5E9" stroke-width="0.5"/>
-    <polygon points="-6.5,-3.75 0,0 0,7.5 -6.5,3.75" fill="url(#fl)" stroke="#0EA5E9" stroke-width="0.5"/>
-    <polygon points="6.5,-3.75 0,0 0,7.5 6.5,3.75" fill="url(#fr)" stroke="#0EA5E9" stroke-width="0.5"/>
+  <rect width="32" height="32" rx="8" fill="url(#bg)"/>
+  <circle cx="16" cy="16" r="14" fill="url(#halo)"/>
+  <g filter="url(#glow)">
+    <g transform="translate(-4.5 -3)">
+      <polygon points="16,4 24,8.5 16,13 8,8.5" fill="url(#top2)"/>
+      <polygon points="8,8.5 16,13 16,22 8,17.5" fill="url(#left2)"/>
+      <polygon points="24,8.5 16,13 16,22 24,17.5" fill="url(#right2)"/>
+    </g>
+    <g transform="translate(4.5 3)">
+      <polygon points="16,4 24,8.5 16,13 8,8.5" fill="url(#top)"/>
+      <polygon points="8,8.5 16,13 16,22 8,17.5" fill="url(#left)"/>
+      <polygon points="24,8.5 16,13 16,22 24,17.5" fill="url(#right)"/>
+    </g>
   </g>
 </svg>

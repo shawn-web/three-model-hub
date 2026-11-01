@@ -7,19 +7,53 @@
  * 优化：预处理后的 GLB 缓存到 IndexedDB，避免每次页面刷新都重新下载和处理
  */
 
-const CACHE_DB_NAME = 'threeModelHub_glb_cache'
-// 旧 DB 名（项目重命名前），用于清理孤儿缓存以释放浏览器存储
-const LEGACY_CACHE_DB_NAME = 'threeMode_glb_cache'
+const CACHE_DB_NAME = 'three-model-hub_glb_cache'
+// 历史版本缓存 DB 名，用于清理旧数据释放浏览器存储
+const LEGACY_CACHE_DB_NAME_V1 = 'threeMode_glb_cache'
+
+const LEGACY_CACHE_DB_NAME_V2 = 'threeModelHub_glb_cache'
 const CACHE_STORE_NAME = 'processed_glbs'
 const CACHE_DB_VERSION = 2
 
-// 旧 DB 清理守卫：openCacheDB 在每次 getCachedBlob/setCachedBlob 都会调，
-// deleteDatabase 走一次就够了，否则每个缓存操作都会触发一个多余的 IDBOpenDBRequest。
-let legacyDbCleanupDone = false
+// 防止重复发起 IDB 删除请求的标记集合
+const legacyCleanupDone = new Set<string>()
+
+function deleteLegacyCacheDB(name: string): void {
+  if (legacyCleanupDone.has(name) || typeof indexedDB?.deleteDatabase !== 'function') return
+  legacyCleanupDone.add(name)
+  setTimeout(() => {
+    try {
+      const request = indexedDB.deleteDatabase(name)
+      // 其他标签页仍持有 DB 时触发，释放后允许重试
+      request.onblocked = () => {
+        legacyCleanupDone.delete(name)
+      }
+      request.onerror = () => {
+        // DB 不存在或浏览器拒绝删除，无需处理
+      }
+      request.onsuccess = () => {
+        // 删除成功，保持标记避免重试
+      }
+    } catch {
+      // 浏览器不支持或拒绝删除，重置标记允许重试
+      legacyCleanupDone.delete(name)
+    }
+  }, 0)
+}
+
+/** 清理历史版本 IndexedDB 缓存，失败静默忽略 */
+export function cleanupLegacyCacheDB(): void {
+  deleteLegacyCacheDB(LEGACY_CACHE_DB_NAME_V1)
+  deleteLegacyCacheDB(LEGACY_CACHE_DB_NAME_V2)
+}
 
 /** 打开 IndexedDB 缓存数据库 */
 function openCacheDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') {
+      reject(new Error('IndexedDB 不可用'))
+      return
+    }
     const request = indexedDB.open(CACHE_DB_NAME, CACHE_DB_VERSION)
     request.onupgradeneeded = () => {
       const db = request.result
@@ -30,15 +64,8 @@ function openCacheDB(): Promise<IDBDatabase> {
       db.createObjectStore(CACHE_STORE_NAME)
     }
     request.onsuccess = () => {
-      // 一次性清理旧 DB（fire-and-forget，不影响当前流程）
-      if (!legacyDbCleanupDone && typeof indexedDB.deleteDatabase === 'function') {
-        legacyDbCleanupDone = true
-        try {
-          indexedDB.deleteDatabase(LEGACY_CACHE_DB_NAME)
-        } catch {
-          // 旧 DB 不存在或浏览器拒绝删除，忽略
-        }
-      }
+      // 延迟到当前流程之后执行清理，不影响当前 open 请求
+      cleanupLegacyCacheDB()
       resolve(request.result)
     }
     request.onerror = () => reject(request.error)
@@ -61,15 +88,23 @@ async function getCachedBlob(modelId: string): Promise<Blob | null> {
   }
 }
 
-/** 将处理后的 Blob 写入 IndexedDB 缓存 */
-async function setCachedBlob(modelId: string, blob: Blob): Promise<void> {
-  try {
-    const db = await openCacheDB()
-    const tx = db.transaction(CACHE_STORE_NAME, 'readwrite')
-    tx.objectStore(CACHE_STORE_NAME).put(blob, modelId)
-  } catch {
-    // 缓存写入失败不影响主流程
-  }
+/** 将处理后的 Blob 写入 IndexedDB 缓存（fire-and-forget，调用方不等待事务完成） */
+function setCachedBlob(modelId: string, blob: Blob): void {
+  // 复用 openCacheDB 路径，确保 onupgradeneeded 处理 + 避免并发打开
+  openCacheDB()
+    .then((db) => {
+      try {
+        const tx = db.transaction(CACHE_STORE_NAME, 'readwrite')
+        tx.objectStore(CACHE_STORE_NAME).put(blob, modelId)
+        tx.oncomplete = () => db.close()
+        tx.onerror = () => db.close()
+      } catch {
+        db.close()
+      }
+    })
+    .catch(() => {
+      // 缓存写入失败不影响主流程
+    })
 }
 
 /**
@@ -160,26 +195,27 @@ async function readResponseWithProgress(
   }
 
   const reader = response.body.getReader()
-  const chunks: Uint8Array[] = []
+  // 预分配单块 buffer，避免 chunks 数组 + 最终 buffer 的双倍内存峰值
+  let buffer = new Uint8Array(contentLength)
   let received = 0
 
   while (true) {
     const { done, value } = await reader.read()
     if (done) break
-    chunks.push(value)
+    // Content-Length 不准（如 gzip）时动态扩容
+    if (received + value.length > buffer.length) {
+      const newBuffer = new Uint8Array(Math.max(buffer.length * 2, received + value.length))
+      newBuffer.set(buffer)
+      buffer = newBuffer
+    }
+    buffer.set(value, received)
     received += value.length
-    onProgress(Math.round((received / contentLength) * 100))
+    // 进度用累计字节数与预估大小的较小值作为分母，避免 Content-Length 不准时显示 > 100%
+    const percent = Math.min(100, Math.round((received / contentLength) * 100))
+    onProgress(percent)
   }
 
-  // 合并所有 chunks
-  const allChunks = new Uint8Array(received)
-  let offset = 0
-  for (const chunk of chunks) {
-    allChunks.set(chunk, offset)
-    offset += chunk.length
-  }
-
-  return allChunks.buffer
+  return buffer.slice(0, received).buffer
 }
 
 /** 快速验证 ArrayBuffer 是否为有效 GLB 文件（检查 magic） */

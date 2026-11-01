@@ -100,14 +100,16 @@ export class UploadService {
 
     // 原子合并：JSON_SET 在单条 UPDATE 内加键，并行分片互不覆盖。
     // status='pending' 条件防止「在 abort 之后写」/「在 cleanup 之后写」。
+    const jsonPath = `$."${partNumber}"`
     const result = await this.sessionRepo.query(
       `UPDATE upload_sessions
        SET uploaded_parts = JSON_SET(COALESCE(uploaded_parts, JSON_OBJECT()), ?, ?)
        WHERE upload_id = ? AND status = 'pending'`,
-      [`$.${partNumber}`, etag, uploadId],
+      [jsonPath, etag, uploadId],
     )
-    // mysql2 返回 OkPacket；affectedRows=0 表示 session 已不处于 pending（如被 abort）
-    const affected = (result as { affectedRows?: number }[])[0]?.affectedRows ?? 0
+    // TypeORM query 对 UPDATE 返回 OkPacket（非数组），affectedRows=0 表示 session 已不处于 pending
+    const rawResult = Array.isArray(result) ? result[0] : result
+    const affected = (rawResult as { affectedRows?: number })?.affectedRows ?? 0
     if (affected === 0) {
       throw new BadRequestException(`上传任务已被取消或完成：${uploadId}`)
     }
@@ -156,6 +158,14 @@ export class UploadService {
       throw new BadRequestException(
         `分片清单与服务端记录不一致：服务端记录 ${recordedKeys.length} 个分片，请求传入 ${incomingKeys.length} 个`,
       )
+    }
+    // 校验：分片编号必须从 1 开始连续递增（禁止跳片，防止分片缺失导致文件不完整）
+    for (let i = 0; i < recordedKeys.length; i++) {
+      if (parseInt(recordedKeys[i], 10) !== i + 1) {
+        throw new BadRequestException(
+          '分片编号必须从 1 开始连续递增，禁止跳片（可能存在未上传完成的分片）',
+        )
+      }
     }
     for (const p of dto.parts) {
       const expected = recorded[String(p.partNumber)]
@@ -252,7 +262,7 @@ export class UploadService {
     fileKey: string
     fileSize: number
   }> {
-    const objectKey = this.storageService.generateObjectKey(bizType as any, file.originalname)
+    const objectKey = this.storageService.generateObjectKey(bizType, file.originalname)
     await this.minioService.putObject(objectKey, file.buffer, file.mimetype || 'application/octet-stream')
 
     return {

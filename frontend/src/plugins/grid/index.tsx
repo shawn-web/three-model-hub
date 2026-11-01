@@ -34,7 +34,7 @@ export class GridPlugin implements ViewerPlugin {
   sceneComponent: FC = GridScene
   toolbarComponent: FC<{ plugin: ViewerPlugin }> = GridToolbarButton
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   install(_context: ViewerContext): void {
     this.active = true
   }
