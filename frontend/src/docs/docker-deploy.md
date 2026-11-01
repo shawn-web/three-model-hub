@@ -251,6 +251,18 @@ ghcr.io/shawn-web/three-model-hub-frontend
 
 ## 九、常见问题
 
+**`docker compose pull` 报 `not found` / `unauthorized`**
+
+说明镜像还没发布，或发布后 package 仍是私有。两种处理：
+
+```bash
+# 方案一：改用源码构建路径（有源码时立刻可用）
+docker compose -f docker-compose.deploy.yml up -d --build
+
+# 方案二：登录后再拉（镜像已发布但为私有）
+echo $CR_PAT | docker login ghcr.io -u <你的GitHub用户名> --password-stdin
+```
+
 **启动后 502 / 前端能开但接口报错**
 
 后端还没就绪，或启动失败：

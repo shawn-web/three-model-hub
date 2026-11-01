@@ -1,8 +1,23 @@
-# three-model-hub 全栈本地部署
-# 使用: docker compose -f docker-compose.deploy.yml up -d --build
-# 访问: http://localhost:8080
+# three-model-hub —— 从源码构建并部署（全栈）
+#
+# 适用：有源码、想自己构建镜像，或对代码做了私有改动。
+# 如果你只想“拉取镜像直接跑”，请用 docker-compose.prod.yml（无需源码）。
+#
+# 使用：
+#   docker compose -f docker-compose.deploy.yml up -d --build
+#   访问 http://localhost:8080
+#
+# 构建出的镜像会打上 three-model-hub-{backend,frontend}:local 标签，重复 up 不会重建。
 #
 # 内置服务：MySQL + MinIO + Backend + Frontend，不依赖任何外部文件服务。
+
+name: three-model-hub-deploy
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
 
 services:
   mysql:
@@ -10,92 +25,120 @@ services:
     container_name: three-model-hub_mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-three_model_hub}
+      # 应用连接的普通账号（不使用 root 跑应用）
+      MYSQL_USER: ${DB_USERNAME:-tmh}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-tmhpass}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
       MYSQL_CHARACTER_SET_SERVER: utf8mb4
       MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
+      TZ: ${TZ:-Asia/Shanghai}
     ports:
-      - "${MYSQL_PORT:-3308}:3306"
+      # 仅本机可连，便于用数据库客户端排查
+      - "127.0.0.1:${MYSQL_PORT:-3308}:3306"
     volumes:
       - three-model-hub_mysql_data:/var/lib/mysql
-    command: --default-authentication-plugin=mysql_native_password
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD-SHELL", "mysqladmin ping -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 12
+      start_period: 40s
     networks:
       - three-model-hub-net
+    logging: *default-logging
 
   minio:
     image: minio/minio
     container_name: three-model-hub_minio
     restart: unless-stopped
+    command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin123}
+      TZ: ${TZ:-Asia/Shanghai}
     ports:
-      - "${MINIO_API_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      # 模型文件由后端代理读取，这里不对外暴露；控制台仅本机可访问
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - three-model-hub_minio_data:/data
-    command: server /data --console-address ":9001"
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD-SHELL", "mc ready local || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 10s
+      retries: 12
+      start_period: 20s
     networks:
       - three-model-hub-net
+    logging: *default-logging
 
   backend:
+    image: three-model-hub-backend:local
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
     container_name: three-model-hub_backend
     restart: unless-stopped
     environment:
       NODE_ENV: production
+      PORT: 3000
+      TZ: ${TZ:-Asia/Shanghai}
+
       DB_HOST: mysql
       DB_PORT: 3306
-      DB_USERNAME: ${DB_USERNAME:-root}
-      DB_PASSWORD: ${DB_PASSWORD:-root}
-      DB_DATABASE: ${DB_DATABASE:-three_model_hub}
+      DB_USERNAME: ${DB_USERNAME:-tmh}
+      DB_PASSWORD: ${DB_PASSWORD:-tmhpass}
+      DB_DATABASE: ${MYSQL_DATABASE:-three_model_hub}
       DB_LOGGING: "false"
-      PORT: 3000
+      # 空库首次启动时按实体定义自动建表
+      DB_AUTO_BOOTSTRAP: ${DB_AUTO_BOOTSTRAP:-true}
+
       MINIO_ENDPOINT: minio
       MINIO_PORT: 9000
       MINIO_USE_SSL: "false"
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin123}
       MINIO_BUCKET: ${MINIO_BUCKET:-three-model-hub}
+
+      MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-1024}
+      UPLOAD_CLEANUP_THRESHOLD_HOURS: ${UPLOAD_CLEANUP_THRESHOLD_HOURS:-24}
+
+      IFRAME_FRAME_ANCESTORS: ${IFRAME_FRAME_ANCESTORS:-self}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
     depends_on:
       mysql:
         condition: service_healthy
+      # MinIO 健康检查依赖镜像内的 mc 命令，不同版本行为有差异，
+      # 这里只要求容器已启动，后端失败时由 restart 策略重试
       minio:
-        condition: service_healthy
+        condition: service_started
     networks:
       - three-model-hub-net
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/models"]
-      interval: 15s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
+    logging: *default-logging
 
   frontend:
+    image: three-model-hub-frontend:local
     build:
       context: .
       dockerfile: frontend/Dockerfile
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
     container_name: three-model-hub_frontend
     restart: unless-stopped
+    environment:
+      BACKEND_UPSTREAM: backend:3000
+      FRAME_ANCESTORS: ${FRAME_ANCESTORS:-'self'}
+      TZ: ${TZ:-Asia/Shanghai}
     ports:
       - "${FRONTEND_PORT:-8080}:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_started
     networks:
       - three-model-hub-net
+    logging: *default-logging
 
 networks:
   three-model-hub-net:
