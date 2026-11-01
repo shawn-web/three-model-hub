@@ -197,9 +197,12 @@
 
 | 事项 | 结论 | 状态 |
 |------|------|------|
-| 开源目标 | Gitee 主仓库（`lishuaistart/three-model`）+ GitHub 镜像 | 已确定 |
-| 历史重写 | 授权执行，`backend/.env` 已从全历史移除 | 已完成 |
+| 开源目标 | Gitee 主仓库（`lishuaistart/three-model`）+ GitHub 镜像（`shawn-web/three-model-hub`） | 已完成，两端 master 均为 `8082722` |
+| 历史重写 | 授权执行；移除 `backend/.env`、移除 238MB `外立面.glb`、统一作者身份 | 已完成 |
+| 大文件处置 | 历史中曾提交 `public/外立面.glb`（238MB，后续随重构移至 `frontend/public/`）。超出 Gitee/GitHub 单文件 100MB 上限会直接拒推，已从全历史剔除；`.git` 由 46MB 降至 2.4MB | 已完成 |
+| `refactor/minio-geo-pipeline` 分支 | 已合并入 master，远端陈旧分支（重写前历史）已删除 | 已完成 |
 | 凭据轮换 | 需仓库所有者自行轮换 `FILE_SERVICE_TOKEN` 与数据库口令 | **待执行（用户侧）** |
+| GitHub Actions | CI 被平台以「账号账单问题」锁定，需处理 GitHub Billing 后才会实际执行 | **待执行（用户侧）** |
 | `docs/superpowers/` | 已更名为 `docs/design/` 并保留 | 已完成 |
 | `.claude/` | 已脱离 Git 跟踪并加入 `.gitignore` | 已完成 |
 | Lint 策略 | 测试与运行时互操作文件定向放宽 `any`，业务代码保持严格 | 已完成 |
