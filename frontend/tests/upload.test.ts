@@ -72,12 +72,12 @@ describe('uploadFile', () => {
       // 1MB 文件走 simple
       const file = makeFile(1024 * 1024, 'small.bin')
       mockPost.mockResolvedValueOnce({
-        data: { url: 'http://localhost:9000/three-mode/labs/x.bin', fileKey: 'labs/x.bin', fileSize: 1024 * 1024 },
+        data: { url: 'http://localhost:9000/three-model-hub/labs/x.bin', fileKey: 'labs/x.bin', fileSize: 1024 * 1024 },
       })
 
       const result = await uploadFile(file, { bizType: 'model' })
 
-      expect(result.url).toContain('three-mode')
+      expect(result.url).toContain('three-model-hub')
       expect(mockPost).toHaveBeenCalledWith(
         '/upload/simple',
         expect.any(FormData),
@@ -144,7 +144,7 @@ describe('uploadFile', () => {
         }
         if (url === '/upload/multipart/complete') {
           return {
-            data: { url: 'http://localhost:9000/three-mode/labs/big.glb', fileKey: 'labs/big.glb', fileSize: 16 * 1024 * 1024 },
+            data: { url: 'http://localhost:9000/three-model-hub/labs/big.glb', fileKey: 'labs/big.glb', fileSize: 16 * 1024 * 1024 },
           }
         }
         return { data: {} }

@@ -261,4 +261,4 @@ export class MyEntity {
 - [ ] `*.service.ts` — 分页参数边界保护；批量操作用事务；无 `as any`
 - [ ] `app.module.ts` — 导入新模块
 - [ ] 跨模块类型放 `common/types.ts`
-- [ ] **同步更新文档**：`docs/api.md`（新增端点）+ `docs/architecture.md`（后端目录结构）+ CLAUDE.md（模块表）
+- [ ] **同步更新文档**：`docs/api.md`（新增端点）+ `docs/architecture.md`（后端目录结构）+ AGENTS.md（模块表）

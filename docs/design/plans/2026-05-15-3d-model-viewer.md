@@ -13,7 +13,7 @@
 ## File Structure
 
 ```
-threeMode/
+three-model-hub/
 ├── src/
 │   ├── main.tsx
 │   ├── App.tsx
@@ -79,7 +79,7 @@ threeMode/
 - [ ] **Step 1: Initialize Vite project with dependencies**
 
 ```bash
-cd D:/other/threeMode
+cd D:/other/three-model-hub
 npm create vite@latest . -- --template react-ts
 ```
 

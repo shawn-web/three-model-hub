@@ -1,10 +1,14 @@
 {
   "name": "three-model-hub",
   "version": "0.1.0",
-  "description": "ThreeModelHub 是一个全栈 3D 模型管理与场景平台，支持 GLB/GLTF 模型上传、场景组合、标注、测量、剖面、Geo 地理和分享。",
+  "description": "three-model-hub 是一个全栈 3D 模型管理与场景平台，支持 GLB/GLTF 模型上传、场景组合、标注、测量、剖面、Geo 地理和分享。",
   "private": true,
+    "engines": {
+      "node": ">=20.0.0",
+      "pnpm": ">=9.0.0"
+    },
   "license": "MIT",
-  "author": "ThreeModelHub Contributors",
+  "author": "three-model-hub Contributors",
   "keywords": [
     "3d",
     "three.js",
@@ -19,29 +23,32 @@
     "typescript",
     "self-hosted"
   ],
-  "homepage": "https://github.com/three-model-hub/three-model-hub",
+  "homepage": "https://gitee.com/lishuaistart/three-model",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/three-model-hub/three-model-hub.git"
+    "url": "git+https://gitee.com/lishuaistart/three-model.git"
   },
   "bugs": {
-    "url": "https://github.com/three-model-hub/three-model-hub/issues"
+    "url": "https://gitee.com/lishuaistart/three-model/issues"
   },
   "scripts": {
+    "dev": "pnpm frontend:dev",
+    "build": "pnpm frontend:build",
     "frontend:dev": "cd frontend && pnpm dev",
     "frontend:build": "cd frontend && pnpm build",
     "frontend:test": "cd frontend && pnpm test",
     "backend:dev": "cd backend && pnpm run start:dev",
     "backend:test": "cd backend && pnpm test",
-    "dev:all": "concurrently \"pnpm dev\" \"pnpm backend:dev\"",
+    "dev:all": "concurrently \"pnpm frontend:dev\" \"pnpm backend:dev\"",
     "test:all": "concurrently \"pnpm backend:test\" \"pnpm frontend:test\"",
     "minio:start": "minio server ./.minio-data --console-address \":9001\"",
     "minio:stop": "node scripts/minio-stop.js",
-    "minio:status": "node -e \"require('http').get('http://localhost:9000/minio/health/live',(r)=>{console.log('MinIO 状态:',r.statusCode===200?'运行中':'异常 ('+r.statusCode+')');process.exit(0)}).on('error',(e)=>{console.log('MinIO 状态: 未运行 ('+e.code+')');process.exit(1)})\")",
+    "minio:status": "node -e \"require('http').get('http://localhost:9000/minio/health/live',(r)=>{console.log('MinIO 状态:',r.statusCode===200?'运行中':'异常 ('+r.statusCode+')');process.exit(0)}).on('error',(e)=>{console.log('MinIO 状态: 未运行 ('+e.code+')');process.exit(1)})\"",
     "minio:reset": "node -e \"const fs=require('fs');const path='./.minio-data';if(fs.existsSync(path)){fs.rmSync(path,{recursive:true,force:true});console.log('已清理 '+path)}else{console.log(path+' 不存在，无需清理')}\"",
     "dev:infra": "concurrently \"pnpm minio:start\" \"docker-compose up mysql\"",
     "dev:full": "concurrently \"pnpm dev:infra\" \"pnpm backend:dev\" \"pnpm frontend:dev\"",
-    "sync:docs": "node -e \"const fs=require('fs');const m=[['README.md','readme.md'],['CHANGELOG.md','changelog.md'],['CONTRIBUTING.md','contributing.md'],['docs/api.md','api.md'],['docs/architecture.md','architecture.md'],['docs/development.md','development.md'],['docs/testing.md','testing.md'],['docs/deployment.md','deployment.md']];m.forEach(([s,d])=>fs.copyFileSync(s,'frontend/src/docs/'+d));console.log('已同步 '+m.length+' 个文档文件')\""
+    "sync:docs": "node scripts/sync-docs.js",
+    "check:docs": "node scripts/sync-docs.js --check"
   },
   "devDependencies": {
     "concurrently": "^9.0.0"

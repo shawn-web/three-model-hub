@@ -1,38 +1,54 @@
 # ====================================
 # Node / 包管理
 # ====================================
-node_modules
-.pnpm-store
-.yarn
+node_modules/
+.pnpm-store/
+.yarn/
 .pnp.*
+.pnp.js
 
 # ====================================
 # 构建产物
 # ====================================
-dist
-dist-ssr
-build
-out
+dist/
+dist-ssr/
+build/
+out/
 *.local
+frontend/dist/
+backend/dist/
+frontend/coverage/
+backend/coverage/
+*.tsbuildinfo
 
-# 前端构建产物
-frontend/dist
-backend/dist
-frontend/coverage
-backend/coverage
+# ====================================
+# 缓存
+# ====================================
+.eslintcache
+.cache/
+.parcel-cache/
+.vite/
+.turbo/
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# ====================================
+# 锁文件（本项目统一使用 pnpm，禁止提交 npm/yarn 锁文件）
+# ====================================
+package-lock.json
+yarn.lock
 
 # ====================================
 # 环境变量与密钥（**绝不可提交**）
 # ====================================
-# .env
 .env
 .env.local
 .env.*.local
 .env.development
 .env.production
 .env.test
-
-# 显式列出常见密钥文件（双重保险）
 *.pem
 *.key
 *.crt
@@ -40,15 +56,17 @@ backend/coverage
 *.p12
 *.pfx
 secrets/
+.secrets/
 private-keys/
 *.secret
 secrets.json
 credentials.json
+LOCAL_SECRETS.md
 
 # ====================================
 # 日志
 # ====================================
-logs
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -57,14 +75,10 @@ pnpm-debug.log*
 lerna-debug.log*
 
 # ====================================
-# MinIO 数据
+# 数据目录（本地基础设施）
 # ====================================
 /.minio-data/
 /backend/.minio-data/
-
-# ====================================
-# MySQL 数据（如果用本地容器 volume）
-# ====================================
 /.mysql-data/
 docker-data/
 
@@ -82,11 +96,9 @@ backend/uploads/
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json.example
-.idea
+.idea/
 *.swp
 *.swo
-.DS_Store
-Thumbs.db
 *.suo
 *.ntvs*
 *.njsproj
@@ -94,11 +106,11 @@ Thumbs.db
 *.sw?
 
 # ====================================
-# Claude Code（用户级，不入仓）
+# AI 工具本地配置（不入仓）
 # ====================================
-.claude/settings.local.json
-.claude/worktrees/
-.claude/scheduled_tasks.lock
+.claude/
+.agents/
+.serena/
 
 # ====================================
 # 前端公共资源（GLB 走 MinIO 上传后通过 /api/storage 拉取，不应放仓库）
@@ -124,6 +136,24 @@ playwright-report/
 playwright/.cache/
 
 # ====================================
+# 临时 / 调试残留
+# ====================================
+_*.txt
+commit_msg.txt
+/*.glb
+*.bak
+*.backup
+*.old
+*.tgz
+.npmrc.bak
+
+# ====================================
+# Docker 本地覆盖
+# ====================================
+.docker/
+docker-compose.override.yml
+
+# ====================================
 # OS
 # ====================================
 .DS_Store
@@ -133,40 +163,4 @@ playwright/.cache/
 .Trashes
 ehthumbs.db
 Desktop.ini
-
-# ====================================
-# 其他
-# ====================================
-*.tgz
-.npmrc.bak
-.eslintcache
-.cache/
-.parcel-cache/
-.vite/
-.turbo/
-.rpt2_cache/
-.rts2_cache_cjs/
-.rts2_cache_es/
-.rts2_cache_umd/
-.tsbuildinfo
-*.tsbuildinfo
-
-# ====================================
-# Docker
-# ====================================
-.docker/
-docker-compose.override.yml
-
-# ====================================
-# 备份文件
-# ====================================
-*.bak
-*.backup
-*.old
-
-# ====================================
-# 本地开发工具配置
-# ====================================
-.actrc  # nektos/act 配置
-.secrets/
-LOCAL_SECRETS.md
+Thumbs.db

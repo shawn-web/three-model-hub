@@ -19,7 +19,7 @@ import { MinioService } from '../minio/minio.service'
  *   GET /api/storage/:bucket/*        → 代理下载具体文件
  *
  * 说明：
- *   - 前端拿到 upload 返回的 url（如 /api/storage/three-mode/labs/models/...glb）
+ *   - 前端拿到 upload 返回的 url（如 /api/storage/three-model-hub/labs/models/...glb）
  *     后直接 <img src>、fetch、three.js GLTFLoader 都用
  *   - 后端从 MinIO 流式读取后透传（不缓存，避免大文件占内存）
  *

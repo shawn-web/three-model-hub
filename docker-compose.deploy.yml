@@ -1,13 +1,13 @@
-# ThreeModelHub 全栈本地部署
+# three-model-hub 全栈本地部署
 # 使用: docker compose -f docker-compose.deploy.yml up -d --build
 # 访问: http://localhost:8080
 #
-# 文件上传：内置 MinIO 服务，不依赖任何外部文件服务。
+# 内置服务：MySQL + MinIO + Backend + Frontend，不依赖任何外部文件服务。
 
 services:
   mysql:
     image: mysql:8.0
-    container_name: threemodelhub_mysql
+    container_name: three-model-hub_mysql
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
@@ -17,7 +17,7 @@ services:
     ports:
       - "${MYSQL_PORT:-3308}:3306"
     volumes:
-      - threemodelhub_mysql_data:/var/lib/mysql
+      - three-model-hub_mysql_data:/var/lib/mysql
     command: --default-authentication-plugin=mysql_native_password
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
@@ -25,16 +25,38 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - threemodelhub-net
+      - three-model-hub-net
+
+  minio:
+    image: minio/minio
+    container_name: three-model-hub_minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin123}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - three-model-hub_minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - three-model-hub-net
 
   backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    container_name: threemodelhub_backend
+    container_name: three-model-hub_backend
     restart: unless-stopped
     environment:
-      NODE_ENV: development  # 首次启动需要 synchronize 创建表
+      NODE_ENV: production
       DB_HOST: mysql
       DB_PORT: 3306
       DB_USERNAME: ${DB_USERNAME:-root}
@@ -42,11 +64,20 @@ services:
       DB_DATABASE: ${DB_DATABASE:-three_model_hub}
       DB_LOGGING: "false"
       PORT: 3000
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_USE_SSL: "false"
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin123}
+      MINIO_BUCKET: ${MINIO_BUCKET:-three-model-hub}
+      MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL:-http://localhost:9000}
     depends_on:
       mysql:
         condition: service_healthy
+      minio:
+        condition: service_healthy
     networks:
-      - threemodelhub-net
+      - three-model-hub-net
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/models"]
       interval: 15s
@@ -58,18 +89,19 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
-    container_name: threemodelhub_frontend
+    container_name: three-model-hub_frontend
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-8080}:80"
     depends_on:
       - backend
     networks:
-      - threemodelhub-net
+      - three-model-hub-net
 
 networks:
-  threemodelhub-net:
+  three-model-hub-net:
     driver: bridge
 
 volumes:
-  threemodelhub_mysql_data:
+  three-model-hub_mysql_data:
+  three-model-hub_minio_data:

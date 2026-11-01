@@ -157,7 +157,7 @@ pnpm build
 2. 创建 Entity、DTO、Service、Controller、Module
 3. 在 `app.module.ts` 中注册新模块
 4. 编写 e2e 测试
-5. **同步更新文档**：`docs/api.md` + `docs/architecture.md` 后端目录结构 + CLAUDE.md 模块表
+5. **同步更新文档**：`docs/api.md` + `docs/architecture.md` 后端目录结构 + AGENTS.md 模块表
 
 ### 新增前端页面
 
@@ -165,14 +165,14 @@ pnpm build
 2. 在 `frontend/src/RouterApp.tsx` 中添加路由
 3. 在导航栏中添加导航项（如需要）
 4. 在 `frontend/src/api/` 下添加 API 调用函数
-5. **同步更新文档**：`docs/architecture.md` 前端目录结构 + CLAUDE.md 路由表
+5. **同步更新文档**：`docs/architecture.md` 前端目录结构 + AGENTS.md 路由表
 
 ### 新增查看器插件
 
 1. 在 `frontend/src/plugins/` 下创建插件目录
 2. 实现插件初始化和生命周期方法（参考 `plugins/types.ts` 中的 `ViewerPlugin` 接口）
 3. 在插件管理器中注册插件
-4. **同步更新文档**：`docs/architecture.md` 前端目录结构 + CLAUDE.md 插件说明
+4. **同步更新文档**：`docs/architecture.md` 前端目录结构 + AGENTS.md 插件说明
 
 ## 查看器插件列表
 

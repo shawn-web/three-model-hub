@@ -35,8 +35,8 @@ export class UploadSession {
   @Column({ length: 1024 })
   object_key: string
 
-  /** 存储桶名（默认 three-mode，便于将来多 bucket 扩展） */
-  @Column({ length: 100, default: 'three-mode' })
+  /** 存储桶名（默认 three-model-hub，便于将来多 bucket 扩展） */
+  @Column({ length: 100, default: 'three-model-hub' })
   bucket: string
 
   /** 原始文件名（用于显示） */

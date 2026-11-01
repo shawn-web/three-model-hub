@@ -6,114 +6,95 @@ on:
   pull_request:
     branches: [master]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+
 jobs:
-  backend-test:
-    name: Backend Tests (NestJS + Jest)
-    runs-on: ubuntu-latest
-
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: three_model_hub_test
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping -h localhost"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-
-      - name: Install pnpm
-        run: npm install -g pnpm@9
-
-      - name: Install backend dependencies
-        run: cd backend && pnpm install --frozen-lockfile
-
-      - name: Run backend tests
-        env:
-          DB_HOST: 127.0.0.1
-          DB_PORT: 3306
-          DB_USERNAME: root
-          DB_PASSWORD: root
-          DB_DATABASE: three_model_hub_test
-          MINIO_ENDPOINT: localhost
-          MINIO_ACCESS_KEY: minioadmin
-          MINIO_SECRET_KEY: minioadmin123
-          MINIO_BUCKET: three-model-hub-test
-        run: cd backend && pnpm test
-
-  frontend-test:
-    name: Frontend Tests (Vitest)
+  # 编码卫生：拦截 UTF-8 BOM（BOM 会导致 Vite/Vitest 无法解析 package.json）
+  encoding:
+    name: Encoding (BOM Check)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
+      - name: Reject UTF-8 BOM in tracked files
+        run: python3 scripts/check-bom.py
 
-      - name: Install pnpm
-        run: npm install -g pnpm@9
-
-      - name: Install frontend dependencies
-        run: cd frontend && pnpm install --frozen-lockfile
-
-      - name: Run frontend tests
-        run: cd frontend && pnpm test:run
-
-  frontend-build:
-    name: Frontend Build (Vite)
+  # 文档一致性：根目录文档与前端内置文档副本必须同步
+  docs:
+    name: Docs Sync Check
     runs-on: ubuntu-latest
-    needs: frontend-test
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
+      - name: Check docs are synced
+        run: node scripts/sync-docs.js --check
 
-      - name: Install pnpm
-        run: npm install -g pnpm@9
-
-      - name: Install frontend dependencies
-        run: cd frontend && pnpm install --frozen-lockfile
-
-      - name: Build frontend
-        run: cd frontend && pnpm build
-
-  backend-build:
-    name: Backend Build (TypeScript)
+  # 说明：e2e 测试需要真实的 MySQL + MinIO 实例（本地用 docker-compose 启动），
+  # 因此 CI 仅运行不依赖外部服务的单元测试；e2e 运行方式见 docs/testing.md。
+  backend:
+    name: Backend (lint / typecheck / unit tests)
     runs-on: ubuntu-latest
-    needs: backend-test
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm --filter three-model-hub-backend lint
+
+      - name: Typecheck
+        run: pnpm --filter three-model-hub-backend exec tsc -p tsconfig.build.json --noEmit
+
+      - name: Unit tests
+        run: pnpm --filter three-model-hub-backend test:unit
+
+  frontend:
+    name: Frontend (lint / typecheck / unit tests / build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Install pnpm
-        run: npm install -g pnpm@9
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
 
-      - name: Install backend dependencies
-        run: cd backend && pnpm install --frozen-lockfile
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
-      - name: Build backend
-        run: cd backend && pnpm build
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm --filter three-model-hub-frontend lint
+
+      - name: Typecheck
+        run: pnpm --filter three-model-hub-frontend exec tsc -b --noEmit
+
+      - name: Unit tests
+        run: pnpm --filter three-model-hub-frontend test:run
+
+      - name: Build
+        run: pnpm --filter three-model-hub-frontend build

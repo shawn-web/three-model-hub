@@ -11,7 +11,7 @@
 ## Project Structure
 
 ```
-threeMode/
+three-model-hub/
 ├── src/
 │   ├── main.tsx                    # 入口
 │   ├── App.tsx                     # 根组件

@@ -2,7 +2,7 @@
 
 ## 支持的版本
 
-下表列出了当前获得安全更新的 ThreeModelHub 版本：
+下表列出了当前获得安全更新的 three-model-hub 版本：
 
 | 版本 | 支持情况 |
 |------|----------|
@@ -15,8 +15,9 @@
 
 请通过以下方式私下报告：
 
-1. 打开一个 [GitHub Security Advisory](https://github.com/three-model-hub/three-model-hub/security/advisories/new)（推荐）
-2. 或发送邮件到维护者邮箱（见 [README.md](README.md) 中的联系方式）
+1. 在 [Gitee Issues](https://gitee.com/lishuaistart/three-model/issues) 提交 **私密** Issue（标题标注 `[SECURITY]`）
+2. 或在 GitHub 镜像仓库发起 Private Security Advisory
+3. 或发送邮件到维护者邮箱（见 [README.md](README.md) 中的联系方式）
 
 报告内容请包含：
 
@@ -33,7 +34,7 @@
 
 ## 安全最佳实践
 
-部署 ThreeModelHub 时请遵循以下安全建议：
+部署 three-model-hub 时请遵循以下安全建议：
 
 ### 必须修改的默认值
 
@@ -41,6 +42,10 @@
 - **MinIO 凭证**：`MINIO_ACCESS_KEY`、`MINIO_SECRET_KEY`
 - **CORS 白名单**：生产环境必须设置 `CORS_ORIGINS`，不要留空
 - **.env 文件权限**：`chmod 600 backend/.env`
+
+> 早期提交历史中曾包含 `backend/.env`（已通过历史重写移除）。
+> 若你曾在旧版本中使用过其中记录的 `FILE_SERVICE_TOKEN` 或数据库口令，
+> **请立即轮换这些凭据**，不要假定历史移除等同于未被读取。
 
 ### 反向代理
 

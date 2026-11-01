@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: 'threemode-api',
+      name: 'three-model-hub-api',
       cwd: './backend',
       script: 'dist/main.js',
       instances: 2,
@@ -12,8 +12,8 @@ module.exports = {
         NODE_ENV: 'production',
       },
       // 日志
-      error_file: '/var/log/threemode/error.log',
-      out_file: '/var/log/threemode/out.log',
+      error_file: '/var/log/three-model-hub/error.log',
+      out_file: '/var/log/three-model-hub/out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       merge_logs: true,
       // 重启策略

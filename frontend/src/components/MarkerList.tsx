@@ -1,10 +1,10 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Button, message, Upload, Popconfirm, theme as antdTheme } from 'antd'
 import { Icon } from '@iconify/react'
 import { uploadIcon, undo2Icon, moveIcon, settingsIcon, trash2Icon, mapPinIcon } from './Icons'
 import { useEditStore } from '../store/edit-store'
 import { uploadFile } from '../api/upload'
-import { getDefaultMarkerUrl, setDefaultMarkerUrl, resetDefaultMarkerUrl } from '../utils/marker-defaults'
+import { getDefaultMarkerUrl, migrateLegacyMarkerUrl, setDefaultMarkerUrl, resetDefaultMarkerUrl } from '../utils/marker-defaults'
 import { createDefaultMarkerImage } from './MarkerSpriteShared'
 import type { MarkerData } from '../types/edit-data'
 
@@ -18,6 +18,11 @@ export function MarkerList({ onEditMarker }: { onEditMarker: (marker: MarkerData
   const setSelectedMarkerId = useEditStore((s) => s.setSelectedMarkerId)
   const setEditingMarkerId = useEditStore((s) => s.setEditingMarkerId)
   const [customDefault, setCustomDefault] = useState<string | null>(getDefaultMarkerUrl())
+  // 旧 key 迁移必须在副作用里跑（render 路径写 localStorage 会破坏 React 纯渲染契约）
+  useEffect(() => {
+    migrateLegacyMarkerUrl()
+    setCustomDefault(getDefaultMarkerUrl())
+  }, [])
   const { token } = antdTheme.useToken()
 
   const actionLabel: Record<string, string> = { popup: '弹窗', iframe: 'iframe', link: '链接', none: '' }

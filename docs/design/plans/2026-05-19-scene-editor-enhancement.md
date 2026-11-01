@@ -116,7 +116,7 @@ async batchUpdateModels(
 
 - [ ] **Step 4: 验证编译**
 
-Run: `cd D:/other/threeMode/backend && npx tsc --noEmit`
+Run: `cd D:/other/three-model-hub/backend && npx tsc --noEmit`
 Expected: 无错误
 
 - [ ] **Step 5: 提交**
@@ -209,7 +209,7 @@ setBackgroundConfig: (config) => {
 
 - [ ] **Step 3: 验证编译**
 
-Run: `cd D:/other/threeMode/frontend && npx tsc --noEmit`
+Run: `cd D:/other/three-model-hub/frontend && npx tsc --noEmit`
 Expected: 无错误
 
 - [ ] **Step 4: 提交**
@@ -328,7 +328,7 @@ export function EditToolbar({ onFitView, onSave, onSetThumbnail, saving }: EditT
 
 - [ ] **Step 2: 验证编译**
 
-Run: `cd D:/other/threeMode/frontend && npx tsc --noEmit`
+Run: `cd D:/other/three-model-hub/frontend && npx tsc --noEmit`
 Expected: 无错误（可能因 edit-store 中 setTransformMode 不存在而报错，下一步处理）
 
 - [ ] **Step 3: 确认 edit-store 已有 setTransformMode**
@@ -466,7 +466,7 @@ export function SceneTree() {
 
 - [ ] **Step 2: 验证编译**
 
-Run: `cd D:/other/threeMode/frontend && npx tsc --noEmit`
+Run: `cd D:/other/three-model-hub/frontend && npx tsc --noEmit`
 Expected: 无错误
 
 - [ ] **Step 3: 提交**
@@ -627,7 +627,7 @@ useEffect(() => {
 
 - [ ] **Step 4: 验证编译**
 
-Run: `cd D:/other/threeMode/frontend && npx tsc --noEmit`
+Run: `cd D:/other/three-model-hub/frontend && npx tsc --noEmit`
 Expected: 无错误
 
 - [ ] **Step 5: 提交**
@@ -859,7 +859,7 @@ export async function uploadFile(formData: FormData) {
 
 - [ ] **Step 2: 验证编译**
 
-Run: `cd D:/other/threeMode/frontend && npx tsc --noEmit`
+Run: `cd D:/other/three-model-hub/frontend && npx tsc --noEmit`
 Expected: 无错误
 
 - [ ] **Step 3: 提交**
@@ -1043,7 +1043,7 @@ export function ComponentProperties() {
 
 - [ ] **Step 2: 验证编译**
 
-Run: `cd D:/other/threeMode/frontend && npx tsc --noEmit`
+Run: `cd D:/other/three-model-hub/frontend && npx tsc --noEmit`
 Expected: 无错误
 
 - [ ] **Step 3: 提交**
@@ -1154,7 +1154,7 @@ const selectedObject = useMemo(() => {
 
 - [ ] **Step 4: 验证编译**
 
-Run: `cd D:/other/threeMode/frontend && npx tsc --noEmit`
+Run: `cd D:/other/three-model-hub/frontend && npx tsc --noEmit`
 Expected: 无错误
 
 - [ ] **Step 5: 提交**
@@ -1365,7 +1365,7 @@ import { batchUpdateSceneModels } from '../api/scenes'
 
 - [ ] **Step 6: 验证编译**
 
-Run: `cd D:/other/threeMode/frontend && npx tsc --noEmit`
+Run: `cd D:/other/three-model-hub/frontend && npx tsc --noEmit`
 Expected: 无错误
 
 - [ ] **Step 7: 提交**
@@ -1427,7 +1427,7 @@ if (sceneModel.visible === false) {
 
 - [ ] **Step 4: 验证编译**
 
-Run: `cd D:/other/threeMode/frontend && npx tsc --noEmit`
+Run: `cd D:/other/three-model-hub/frontend && npx tsc --noEmit`
 Expected: 无错误
 
 - [ ] **Step 5: 提交**
@@ -1479,7 +1479,7 @@ plugin.addPoint(point.clone())
 
 - [ ] **Step 5: 验证编译**
 
-Run: `cd D:/other/threeMode/frontend && npx tsc --noEmit`
+Run: `cd D:/other/three-model-hub/frontend && npx tsc --noEmit`
 Expected: 无错误
 
 - [ ] **Step 6: 提交**
@@ -1517,7 +1517,7 @@ useViewerStore.getState().setSceneConfig(sceneData.config)
 
 - [ ] **Step 3: 验证编译**
 
-Run: `cd D:/other/threeMode/frontend && npx tsc --noEmit`
+Run: `cd D:/other/three-model-hub/frontend && npx tsc --noEmit`
 Expected: 无错误
 
 - [ ] **Step 4: 提交**
@@ -1631,8 +1631,8 @@ export async function uploadFile(formData: FormData) {
 
 - [ ] **Step 4: 验证编译**
 
-Run: `cd D:/other/threeMode/backend && npx tsc --noEmit`
-Run: `cd D:/other/threeMode/frontend && npx tsc --noEmit`
+Run: `cd D:/other/three-model-hub/backend && npx tsc --noEmit`
+Run: `cd D:/other/three-model-hub/frontend && npx tsc --noEmit`
 Expected: 无错误
 
 - [ ] **Step 5: 提交**
@@ -1651,8 +1651,8 @@ git commit -m "feat: 添加通用文件上传 API 端点"
 
 - [ ] **Step 1: 全量 TypeScript 编译检查**
 
-Run: `cd D:/other/threeMode/backend && npx tsc --noEmit`
-Run: `cd D:/other/threeMode/frontend && npx tsc --noEmit`
+Run: `cd D:/other/three-model-hub/backend && npx tsc --noEmit`
+Run: `cd D:/other/three-model-hub/frontend && npx tsc --noEmit`
 Expected: 无错误
 
 - [ ] **Step 2: 检查所有新文件的 import 路径**
