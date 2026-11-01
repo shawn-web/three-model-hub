@@ -35,7 +35,7 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "compression": "^1.7.5",
-    "helmet": "^8.1.0",
+    "helmet": "^8.3.0",
     "meshoptimizer": "^0.24.0",
     "minio": "^8.0.7",
     "mysql2": "^3.22.3",
