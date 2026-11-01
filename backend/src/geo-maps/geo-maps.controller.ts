@@ -53,6 +53,12 @@ export class GeoMapsController {
     return this.geoMapsService.getMapData(id)
   }
 
+  /** 获取 iframe 嵌入配置（frame-ancestors 白名单 + allowedOrigins），供 nginx 和父页面使用 */
+  @Get(':id/iframe-config')
+  async getIframeConfig(@Param('id', ParseUUIDPipe) id: string) {
+    return this.geoMapsService.getIframeConfig(id)
+  }
+
   /** 创建地图 */
   @Post()
   async create(@Body() dto: CreateGeoMapDto) {

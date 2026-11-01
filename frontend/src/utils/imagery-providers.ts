@@ -40,7 +40,11 @@ export interface ImageryProviderConfig {
 
 // ── 天地图 Provider ──────────────────────────────────────
 
-const TIANDITU_TOKEN = import.meta.env.VITE_TIANDITU_TOKEN as string
+const TIANDITU_TOKEN = import.meta.env.VITE_TIANDITU_TOKEN as string | undefined
+
+if (!TIANDITU_TOKEN && import.meta.env.DEV) {
+  console.warn('[imagery] 未配置 VITE_TIANDITU_TOKEN，天地图底图将加载失败（tk=undefined 会导致 418）。请在 frontend/.env 中设置该变量。')
+}
 
 /** 天地图通用 WMTS 参数 */
 const TIANDITU_COMMON = {

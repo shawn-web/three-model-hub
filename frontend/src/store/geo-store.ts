@@ -70,7 +70,7 @@ interface MapData {
       /** 是否显示标点 */
       showMarkers?: boolean
       /** 允许的 postMessage 来源域名 */
-      allowedOrigins?: string[]
+      allowedOrigins?: string[] | null
     }
   }
   models: Array<{
@@ -183,10 +183,10 @@ interface GeoState {
   /** 设置聚焦标点 ID（null 取消聚焦，触发相机恢复） */
   setFocusedMarkerId: (id: string | null) => void
   flyToGeo: (longitude: number, latitude: number, altitude: number, heading?: number, pitch?: number) => void
-  _setFlyToGeoImpl: (fn: (lng: number, lat: number, alt: number, heading?: number, pitch?: number) => void) => void
+  _setFlyToGeoImpl: (fn: ((lng: number, lat: number, alt: number, heading?: number, pitch?: number) => void) | undefined) => void
   setVisibleModelIds: (ids: string[] | null) => void
   /** 设置允许的 postMessage 来源域名 */
-  setAllowedOrigins: (origins: string[]) => void
+  setAllowedOrigins: (origins: string[] | null) => void
   /** 设置隐藏的 Geo 工具按钮 */
   setHiddenTools: (tools: string[]) => void
   /** 设置是否显示标点 */
@@ -366,8 +366,8 @@ export const useGeoStore = create<GeoState>((set, get) => ({
         visibleModelIds: get().visibleFilter,
         hiddenTools: Array.from(get().hiddenTools),
         showMarkers: get().showMarkers,
-        // 保留 [] 语义：显式 [] = 拒绝一切，|| 会把 [] 折叠成 undefined（顺带清空 DB 端拒绝策略）
-        allowedOrigins: get().allowedOrigins === null ? undefined : get().allowedOrigins,
+        // 直接存 null 或数组；null 表示走 referrer 默认，[] 表示显式拒绝一切
+        allowedOrigins: get().allowedOrigins,
         toolbar: get().showToolbar,
         panel: get().showPanel,
       }
@@ -442,12 +442,23 @@ export const useGeoStore = create<GeoState>((set, get) => ({
   placeModel: (geo: { longitude: number; latitude: number; altitude: number }) => {
     const { selectedModelId, models } = get()
     // 优先使用当前选中的模型，而非搜索第一个未定位模型
-    const targetId = selectedModelId || models.find((m: any) => !m.geo_position)?.id
+    const targetId = selectedModelId || models.find((m) => !m.geo_position)?.id
     if (!targetId) return
-    set((state: any) => ({
-      models: state.models.map((m: any) =>
-        m.id === targetId ? { ...m, _pendingGeo: geo } : m,
-      ),
+    set((state) => ({
+      models: state.models.map((m) => {
+        if (m.id !== targetId) return m
+        // 与 updateModelGeoPosition 保持一致：缺失字段用默认值补齐
+        const current = m._pendingGeo || m.geo_position || {
+          longitude: 0,
+          latitude: 0,
+          altitude: 0,
+          heading: 0,
+          pitch: 0,
+          roll: 0,
+          scale: 1,
+        }
+        return { ...m, _pendingGeo: { ...current, ...geo } as GeoPosition }
+      }),
       placementMode: false,
       selectedModelId: targetId,
     }))
@@ -507,7 +518,7 @@ export const useGeoStore = create<GeoState>((set, get) => ({
   flyToGeo: (longitude: number, latitude: number, altitude: number, heading?: number, pitch?: number) => {
     _flyToGeoFn?.(longitude, latitude, altitude, heading, pitch)
   },
-  setAllowedOrigins: (origins: string[]) => {
+  setAllowedOrigins: (origins: string[] | null) => {
     set({ allowedOrigins: origins })
   },
   setHiddenTools: (tools: string[]) => {
@@ -563,7 +574,7 @@ export const useGeoStore = create<GeoState>((set, get) => ({
   },
 
   /** 保存当前相机视角到 config.geo.viewpoint 并持久化 */
-  _setFlyToGeoImpl: (fn: (lng: number, lat: number, alt: number, heading?: number, pitch?: number) => void) => {
+  _setFlyToGeoImpl: (fn: ((lng: number, lat: number, alt: number, heading?: number, pitch?: number) => void) | undefined) => {
     _flyToGeoFn = fn
   },
 
@@ -740,8 +751,9 @@ export const useGeoStore = create<GeoState>((set, get) => ({
     })
 
     const { mapId } = get()
-    if (mapId && nextMapData) {
-      updateGeoMap(mapId, { config: nextMapData.config }).catch(() => {
+    const latestMapData = get().mapData
+    if (mapId && latestMapData) {
+      updateGeoMap(mapId, { config: latestMapData.config }).catch(() => {
         message.error('锁定状态保存失败')
       })
     }

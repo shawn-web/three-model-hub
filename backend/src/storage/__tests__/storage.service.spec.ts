@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { StorageService } from '../storage.service'
 import { MinioService } from '../../minio/minio.service'
+import { DEFAULT_MINIO_BUCKET } from '../../minio/constants'
+import { createMinioServiceMock } from '../../../test/utils/minio-mock'
 
 /**
  * StorageService 单元测试
@@ -15,13 +17,7 @@ import { MinioService } from '../../minio/minio.service'
 describe('StorageService', () => {
   let service: StorageService
 
-  const mockMinioService = {
-    putObject: jest.fn(),
-    removeObject: jest.fn(),
-    statObject: jest.fn(),
-    getPublicUrl: jest.fn(),
-    getBucket: jest.fn().mockReturnValue('three-model-hub'),
-  } as unknown as jest.Mocked<MinioService>
+  const mockMinioService = createMinioServiceMock()
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -89,16 +85,16 @@ describe('StorageService', () => {
 
   describe('getPublicUrl', () => {
     it('应透传 minioService.getPublicUrl', () => {
-      mockMinioService.getPublicUrl.mockReturnValue('http://localhost:9000/three-model-hub/labs/test.glb')
+      mockMinioService.getPublicUrl.mockReturnValue(`http://localhost:9000/${DEFAULT_MINIO_BUCKET}/labs/test.glb`)
       const url = service.getPublicUrl('labs/test.glb')
-      expect(url).toBe('http://localhost:9000/three-model-hub/labs/test.glb')
+      expect(url).toBe(`http://localhost:9000/${DEFAULT_MINIO_BUCKET}/labs/test.glb`)
     })
   })
 
   describe('uploadFile', () => {
     it('应调 minioService.putObject 并返回 { url, fileKey }', async () => {
       mockMinioService.putObject.mockResolvedValue(undefined)
-      mockMinioService.getPublicUrl.mockReturnValue('http://localhost:9000/three-model-hub/labs/models/x/y/uuid.glb')
+      mockMinioService.getPublicUrl.mockReturnValue(`http://localhost:9000/${DEFAULT_MINIO_BUCKET}/labs/models/x/y/uuid.glb`)
 
       const result = await service.uploadFile(
         Buffer.from('data'),
@@ -110,7 +106,7 @@ describe('StorageService', () => {
 
       expect(mockMinioService.putObject).toHaveBeenCalled()
       expect(result.fileKey).toMatch(/^labs\/models\//)
-      expect(result.url).toContain('three-model-hub')
+      expect(result.url).toContain(DEFAULT_MINIO_BUCKET)
     })
 
     it('onProgress 回调应被调用一次 100%', async () => {

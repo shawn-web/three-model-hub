@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
   Index,
 } from 'typeorm'
+import { DEFAULT_MINIO_BUCKET } from '../../minio/constants'
 
 /**
  * 分片上传会话实体
@@ -28,7 +29,7 @@ export class UploadSession {
   id: string
 
   /** MinIO Multipart UploadId（MinIO 生成的唯一标识） */
-  @Column({ length: 100, unique: true })
+  @Column({ length: 255, unique: true })
   upload_id: string
 
   /** MinIO 中的对象 key，上传完成后用作 file_key 写业务表 */
@@ -36,7 +37,7 @@ export class UploadSession {
   object_key: string
 
   /** 存储桶名（默认 three-model-hub，便于将来多 bucket 扩展） */
-  @Column({ length: 100, default: 'three-model-hub' })
+  @Column({ length: 100, default: DEFAULT_MINIO_BUCKET })
   bucket: string
 
   /** 原始文件名（用于显示） */

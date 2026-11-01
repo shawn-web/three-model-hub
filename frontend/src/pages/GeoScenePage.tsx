@@ -28,7 +28,7 @@ import { GeoMarkerPopup } from '../components/geo/GeoMarkerPopup'
 import { GeoToolbar } from '../components/geo/GeoToolbar'
 import { GeoLocationPanel } from '../components/geo/GeoLocationPanel'
 import { useGeoStore } from '../store/geo-store'
-import { type GeoConfigPayload } from '../communication/protocol'
+import { MESSAGE_TYPES, type GeoConfigPayload } from '../communication/protocol'
 import { parseUrlParams } from '../communication/url-params'
 import { getMessageBus } from '../hooks/useMessageBus'
 import { getThemeConfig } from '../theme'
@@ -78,7 +78,6 @@ export function GeoScenePage() {
   const showPanel = useGeoStore((s) => s.showPanel)
   const sceneLoading = useGeoStore((s) => s.isLoading)
   const sceneError = useGeoStore((s) => s.error)
-  const storeAllowedOrigins = useGeoStore((s) => s.allowedOrigins)
 
   const models = useGeoStore((s) => s.models)
 
@@ -87,14 +86,6 @@ export function GeoScenePage() {
     ...getThemeConfig('dark'),
     algorithm: antdTheme.darkAlgorithm,
   }), [])
-
-  // 允许的 postMessage 来源域名（从 URL 参数获取）
-  const allowedOrigins = useMemo(() => {
-    const origins = searchParams.get('allowedOrigins')
-    return origins ? origins.split(',').map((o) => o.trim()).filter((o) => o.length > 0) : null
-  }, [searchParams])
-
-  // 把 URL 解析的 allowedOrigins 推到 MessageBus（覆盖构造时的默认值）
 
   // P1-6/7: 解析 URL 参数并应用到 store（使用 parseUrlParams 统一体系）
   useEffect(() => {
@@ -109,19 +100,19 @@ export function GeoScenePage() {
     if (urlParams.imagery) {
       store.setImageryProvider(urlParams.imagery)
     }
-    if (urlParams.geoType) {
-      store.setImageryType(urlParams.geoType)
+    if (urlParams.imageryType) {
+      store.setImageryType(urlParams.imageryType)
     }
     if (urlParams.visibleModelIds !== undefined) {
       store.setVisibleModelIds(urlParams.visibleModelIds)
     }
-    if (urlParams.hiddenTools) {
+    if (urlParams.hiddenTools != null) {
       store.setHiddenTools(urlParams.hiddenTools)
     }
     if (urlParams.showMarkers !== undefined) {
       store.setShowMarkers(urlParams.showMarkers)
     }
-    if (urlParams.allowedOrigins) {
+    if (urlParams.allowedOrigins != null) {
       store.setAllowedOrigins(urlParams.allowedOrigins)
       // 同步到 MessageBus
       getMessageBus().setAllowedOrigins(urlParams.allowedOrigins)
@@ -146,57 +137,50 @@ export function GeoScenePage() {
     }
   }, [])
 
-  // 监听父页面 postMessage（优先级 4：运行时最高，不参与持久化）
+  // 监听父页面 geo-config（优先级 4：运行时最高，不参与持久化）
+  // 统一走 MessageBus，origin 校验由其 allowlist 处理，避免双重监听和不一致
   useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      // origin 校验：URL 参数优先，其次使用数据库恢复的白名单
-      // 注意：与 MessageBus 不同，Geo 页面要求白名单必须显式存在；
-      //   未配置白名单时拒绝所有（默认安全，不依赖 referrer 可用性）
-      const effectiveAllowedOrigins = allowedOrigins || storeAllowedOrigins
-      if (!effectiveAllowedOrigins || !effectiveAllowedOrigins.includes(event.origin)) return
+    const handleGeoConfig = (payload: unknown) => {
+      const config = payload as GeoConfigPayload
+      if (!config) return
+      const store = useGeoStore.getState()
 
-      const data = event.data
-      if (!data || typeof data !== 'object') return
-
-      if (data.type === 'geo-config' && data.payload) {
-        const config = data.payload as GeoConfigPayload
-        const store = useGeoStore.getState()
-
-        // 底图相关 → 运行时覆盖（保存时不持久化）
-        if (config.imagery || config.imageryType) {
-          store.applyRuntimeConfig({
-            imageryProvider: config.imagery,
-            imageryType: config.imageryType as 'satellite' | 'vector' | 'terrain',
-          })
-        }
-        if (typeof config.toolbar === 'boolean') {
-          store.setShowToolbar(config.toolbar)
-        }
-        if (typeof config.panel === 'boolean') {
-          store.setShowPanel(config.panel)
-        }
-        if (config.hiddenTools) {
-          store.setHiddenTools(config.hiddenTools)
-        }
-        if (typeof config.showMarkers === 'boolean') {
-          store.setShowMarkers(config.showMarkers)
-        }
-        // P1-1: 视角控制 → 相机飞行（绕开 viewerRef 闭包问题）
-        if (config.camera) {
-          const cam = config.camera
-          const { flyToGeo } = useGeoStore.getState()
-          flyToGeo(cam.longitude, cam.latitude, cam.altitude, cam.heading, cam.pitch)
-        }
-        // P1-1: 模型可见性控制
-        if (config.visibleModelIds !== undefined) {
-          store.setVisibleModelIds(config.visibleModelIds)
-        }
+      // 底图相关 → 运行时覆盖（保存时不持久化）
+      if (config.imagery || config.imageryType) {
+        store.applyRuntimeConfig({
+          imageryProvider: config.imagery,
+          imageryType: config.imageryType as 'satellite' | 'vector' | 'terrain',
+        })
+      }
+      if (typeof config.toolbar === 'boolean') {
+        store.setShowToolbar(config.toolbar)
+      }
+      if (typeof config.panel === 'boolean') {
+        store.setShowPanel(config.panel)
+      }
+      if (config.hiddenTools) {
+        store.setHiddenTools(config.hiddenTools)
+      }
+      if (typeof config.showMarkers === 'boolean') {
+        store.setShowMarkers(config.showMarkers)
+      }
+      // P1-1: 视角控制 → 相机飞行（绕开 viewerRef 闭包问题）
+      if (config.camera) {
+        const cam = config.camera
+        const { flyToGeo } = useGeoStore.getState()
+        // TODO: flyToGeo 当前签名不支持 range，待 flyToGeo 扩展 range 参数后传入 cam.range
+        flyToGeo(cam.longitude, cam.latitude, cam.altitude, cam.heading, cam.pitch)
+      }
+      // P1-1: 模型可见性控制
+      if (config.visibleModelIds !== undefined) {
+        store.setVisibleModelIds(config.visibleModelIds)
       }
     }
 
-    window.addEventListener('message', handleMessage)
-    return () => window.removeEventListener('message', handleMessage)
-  }, [allowedOrigins, storeAllowedOrigins])
+    const bus = getMessageBus()
+    bus.on(MESSAGE_TYPES.GEO_CONFIG, handleGeoConfig)
+    return () => bus.off(MESSAGE_TYPES.GEO_CONFIG, handleGeoConfig)
+  }, [])
 
   // P0-4：unsaved changes 提示
   useEffect(() => {

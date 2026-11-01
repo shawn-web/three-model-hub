@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from 'typeorm'
 import { Model } from './model.entity'
 
@@ -13,6 +14,7 @@ import { Model } from './model.entity'
  * 每次上传新文件都会创建新版本，支持版本回溯和对比
  */
 @Entity('model_versions')
+@Index(['model_id', 'version_number'], { unique: true })
 export class ModelVersion {
   @PrimaryGeneratedColumn('uuid')
   id: string

@@ -91,6 +91,8 @@ export function GeoLocationPanel() {
   // 标点放置后自动打开配置弹窗（editingMarkerId 由 CesiumViewer 设置）
   useEffect(() => {
     if (editingMarkerId && !markerConfigOpen) {
+      // 响应外部（CesiumViewer）发起的标点编辑意图，放置完成后一次性打开配置弹窗
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMarkerConfigOpen(true)
     }
   }, [editingMarkerId])
@@ -607,6 +609,7 @@ export function GeoLocationPanel() {
         )}
       </Modal>
       <GeoMarkerConfig
+        key={editingMarkerId ?? 'none'}
         open={markerConfigOpen}
         markerId={editingMarkerId}
         onClose={() => {

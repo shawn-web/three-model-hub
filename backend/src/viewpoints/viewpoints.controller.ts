@@ -31,7 +31,7 @@ export class ViewpointsController {
     @Param('sceneId', ParseUUIDPipe) sceneId: string,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.viewpointsService.findOne(id)
+    return this.viewpointsService.findOne(sceneId, id)
   }
 
   /** 创建视点 */
@@ -50,7 +50,7 @@ export class ViewpointsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateViewpointDto,
   ) {
-    return this.viewpointsService.update(id, dto)
+    return this.viewpointsService.update(sceneId, id, dto)
   }
 
   /** 删除视点 */
@@ -59,7 +59,7 @@ export class ViewpointsController {
     @Param('sceneId', ParseUUIDPipe) sceneId: string,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    await this.viewpointsService.remove(id)
+    await this.viewpointsService.remove(sceneId, id)
     return { success: true }
   }
 }

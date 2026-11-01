@@ -80,7 +80,7 @@ export class XRayPlugin implements ViewerPlugin {
   sceneComponent: FC = XRayScene
   toolbarComponent: FC<{ plugin: ViewerPlugin }> = XRayToolbarButton
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   install(_context: ViewerContext): void { this.active = true }
   uninstall(): void {}
   activate(): void { this.active = true }

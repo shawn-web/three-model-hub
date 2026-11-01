@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { Repository, DataSource, EntityManager, In } from 'typeorm'
 import { GeoMap } from './entities/geo-map.entity'
@@ -77,6 +77,15 @@ export class GeoMapsService {
     if (!geoMap) {
       throw new NotFoundException(`地图不存在: ${id}`)
     }
+    // 校验 config.geo.allowedOrigins 结构：必须是 string[] 或 null
+    if (dto.config && typeof dto.config === 'object') {
+      const geo = (dto.config as Record<string, any>).geo
+      if (geo && geo.allowedOrigins !== undefined && geo.allowedOrigins !== null) {
+        if (!Array.isArray(geo.allowedOrigins) || !geo.allowedOrigins.every((o: unknown) => typeof o === 'string')) {
+          throw new BadRequestException('config.geo.allowedOrigins 必须是字符串数组或 null')
+        }
+      }
+    }
     Object.assign(geoMap, dto)
     return this.geoMapRepo.save(geoMap)
   }
@@ -90,6 +99,12 @@ export class GeoMapsService {
   /** 添加模型到地图 */
   async addModel(geoMapId: string, dto: AddGeoMapModelDto): Promise<GeoMapModel> {
     await this.findOne(geoMapId)
+
+    // 校验 model_id 是否存在，避免写入悬空外键
+    const model = await this.modelRepo.findOne({ where: { id: dto.model_id } })
+    if (!model) {
+      throw new NotFoundException(`模型不存在: ${dto.model_id}`)
+    }
 
     const geoMapModel = this.geoMapModelRepo.create({
       geo_map_id: geoMapId,
@@ -183,7 +198,11 @@ export class GeoMapsService {
    * 任一步抛错，整个事务回滚，避免「模型坐标已落库但底图配置丢失」的半完成状态。
    */
   async saveGeoConfig(geoMapId: string, dto: SaveGeoMapConfigDto): Promise<void> {
-    await this.findOne(geoMapId)
+    // 存在性校验（不加 relations，避免无用的 JOIN 查询）
+    const exists = await this.geoMapRepo.findOne({ where: { id: geoMapId } })
+    if (!exists) {
+      throw new NotFoundException(`地图不存在: ${geoMapId}`)
+    }
 
     await this.dataSource.transaction(async (manager) => {
       // 1. 批量更新模型坐标（复用事务 manager）
@@ -212,6 +231,34 @@ export class GeoMapsService {
    * 获取地图完整数据（用于前端渲染）
    * 包含地图自身信息 + 关联模型列表（JOIN models 表获取 file_url/thumbnail_url）
    */
+  /**
+   * 获取 iframe 嵌入配置（供 nginx frame-ancestors 和父页面使用）
+   *
+   * 返回 config.geo.allowedOrigins，同时与环境变量 IFRAME_FRAME_ANCESTORS 拼接。
+   * - allowedOrigins 为空/null 时：使用环境变量（默认 self）
+   * - allowedOrigins 为非空数组：合并环境变量 + 配置白名单
+   */
+  async getIframeConfig(id: string) {
+    const geoMap = await this.geoMapRepo.findOne({ where: { id } })
+    if (!geoMap) {
+      throw new NotFoundException('地图不存在: ' + id)
+    }
+    const geoConfig = (geoMap.config as Record<string, any>)?.geo || {}
+    const allowedOrigins: string[] | null = Array.isArray(geoConfig.allowedOrigins)
+      ? geoConfig.allowedOrigins
+      : null
+    const envAncestors = process.env.IFRAME_FRAME_ANCESTORS?.trim()
+    const frameAncestors = allowedOrigins && allowedOrigins.length > 0
+      ? [...allowedOrigins, ...(envAncestors ? envAncestors.split(',').map((s: string) => s.trim()).filter(Boolean) : [])]
+      : (envAncestors ? envAncestors.split(',').map((s: string) => s.trim()).filter(Boolean) : ['self'])
+    return {
+      mapId: geoMap.id,
+      mapName: geoMap.name,
+      allowedOrigins,
+      frameAncestors,
+    }
+  }
+
   async getMapData(id: string) {
     const geoMap = await this.geoMapRepo.findOne({
       where: { id },

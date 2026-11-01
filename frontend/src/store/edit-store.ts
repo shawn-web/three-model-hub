@@ -396,7 +396,7 @@ export const useEditStore = create<EditState & EditActions>()(
         const v = Number(speed)
         set({ autoRotateSpeed: isNaN(v) ? 2 : v, isDirty: true })
       },
-      setBackgroundColor: (color) => set({ backgroundColor: color }),
+      setBackgroundColor: (color) => set({ backgroundColor: color, isDirty: true }),
       setBackgroundConfig: (config) => {
         set({ backgroundConfig: config, isDirty: true })
       },
@@ -408,7 +408,7 @@ export const useEditStore = create<EditState & EditActions>()(
         const v = Number(intensity)
         set({ ambientIntensity: isNaN(v) ? 0.8 : v, isDirty: true })
       },
-      setLightColor: (color) => set({ lightColor: color }),
+      setLightColor: (color) => set({ lightColor: color, isDirty: true }),
 
       addMarker: (marker) => set((state) => ({ markers: [...state.markers, marker], isDirty: true })),
       removeMarker: (id) => set((state) => ({ markers: state.markers.filter((m) => m.id !== id), isDirty: true })),

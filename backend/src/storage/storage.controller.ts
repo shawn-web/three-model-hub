@@ -19,7 +19,7 @@ import { MinioService } from '../minio/minio.service'
  *   GET /api/storage/:bucket/*        → 代理下载具体文件
  *
  * 说明：
- *   - 前端拿到 upload 返回的 url（如 /api/storage/three-model-hub/labs/models/...glb）
+ *   - 前端拿到 upload 返回的 url（如 /api/storage/three-mode/labs/models/...glb）
  *     后直接 <img src>、fetch、three.js GLTFLoader 都用
  *   - 后端从 MinIO 流式读取后透传（不缓存，避免大文件占内存）
  *
@@ -82,6 +82,42 @@ export class StorageController {
     }
 
     try {
+      // Range 请求：先 stat 拿 size，再 partial 拉字节，返回 206
+      // 多 range（multipart/byteranges）暂不支持，降级到全量流式（前端只发单 range）
+      // req.headers.range 类型是 string | string[] | undefined，统一取第一个
+      const rangeHeader = (req.headers.range as string | string[] | undefined)
+        ?.toString()
+        .split(',')[0] // 多 range 取第一个；剩余解析失败则降级到全量流式
+      if (rangeHeader) {
+        const { size, contentType, etag, lastModified } =
+          await this.minioService.statObject(objectKey)
+        const ranges = req.range(size)
+        // -1 = malformed，-2 = unsatisfiable
+        if (ranges === -1 || ranges === -2) {
+          res.setHeader('Content-Range', `bytes */${size}`)
+          res.status(416).end()
+          return
+        }
+        if (ranges.length === 1) {
+          const { start, end } = ranges[0]
+          const buffer = await this.minioService.getObjectPartial(
+            objectKey,
+            start,
+            end - start + 1,
+          )
+          res.status(206)
+          res.setHeader('Content-Type', contentType)
+          res.setHeader('Content-Length', String(buffer.length))
+          res.setHeader('Content-Range', `bytes ${start}-${end}/${size}`)
+          res.setHeader('ETag', etag)
+          res.setHeader('Last-Modified', lastModified.toUTCString())
+          res.setHeader('Accept-Ranges', 'bytes')
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          res.end(buffer)
+          return
+        }
+      }
+
       const { stream, size, contentType, etag, lastModified } =
         await this.minioService.getObjectStream(objectKey)
 
@@ -105,6 +141,16 @@ export class StorageController {
           res.destroy()
         }
         console.error(`[StorageController] 流式传输 ${objectKey} 中途失败：`, err?.message)
+      })
+      // 客户端提前断开（关页面/取消下载）时主动销毁上游 MinIO 流，
+      // 否则上游 socket/缓冲区僵挂，大量中断的下载会导致 fd/内存泄漏。
+      res.on('close', () => {
+        if (!res.writableEnded) {
+          // minio.getObjectStream 实际返回 Node.js Readable（带 destroy），
+          // 但其类型签名声明为 NodeJS.ReadableStream 接口，没有 destroy 字段。
+          // 这里用类型断言收窄，运行时安全。
+          ;(stream as { destroy?: () => void }).destroy?.()
+        }
       })
       stream.pipe(res)
     } catch (e: any) {

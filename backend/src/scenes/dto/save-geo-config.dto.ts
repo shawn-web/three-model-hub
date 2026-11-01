@@ -1,4 +1,4 @@
-﻿import { IsArray, IsOptional, IsObject, ValidateNested, ArrayMaxSize, ArrayMinSize } from "class-validator"
+import { IsArray, IsOptional, IsObject, ValidateNested, ArrayMaxSize, ArrayMinSize } from "class-validator"
 import { Type } from "class-transformer"
 import { BatchSceneModelItemDto } from "./scene.dto"
 

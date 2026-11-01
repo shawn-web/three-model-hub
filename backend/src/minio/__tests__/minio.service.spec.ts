@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { ConfigService } from '@nestjs/config'
 import { MinioService } from '../minio.service'
+import { DEFAULT_MINIO_BUCKET } from '../constants'
 
 /**
  * MinioService 单元测试
@@ -22,7 +23,7 @@ describe('MinioService', () => {
         MINIO_USE_SSL: 'false',
         MINIO_ACCESS_KEY: 'minioadmin',
         MINIO_SECRET_KEY: 'minioadmin',
-        MINIO_BUCKET: 'three-model-hub',
+        MINIO_BUCKET: DEFAULT_MINIO_BUCKET,
         MINIO_PUBLIC_URL: 'http://localhost:9000',
         MINIO_REGION: 'us-east-1',
         ...overrides,
@@ -43,6 +44,8 @@ describe('MinioService', () => {
       completeMultipartUpload: jest.fn(),
       abortMultipartUpload: jest.fn(),
       listParts: jest.fn(),
+      listObjects: jest.fn(),
+      getObject: jest.fn(),
       removeObject: jest.fn(),
       statObject: jest.fn(),
     }
@@ -65,8 +68,8 @@ describe('MinioService', () => {
 
       await service.onModuleInit()
 
-      expect(mockClient.bucketExists).toHaveBeenCalledWith('three-model-hub')
-      expect(mockClient.makeBucket).toHaveBeenCalledWith('three-model-hub', 'us-east-1')
+      expect(mockClient.bucketExists).toHaveBeenCalledWith(DEFAULT_MINIO_BUCKET)
+      expect(mockClient.makeBucket).toHaveBeenCalledWith(DEFAULT_MINIO_BUCKET, 'us-east-1')
       // 安全要求：不应设置任何 s3:GetObject 匿名读策略
       expect(mockClient.setBucketPolicy).not.toHaveBeenCalled()
     })
@@ -88,7 +91,7 @@ describe('MinioService', () => {
       await service.putObject('labs/test.glb', Buffer.from('data'), 'model/gltf-binary')
 
       expect(mockClient.putObject).toHaveBeenCalledWith(
-        'three-model-hub',
+        DEFAULT_MINIO_BUCKET,
         'labs/test.glb',
         expect.any(Buffer),
         4,
@@ -106,7 +109,7 @@ describe('MinioService', () => {
 
       expect(uploadId).toBe('up-123')
       expect(mockClient.initiateNewMultipartUpload).toHaveBeenCalledWith(
-        'three-model-hub',
+        DEFAULT_MINIO_BUCKET,
         'labs/test.glb',
         {},
       )
@@ -123,7 +126,7 @@ describe('MinioService', () => {
       // minio 8.x：uploadPart 接收单对象参数 { bucketName, objectName, uploadID, partNumber, headers }
       expect(mockClient.uploadPart).toHaveBeenCalledWith(
         expect.objectContaining({
-          bucketName: 'three-model-hub',
+          bucketName: DEFAULT_MINIO_BUCKET,
           objectName: 'labs/test.glb',
           uploadID: 'up-1',
           partNumber: 1,
@@ -146,7 +149,7 @@ describe('MinioService', () => {
       expect(result.etag).toBe('final')
       // minio 8.x：etags 字段名是 `part`
       expect(mockClient.completeMultipartUpload).toHaveBeenCalledWith(
-        'three-model-hub',
+        DEFAULT_MINIO_BUCKET,
         'labs/test.glb',
         'up-1',
         [
@@ -164,7 +167,7 @@ describe('MinioService', () => {
       await service.abortMultipart('up-1', 'labs/test.glb')
 
       expect(mockClient.abortMultipartUpload).toHaveBeenCalledWith(
-        'three-model-hub',
+        DEFAULT_MINIO_BUCKET,
         'labs/test.glb',
         'up-1',
       )
@@ -174,6 +177,57 @@ describe('MinioService', () => {
       mockClient.abortMultipartUpload.mockRejectedValue(new Error('boom'))
 
       await expect(service.abortMultipart('up-1', 'labs/test.glb')).resolves.toBeUndefined()
+    })
+  })
+
+  describe('listObjects', () => {
+    it('正常流结束时应返回对象列表', async () => {
+      const mockStream = {
+        on: jest.fn((event: string, handler: any) => {
+          if (event === 'data') {
+            handler({ name: 'a.glb', size: 100, lastModified: new Date() })
+          } else if (event === 'end') {
+            handler()
+          }
+        }),
+      } as any
+      mockClient.listObjects.mockReturnValue(mockStream)
+
+      const result = await service.listObjects('labs/')
+
+      expect(result).toHaveLength(1)
+      expect(result[0].name).toBe('a.glb')
+    })
+
+    it('只发 close 不发 end 时也应 resolve（防挂起）', async () => {
+      const mockStream = {
+        on: jest.fn((event: string, handler: any) => {
+          if (event === 'data') {
+            handler({ name: 'b.glb', size: 200, lastModified: new Date() })
+          } else if (event === 'close') {
+            handler()
+          }
+        }),
+      } as any
+      mockClient.listObjects.mockReturnValue(mockStream)
+
+      const result = await service.listObjects('labs/')
+
+      expect(result).toHaveLength(1)
+      expect(result[0].name).toBe('b.glb')
+    })
+
+    it('error 时应 reject', async () => {
+      const mockStream = {
+        on: jest.fn((event: string, handler: any) => {
+          if (event === 'error') {
+            handler(new Error('stream error'))
+          }
+        }),
+      } as any
+      mockClient.listObjects.mockReturnValue(mockStream)
+
+      await expect(service.listObjects('labs/')).rejects.toThrow('stream error')
     })
   })
 
@@ -191,7 +245,7 @@ describe('MinioService', () => {
 
       await service.removeObject('labs/test.glb')
 
-      expect(mockClient.removeObject).toHaveBeenCalledWith('three-model-hub', 'labs/test.glb')
+      expect(mockClient.removeObject).toHaveBeenCalledWith(DEFAULT_MINIO_BUCKET, 'labs/test.glb')
     })
 
     it('失败时仅 warn 不抛错', async () => {
@@ -225,7 +279,7 @@ describe('MinioService', () => {
 
   describe('getBucket', () => {
     it('应返回 bucket 名', () => {
-      expect(service.getBucket()).toBe('three-model-hub')
+      expect(service.getBucket()).toBe(DEFAULT_MINIO_BUCKET)
     })
   })
 })

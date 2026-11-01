@@ -83,9 +83,10 @@ export function ViewerTree() {
   const allKeysSet = useMemo(() => new Set(allKeys), [allKeys])
 
   /** 首次加载时全选并确保所有模型子对象 visible = true */
+  const initializedRef = useRef(false)
   useEffect(() => {
-    if (allKeys.length > 0 && checkedKeys.length === 0) {
-      // 使用 setTimeout 将 setState 从 effect 同步执行上下文中移出
+    if (allKeys.length > 0 && !initializedRef.current) {
+      initializedRef.current = true
       const timer = setTimeout(() => {
         setCheckedKeys(allKeys)
       }, 0)
@@ -94,7 +95,7 @@ export function ViewerTree() {
       }
       return () => clearTimeout(timer)
     }
-  }, [allKeys, checkedKeys.length, modelObject])
+  }, [allKeys, modelObject])
 
   /** 反向同步：3D 视口选择时，树也高亮对应节点 */
   // 使用 useMemo 派生 selectedKeys，避免 effect 内 setState

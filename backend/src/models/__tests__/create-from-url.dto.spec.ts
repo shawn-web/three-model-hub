@@ -1,6 +1,7 @@
 import { validate } from 'class-validator'
 import { plainToInstance } from 'class-transformer'
 import { CreateFromUrlDto } from '../dto/model.dto'
+import { DEFAULT_MINIO_BUCKET } from '../../minio/constants'
 
 /**
  * CreateFromUrlDto 验证测试
@@ -16,7 +17,7 @@ describe('CreateFromUrlDto', () => {
 
   const valid = {
     name: 'test',
-    file_url: 'http://localhost:9000/three-model-hub/labs/models/x.glb',
+    file_url: `http://localhost:9000/${DEFAULT_MINIO_BUCKET}/labs/models/x.glb`,
     file_name: 'x.glb',
     file_size: 1024,
     file_key: 'labs/models/x.glb',

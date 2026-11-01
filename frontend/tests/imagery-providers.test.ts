@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 
 /**
  * imagery-providers.ts 在模块加载时执行 import.meta.env.VITE_TIANDITU_TOKEN，
@@ -6,8 +6,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
  */
 
 // 为每个 provider 函数方法打桩，让其返回一个可识别对象
-const stubProvider = (id: string) => ({ __provider: id, type: 'imagery' })
-const stubCredit = (text: string) => ({ __credit: text })
 
 // 在调用方内部 new C.WebMapTileServiceImageryProvider / UrlTemplateImageryProvider
 // 因此需要提供构造函数

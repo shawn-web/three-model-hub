@@ -163,13 +163,31 @@ export class MinioService implements OnModuleInit {
    * 查询对象元数据（用于 verifyObject）
    * @throws NotFound 或其他 MinIO 错误
    */
-  async statObject(key: string): Promise<{ size: number; lastModified: Date; etag: string }> {
+  async statObject(key: string): Promise<{ size: number; lastModified: Date; etag: string; contentType?: string }> {
     const stat = await this.client.statObject(this.bucket, key)
     return {
       size: stat.size,
       lastModified: stat.lastModified,
       etag: stat.etag,
+      contentType: stat.metaData?.['content-type'],
     }
+  }
+
+  /**
+   * 部分读取对象（用于支持 HTTP Range 请求）
+   * @param offset 起始字节偏移
+   * @param length 要读取的字节数
+   * @returns 指定范围的 Buffer
+   */
+  async getObjectPartial(key: string, offset: number, length: number): Promise<Buffer> {
+    // minio 8.x getPartialObject 返回 stream.Readable，不是 Buffer。
+    // 必须把流收集成 Buffer，否则 .length 为 undefined、fs.writeFile 写入流对象会损坏。
+    const stream = await this.client.getPartialObject(this.bucket, key, offset, length)
+    const chunks: Buffer[] = []
+    for await (const chunk of stream) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+    }
+    return Buffer.concat(chunks)
   }
 
   /**
@@ -180,13 +198,24 @@ export class MinioService implements OnModuleInit {
     const objects: { name: string; size: number; lastModified: Date }[] = []
     const stream = this.client.listObjects(this.bucket, prefix || '', true)
     return new Promise((resolve, reject) => {
+      // minio 8.x 在空 bucket 或流结束时可能只发 'close' 而非 'end'，
+      // 仅监听 'end' 会导致 Promise 永不 resolve（listFiles 请求永久挂起）。
+      // 用 settled 标志保证 end/close 只 resolve 一次，error 优先 reject。
+      let settled = false
+      const finish = (fn: () => void) => {
+        if (!settled) {
+          settled = true
+          fn()
+        }
+      }
       stream.on('data', (obj) => {
         if (obj.name) {
           objects.push({ name: obj.name, size: obj.size, lastModified: obj.lastModified })
         }
       })
-      stream.on('end', () => resolve(objects))
-      stream.on('error', (err) => reject(err))
+      stream.on('end', () => finish(() => resolve(objects)))
+      stream.on('close', () => finish(() => resolve(objects)))
+      stream.on('error', (err) => finish(() => reject(err)))
     })
   }
 

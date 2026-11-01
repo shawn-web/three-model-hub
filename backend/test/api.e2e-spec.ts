@@ -37,9 +37,10 @@ describe('API 端到端测试', () => {
           port: parseInt(process.env.DB_PORT || '3306', 10),
           username: process.env.DB_USERNAME || 'root',
           password: process.env.DB_PASSWORD || 'root',
-          database: process.env.DB_DATABASE || 'three_model_hub',
+          database: process.env.DB_DATABASE || 'three_model_hub_test',
           entities: [Model, ModelVersion, Scene, SceneModel, SceneImage, ShareLink, Viewpoint, Annotation, Resource, ResourceGroup],
           synchronize: true,
+          dropSchema: true,
           charset: 'utf8mb4',
           logging: false,
         }),
@@ -142,7 +143,7 @@ describe('API 端到端测试', () => {
       await request(app.getHttpServer())
         .post(`/api/scenes/${sceneId}/models`)
         .send({ model_id: '00000000-0000-0000-0000-000000000000' })
-        .expect(201) // 注意：当前实现不验证 model_id 是否存在
+        .expect(404)
     })
 
     it('DELETE /api/scenes/:id 应删除场景', async () => {

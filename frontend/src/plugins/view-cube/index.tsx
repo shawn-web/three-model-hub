@@ -29,7 +29,7 @@ export class ViewCubePlugin implements ViewerPlugin {
   private active = false
 
   /** ViewCube 通过 DOM 覆盖层渲染，不使用 sceneComponent */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   install(_context: ViewerContext): void { this.active = true }
   uninstall(): void {}
   activate(): void { this.active = true }

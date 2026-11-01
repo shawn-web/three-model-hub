@@ -58,17 +58,19 @@ function useViewerPluginInit(onReady: (pm: PM) => void) {
     const messageBus = getMessageBus()
     const viewerState = useViewerStore.getState()
 
-    messageBus.on(MESSAGE_TYPES.TOOL_ACTIVATE, (payload: unknown) => {
+    const toolActivateHandler = (payload: unknown) => {
       const p = payload as { toolId: string }
       pm.activate(p.toolId)
       viewerState.setActivePluginId(p.toolId)
       messageBus.send(MESSAGE_TYPES.TOOL_ACTIVATED, { toolId: p.toolId })
-    })
+    }
+    messageBus.on(MESSAGE_TYPES.TOOL_ACTIVATE, toolActivateHandler)
 
     // 通过回调通知外部 pluginManager 实例（避免在渲染期间读取 ref）
     onReady(pm)
 
     return () => {
+      messageBus.off(MESSAGE_TYPES.TOOL_ACTIVATE, toolActivateHandler)
       plugins.forEach((p) => pm.unregister(p.id))
     }
   }, [scene, camera, gl, onReady])

@@ -29,6 +29,11 @@ const { ResourceGroup } = require('../src/resources/entities/resource-group.enti
 const { UploadSession } = require('../src/upload/entities/upload-session.entity')
 const { GeoMap } = require('../src/geo-maps/entities/geo-map.entity')
 const { GeoMapModel } = require('../src/geo-maps/entities/geo-map-model.entity')
+const { ExpandFileUrlLength1700000001000 } = require('../src/migrations/1700000001000-ExpandFileUrlLength.ts')
+const { CreateUploadSession1700000002000 } = require('../src/migrations/1700000002000-CreateUploadSession.ts')
+const { UpdateUploadSessionBucketDefault1700000003000 } = require('../src/migrations/1700000003000-UpdateUploadSessionBucketDefault.ts')
+const { IncreaseUploadIdLength20260715113409 } = require('../src/migrations/20260715113409-IncreaseUploadIdLength.ts')
+const { AddModelVersionUniqueIndex20260724000000 } = require('../src/migrations/20260724000000-AddModelVersionUniqueIndex.ts')
 
 const AppDataSource = new DataSource({
   type: 'mysql',
@@ -44,6 +49,13 @@ const AppDataSource = new DataSource({
     Model, ModelVersion, Scene, SceneModel, SceneImage,
     ShareLink, Viewpoint, Annotation, Resource, ResourceGroup,
     UploadSession, GeoMap, GeoMapModel,
+  ],
+  migrations: [
+    ExpandFileUrlLength1700000001000,
+    CreateUploadSession1700000002000,
+    UpdateUploadSessionBucketDefault1700000003000,
+    IncreaseUploadIdLength20260715113409,
+    AddModelVersionUniqueIndex20260724000000,
   ],
 })
 

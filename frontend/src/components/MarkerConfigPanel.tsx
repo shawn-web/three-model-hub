@@ -28,7 +28,7 @@ import { useEditStore } from '../store/edit-store'
 import { ResourcePicker } from './ResourcePicker'
 import type { MarkerData, MarkerPopupStyle, MarkerImage, MarkerIframe } from '../types/edit-data'
 import { getDefaultMarkerUrl } from '../utils/marker-defaults'
-import { createDefaultMarkerImage } from './MarkerSpriteShared'
+import { createDefaultMarkerImage } from '../utils/default-marker-image'
 
 const DEFAULT_POPUP_STYLE: MarkerPopupStyle = {
   width: 260,

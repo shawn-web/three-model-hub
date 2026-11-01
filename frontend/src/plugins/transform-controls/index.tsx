@@ -71,7 +71,7 @@ function TransformControlsScene() {
   )
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 function TransformControlsToolbar({ plugin: _plugin }: { plugin: ViewerPlugin }) {
   const transformMode = useEditStore((s) => s.transformMode)
   const setTransformMode = useEditStore((s) => s.setTransformMode)
@@ -109,7 +109,7 @@ export class TransformControlsPlugin implements ViewerPlugin {
   sceneComponent: FC = TransformControlsScene
   toolbarComponent: FC<{ plugin: ViewerPlugin }> = TransformControlsToolbar
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   install(_context: ViewerContext): void { this.active = true }
   uninstall(): void {}
   activate(): void { this.active = true }

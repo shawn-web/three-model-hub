@@ -15,7 +15,7 @@ let loadingPromise: Promise<void> | null = null
  * 全局只加载一次，后续调用直接返回已完成的 Promise
  */
 export function loadCesium(): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   if ((window as any).Cesium) return Promise.resolve()
   if (loadingPromise) return loadingPromise
 
@@ -27,13 +27,13 @@ export function loadCesium(): Promise<void> {
     document.head.appendChild(link)
 
     // 临时移除 AMD 全局变量，防止 Cesium.js 内部 define() 调用与 AMD 加载器冲突
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const savedDefine = (window as any).define
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const savedRequire = (window as any).require
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     delete (window as any).define
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     delete (window as any).require
 
     // 加载 JS

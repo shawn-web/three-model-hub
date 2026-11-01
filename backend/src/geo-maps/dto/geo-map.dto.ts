@@ -1,5 +1,6 @@
 import { IsString, IsOptional, IsNumber, IsObject, IsArray, ValidateNested, ValidateIf, ArrayMaxSize } from 'class-validator'
 import { Type } from 'class-transformer'
+import { GeoConfigDto } from './geo-config.dto'
 import { GeoPositionDto } from '../../scenes/dto/geo-position.dto'
 
 /**
@@ -40,7 +41,7 @@ export class UpdateGeoMapDto {
 }
 
 /**
- * 添加模型到地图 DTO
+ * 添加模型到地�?DTO
  */
 export class AddGeoMapModelDto {
   @IsString()
@@ -118,7 +119,7 @@ export class BatchUpdateGeoMapModelsDto {
   models: BatchGeoMapModelItemDto[]
 }
 
-/** Geo 统一保存 DTO（原子操作：同时保存模型坐标 + 底图配置） */
+/** Geo 统一保存 DTO（原子操作：同时保存模型坐标 + 底图配置�?*/
 export class SaveGeoMapConfigDto {
   @IsArray()
   @ArrayMaxSize(100)
@@ -127,6 +128,7 @@ export class SaveGeoMapConfigDto {
   models: BatchGeoMapModelItemDto[]
 
   @IsOptional()
-  @IsObject()
-  geoConfig?: Record<string, any>
+  @ValidateNested()
+  @Type(() => GeoConfigDto)
+  geoConfig?: GeoConfigDto
 }

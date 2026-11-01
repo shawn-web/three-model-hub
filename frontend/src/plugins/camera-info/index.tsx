@@ -27,7 +27,7 @@ export class CameraInfoPlugin implements ViewerPlugin {
 
   toolbarComponent: FC<{ plugin: ViewerPlugin }> = CameraInfoToolbarButton
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   install(_context: ViewerContext): void {
     this.active = true
   }

@@ -1,4 +1,4 @@
-﻿import { IsString, IsOptional, IsNumber, IsObject, IsArray, ValidateNested, ValidateIf, ArrayMaxSize, ArrayMinSize } from 'class-validator'
+import { IsString, IsOptional, IsNumber, IsObject, IsBoolean, IsArray, ValidateNested, ValidateIf, ArrayMaxSize, ArrayMinSize } from 'class-validator'
 import { Type } from 'class-transformer'
 import { GeoPositionDto } from './geo-position.dto'
 
@@ -17,8 +17,10 @@ export class CreateSceneDto {
   @IsObject()
   scene_config?: Record<string, any>
 
+  // 标点列表：前端 edit-store 使用 MarkerData[]，class-validator 的 @IsObject() 显式拒绝数组
   @IsOptional()
-  markers?: Record<string, any>
+  @IsArray()
+  markers?: any[]
 }
 
 /**
@@ -42,10 +44,13 @@ export class UpdateSceneDto {
   scene_config?: Record<string, any>
 
   @IsOptional()
+  @IsBoolean()
   is_public?: boolean
 
+  // 标点列表：前端 edit-store 使用 MarkerData[]，class-validator 的 @IsObject() 显式拒绝数组
   @IsOptional()
-  markers?: Record<string, any>
+  @IsArray()
+  markers?: any[]
 }
 
 /**
@@ -68,6 +73,7 @@ export class AddSceneModelDto {
   material_overrides?: Record<string, any>
 
   @IsOptional()
+  @IsBoolean()
   visible?: boolean
 
   @IsOptional()
@@ -98,6 +104,7 @@ export class UpdateSceneModelDto {
   material_overrides?: Record<string, any>
 
   @IsOptional()
+  @IsBoolean()
   visible?: boolean
 
   @IsOptional()
@@ -129,6 +136,7 @@ export class BatchSceneModelItemDto {
   material_overrides?: Record<string, any>
 
   @IsOptional()
+  @IsBoolean()
   visible?: boolean
 
   @IsOptional()
@@ -186,9 +194,11 @@ export class AddSceneImageDto {
   rotation?: Record<string, any>
 
   @IsOptional()
+  @IsBoolean()
   visible?: boolean
 
   @IsOptional()
+  @IsBoolean()
   billboard?: boolean
 
   @IsOptional()
@@ -196,12 +206,15 @@ export class AddSceneImageDto {
   sort_order?: number
 
   @IsOptional()
+  @IsBoolean()
   autoplay?: boolean
 
   @IsOptional()
+  @IsBoolean()
   muted?: boolean
 
   @IsOptional()
+  @IsBoolean()
   loop?: boolean
 
   @IsOptional()
@@ -258,9 +271,11 @@ export class UpdateSceneImageDto {
   rotation?: Record<string, any>
 
   @IsOptional()
+  @IsBoolean()
   visible?: boolean
 
   @IsOptional()
+  @IsBoolean()
   billboard?: boolean
 
   @IsOptional()
@@ -268,12 +283,15 @@ export class UpdateSceneImageDto {
   sort_order?: number
 
   @IsOptional()
+  @IsBoolean()
   autoplay?: boolean
 
   @IsOptional()
+  @IsBoolean()
   muted?: boolean
 
   @IsOptional()
+  @IsBoolean()
   loop?: boolean
 
   @IsOptional()
@@ -317,18 +335,23 @@ export class BatchSceneImageItemDto {
   height: number
 
   @IsOptional()
+  @IsObject()
   position?: Record<string, any>
 
   @IsOptional()
+  @IsObject()
   scale?: Record<string, any>
 
   @IsOptional()
+  @IsObject()
   rotation?: Record<string, any>
 
   @IsOptional()
+  @IsBoolean()
   visible?: boolean
 
   @IsOptional()
+  @IsBoolean()
   billboard?: boolean
 
   @IsOptional()
@@ -336,12 +359,15 @@ export class BatchSceneImageItemDto {
   sort_order?: number
 
   @IsOptional()
+  @IsBoolean()
   autoplay?: boolean
 
   @IsOptional()
+  @IsBoolean()
   muted?: boolean
 
   @IsOptional()
+  @IsBoolean()
   loop?: boolean
 
   @IsOptional()

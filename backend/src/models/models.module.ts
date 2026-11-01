@@ -5,6 +5,7 @@ import { ModelVersion } from './entities/model-version.entity'
 import { SceneModel } from '../scenes/entities/scene-model.entity'
 import { ModelsController } from './models.controller'
 import { ModelsService } from './models.service'
+import { ModelCompressionService } from './model-compression.service'
 import { StorageModule } from '../storage/storage.module'
 
 /**
@@ -16,7 +17,7 @@ import { StorageModule } from '../storage/storage.module'
     StorageModule,
   ],
   controllers: [ModelsController],
-  providers: [ModelsService],
+  providers: [ModelsService, ModelCompressionService],
   exports: [ModelsService],
 })
 export class ModelsModule {}

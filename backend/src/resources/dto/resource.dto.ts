@@ -1,8 +1,14 @@
-import { IsString, IsOptional, IsEnum, IsNumber } from 'class-validator'
+import { IsString, IsOptional, IsEnum, IsNumber, Min, Max } from 'class-validator'
 import { ResourceType } from '../entities/resource.entity'
 
-/** 创建资源 DTO */
-export class CreateResourceDto {
+/**
+ * 上传资源 DTO（前端分片上传完成后落库）
+ *
+ * 流程：
+ *   1. 前端先调 /upload/multipart/* 完成上传，拿 { url, fileKey, fileSize }
+ *   2. 再调 POST /resources/upload 带本 DTO 落库
+ */
+export class UploadResourceDto {
   @IsString()
   name: string
 
@@ -12,9 +18,13 @@ export class CreateResourceDto {
   @IsString()
   url: string
 
-  @IsOptional()
+  @IsString()
+  file_key: string
+
   @IsNumber()
-  file_size?: number
+  @Min(1)
+  @Max(10737418240) // 10GB
+  file_size: number
 
   @IsOptional()
   @IsString()
@@ -34,15 +44,7 @@ export class CreateResourceDto {
 
   @IsOptional()
   @IsString()
-  thumbnail_url?: string
-
-  @IsOptional()
-  @IsString()
   group_id?: string
-
-  @IsOptional()
-  @IsString()
-  file_key?: string
 }
 
 /** 更新资源 DTO */

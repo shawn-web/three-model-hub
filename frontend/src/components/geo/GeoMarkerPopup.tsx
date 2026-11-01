@@ -35,6 +35,7 @@ export function GeoMarkerPopup({ viewer }: GeoMarkerPopupProps) {
   const markers = useGeoStore((s) => s.markers)
   const models = useGeoStore((s) => s.models)
   const setActivePopupTarget = useGeoStore((s) => s.setActivePopupTarget)
+  const focusedMarkerId = useGeoStore((s) => s.focusedMarkerId)
 
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -107,6 +108,22 @@ export function GeoMarkerPopup({ viewer }: GeoMarkerPopupProps) {
       popupResult.position.alt,
     )
 
+    // 根据弹窗类型计算垂直偏移量，确保弹窗完整显示在标点/模型上方
+    let popupAboveOffset = 10
+    if (activePopupTarget?.type === 'marker') {
+      const marker = markers.find((m) => m.id === activePopupTarget.id)
+      const baseScale = marker?.iconScale ?? 1.0
+      const isFocused = focusedMarkerId === activePopupTarget.id
+      // focus 时 scale = baseScale * 1.5 (GeoMarkerLayer 高亮逻辑)，按当前 scale 计算偏移
+      const currentScale = isFocused ? baseScale * 1.5 : baseScale
+      // 默认 pin canvas 为 64x64，verticalOrigin=BOTTOM 时屏幕位置为图片底边
+      // 偏移 = 当前图片高度 + 8px 间距，让弹窗整体位于标点上方
+      popupAboveOffset = 64 * currentScale + 8
+    } else if (activePopupTarget?.type === 'model') {
+      // 模型弹窗使用更大的固定偏移，避免遮挡模型本身
+      popupAboveOffset = 120
+    }
+
     const updatePosition = () => {
       if (!containerRef.current) return
       // Cesium 1.107+ 改名为 worldToWindowCoordinates，旧版为 wgs84ToWindowCoordinates
@@ -116,7 +133,7 @@ export function GeoMarkerPopup({ viewer }: GeoMarkerPopupProps) {
       if (canvasPos) {
         containerRef.current.style.display = 'block'
         containerRef.current.style.left = `${canvasPos.x}px`
-        containerRef.current.style.top = `${canvasPos.y - 10}px`
+        containerRef.current.style.top = `${canvasPos.y - popupAboveOffset}px`
       } else {
         containerRef.current.style.display = 'none'
       }
@@ -128,10 +145,16 @@ export function GeoMarkerPopup({ viewer }: GeoMarkerPopupProps) {
     return () => {
       viewer.scene.postRender.removeEventListener(updatePosition)
     }
-  }, [viewer, popupResult])
+  }, [viewer, popupResult, activePopupTarget, markers, focusedMarkerId])
 
   // 关闭弹窗
   const handleClose = useCallback(() => {
+    // 关闭标点弹窗时同步清除标点高亮，确保关闭后状态完整重置
+    // 先读旧值再 set（Zustand set 是同步的，set 后 getState 读到的是新值）
+    const current = useGeoStore.getState().activePopupTarget
+    if (current?.type === 'marker' && useGeoStore.getState().focusedMarkerId) {
+      useGeoStore.getState().setFocusedMarkerId(null)
+    }
     setActivePopupTarget(null)
   }, [setActivePopupTarget])
 

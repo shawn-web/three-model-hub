@@ -613,7 +613,7 @@ export function SceneEditorPage() {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       const store = useEditStore.getState()
       const tm = store.transformMode
-      let newMode: 'translate' | 'rotate' | 'scale' | null = null
+      let newMode: 'translate' | 'rotate' | 'scale' | null
       switch (e.key.toLowerCase()) {
         case 'w': newMode = tm === 'translate' ? null : 'translate'; break
         case 'e': newMode = tm === 'rotate' ? null : 'rotate'; break

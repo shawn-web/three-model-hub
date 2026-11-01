@@ -24,7 +24,7 @@ export class ScreenshotPlugin implements ViewerPlugin {
 
   toolbarComponent: FC<{ plugin: ViewerPlugin }> = ScreenshotToolbarButton
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   install(_context: ViewerContext): void { this.active = true }
   uninstall(): void {}
   activate(): void { this.active = true }

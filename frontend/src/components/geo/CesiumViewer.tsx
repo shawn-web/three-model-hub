@@ -22,15 +22,12 @@ interface CesiumViewerProps {
 export function CesiumViewer({ mapId, onViewerReady }: CesiumViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<any>(null)
-  const savedCameraRef = useRef<{ destination: unknown; heading: number; pitch: number; roll: number } | null>(null)
   /** 标记初始视角是否已恢复，避免重复应用 */
   const viewpointAppliedRef = useRef(false)
-  const { models, loadMap, updateModelGeoPosition } = useGeoStore()
+  const { loadMap, updateModelGeoPosition } = useGeoStore()
   const mapData = useGeoStore((s) => s.mapData)
   const effectiveImageryProvider = useGeoStore((s) => s.runtimeOverrides?.imageryProvider ?? s.imageryProvider)
   const effectiveImageryType = useGeoStore((s) => s.runtimeOverrides?.imageryType ?? s.imageryType)
-  const focusedMarkerId = useGeoStore((s) => s.focusedMarkerId)
-  const markers = useGeoStore((s) => s.markers)
 
   useEffect(() => { loadMap(mapId) }, [mapId, loadMap])
 
@@ -76,6 +73,7 @@ export function CesiumViewer({ mapId, onViewerReady }: CesiumViewerProps) {
 
     onViewerReady?.(viewer)
     return () => {
+      useGeoStore.getState()._setFlyToGeoImpl(undefined)
       if (!viewer.isDestroyed?.()) viewer.destroy()
       viewerRef.current = null
     }
@@ -130,14 +128,6 @@ export function CesiumViewer({ mapId, onViewerReady }: CesiumViewerProps) {
 
     const newLayer = viewer.imageryLayers.addImageryProvider(baseLayer)
     newLayer.name = "base-switch-layer"
-    if (effectiveImageryType === "satellite") {
-      const overlay = provider.vectorOverlay?.()
-      if (overlay) {
-        const refLayer = viewer.imageryLayers.addImageryProvider(overlay.provider)
-        refLayer.name = "overlay-reference-layer"
-        refLayer.alpha = overlay.alpha ?? 0.3
-      }
-    }
     if (effectiveImageryType === "terrain") {
       const overlay = provider.terrainAnnotation?.()
       if (overlay) {
@@ -192,7 +182,7 @@ export function CesiumViewer({ mapId, onViewerReady }: CesiumViewerProps) {
     let dragModelId: string | null = null
     // 拖拽偏移追踪：避免拖拽开始时模型跳动
     let dragStartGeo: { longitude: number; latitude: number; altitude: number } | null = null
-    let dragStartCartographic: C.Cartographic | null = null
+    let dragStartCartographic: any = null
 
     function pickModel(movement: any) {
       // MOUSE_MOVE 有 endPosition，LEFT_DOWN/LEFT_UP 只有 position
@@ -307,8 +297,23 @@ export function CesiumViewer({ mapId, onViewerReady }: CesiumViewerProps) {
     function handleClick(movement: any) {
       const markerId = pickMarker(movement)
       if (markerId) {
-        useGeoStore.getState().triggerMarkerAction(markerId)
+        // 再次点击同一标点时取消高亮和弹窗，避免出现"无法取下高亮"的问题
+        const currentFocusedId = useGeoStore.getState().focusedMarkerId
+        if (currentFocusedId === markerId) {
+          useGeoStore.getState().setFocusedMarkerId(null)
+          useGeoStore.getState().setActivePopupTarget(null)
+        } else {
+          useGeoStore.getState().triggerMarkerAction(markerId)
+        }
         return
+      }
+      // 未命中标点（命中模型或空白地图）时，清除标点高亮和标点弹窗
+      const store = useGeoStore.getState()
+      if (store.focusedMarkerId) {
+        store.setFocusedMarkerId(null)
+      }
+      if (store.activePopupTarget?.type === 'marker') {
+        store.setActivePopupTarget(null)
       }
       const modelId = pickModel(movement)
       if (modelId) {
@@ -326,10 +331,10 @@ export function CesiumViewer({ mapId, onViewerReady }: CesiumViewerProps) {
           getMessageBus().send('geo-model-clicked', { modelId: realId, type: 'selected' })
         }
       } else {
-        if (useGeoStore.getState().addingMarker) {
-          placeMarkerAtClick(movement)
-        } else if (placementMode) { placeAtClick(movement) }
-        else if (selectedModelIdRef.current) {
+          if (store.addingMarker) {
+            placeMarkerAtClick(movement)
+          } else if (placementMode) { placeAtClick(movement) }
+          else if (selectedModelIdRef.current) {
           const prevId = selectedModelIdRef.current.replace("model-", "")
           selectedModelIdRef.current = null
           useGeoStore.getState().setSelectedModel(null)
@@ -450,42 +455,8 @@ export function CesiumViewer({ mapId, onViewerReady }: CesiumViewerProps) {
     return () => { leftDown.destroy(); leftUp.destroy(); mouseMove.destroy() }
     // models 不能作为依赖——拖拽时 updateModelGeoPosition 会更新 models，
     // 导致 useEffect 重建事件处理器，丢失 dragModelId/isDragging 等拖拽状态
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [placementMode, updateModelGeoPosition])
-
-  useEffect(() => {
-    const viewer = viewerRef.current
-    if (!viewer) return
-    if (!focusedMarkerId) {
-      if (savedCameraRef.current) {
-        viewer.camera.flyTo({
-          destination: savedCameraRef.current.destination as never,
-          orientation: {
-            heading: savedCameraRef.current.heading,
-            pitch: savedCameraRef.current.pitch,
-            roll: savedCameraRef.current.roll,
-          },
-          duration: 1.5,
-        })
-        savedCameraRef.current = null
-      }
-      return
-    }
-    const marker = markers.find((m) => m.id === focusedMarkerId)
-    if (!marker) return
-    const camera = viewer.camera
-    savedCameraRef.current = {
-      destination: camera.positionWC.clone(),
-      heading: camera.heading,
-      pitch: camera.pitch,
-      roll: camera.roll,
-    }
-    const C = getCs()
-    viewer.camera.flyTo({
-      destination: C.Cartesian3.fromDegrees(marker.longitude, marker.latitude, marker.altitude + 500),
-      duration: 1.5,
-    })
-  }, [focusedMarkerId, markers])
 
 
   return (

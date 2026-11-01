@@ -7,28 +7,27 @@ import {
   Param,
   Query,
   Body,
-  UseInterceptors,
-  UploadedFile,
   Res,
   ParseUUIDPipe,
-  BadRequestException,
+  NotFoundException,
 } from '@nestjs/common'
-import { FileInterceptor } from '@nestjs/platform-express'
 import { Response } from 'express'
 import { ModelsService } from './models.service'
-import { CreateModelDto, UpdateModelDto, CreateVersionDto, CreateFromUrlDto, CreateVersionFromUrlDto } from './dto/model.dto'
-import { MulterFile } from '../common/types'
-
-/** 文件大小上限（MB） */
-const MAX_UPLOAD_SIZE_MB = parseInt(process.env.MAX_UPLOAD_SIZE_MB || '1024', 10)
+import { UpdateModelDto, CreateFromUrlDto, CreateVersionFromUrlDto } from './dto/model.dto'
+import { ModelCompressionService, CompressionOptions } from './model-compression.service'
+import { CreateCompressionDto } from './dto/compression.dto'
 
 /**
  * 模型管理控制器
- * 注意：静态路径（如 upload、create、file）必须在动态路径（:id）之前注册
+ * 注意：静态路径（如 create、compression-tasks）必须在动态路径（:id）之前注册，
+ * 否则会被 :id 匹配后经 ParseUUIDPipe 校验失败而返回 400。
  */
 @Controller('models')
 export class ModelsController {
-  constructor(private readonly modelsService: ModelsService) {}
+  constructor(
+    private readonly modelsService: ModelsService,
+    private readonly compressionService: ModelCompressionService,
+  ) {}
 
   @Get()
   async findAll(
@@ -45,10 +44,19 @@ export class ModelsController {
     })
   }
 
+  /** 查询压缩任务状态（前端轮询）。必须在动态 :id 之前注册 */
+  @Get('compression-tasks/:taskId')
+  async getCompressionTask(@Param('taskId') taskId: string) {
+    const task = this.compressionService.getTask(taskId)
+    if (!task) {
+      throw new NotFoundException(`任务不存在或已过期：${taskId}`)
+    }
+    return task
+  }
+
   /**
    * 代理获取模型文件（302 重定向到 MinIO 公开 URL）
    * 用于 GLB 预处理（绕过 Cesium shader bug）
-   * 注意：此静态路径必须放在动态路径 :id 之前
    */
   @Get(':id/file')
   async proxyFile(
@@ -68,18 +76,10 @@ export class ModelsController {
   /** 前端分片上传完成后，用此接口创建模型记录 */
   @Post('create')
   async createFromUrl(@Body() dto: CreateFromUrlDto) {
-    return this.modelsService.createFromUrl(dto)
-  }
-
-  /** 后端代理上传（备用方案，整文件 multipart 接收，内部走 MinIO） */
-  @Post('upload')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_UPLOAD_SIZE_MB * 1024 * 1024 } }))
-  async create(
-    @UploadedFile() file: MulterFile,
-    @Body() dto: CreateModelDto,
-  ) {
-    if (!file) throw new BadRequestException('请选择要上传的文件')
-    return this.modelsService.create(file, dto)
+    const { model, compressionTaskId } = await this.modelsService.createFromUrl(dto)
+    // 把 model 字段平铺到响应顶层，前端原有调用 (data.name 等) 不需要改
+    // 同时附带 compressionTaskId 用于前端轮询压缩进度
+    return { ...model, compressionTaskId }
   }
 
   @Put(':id')
@@ -98,34 +98,14 @@ export class ModelsController {
 
   /**
    * 上传新版本（前端分片上传完成后调用，JSON body 带 file_key）
-   * 保留旧 multipart 路径作为备用（通过 file 字段判断走哪条路径）
    */
   @Post(':id/versions')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_UPLOAD_SIZE_MB * 1024 * 1024 } }))
   async uploadVersion(
     @Param('id', ParseUUIDPipe) id: string,
-    @UploadedFile() file: MulterFile,
-    @Body() body: Record<string, any>,
+    @Body() dto: CreateVersionFromUrlDto,
   ) {
-    if (file) {
-      // 旧路径：后端代理 multipart
-      return this.modelsService.uploadVersion(id, file, body.commit_message)
-    }
-    // 新路径：前端已完成 MinIO 上传，body 含 file_url/file_key/file_size/file_name
-    if (!body.file_url || !body.file_key || !body.file_size || !body.file_name) {
-      throw new BadRequestException('缺少版本文件信息（file_url / file_key / file_size / file_name）')
-    }
-    const fileSize = typeof body.file_size === 'number' ? body.file_size : parseInt(body.file_size, 10)
-    if (!Number.isFinite(fileSize) || fileSize <= 0) {
-      throw new BadRequestException('file_size 必须为正整数')
-    }
-    const dto = new CreateVersionFromUrlDto()
-    dto.file_url = body.file_url
-    dto.file_key = body.file_key
-    dto.file_size = fileSize
-    dto.file_name = body.file_name
-    dto.commit_message = body.commit_message
-    return this.modelsService.createVersionFromUrl(id, dto)
+    const { version, compressionTaskId } = await this.modelsService.createVersionFromUrl(id, dto)
+    return { ...version, compressionTaskId }
   }
 
   @Get(':id/versions')
@@ -138,9 +118,9 @@ export class ModelsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Res() res: Response,
   ) {
-    const model = await this.modelsService.findOne(id)
+    const url = await this.modelsService.getFileRedirectUrl(id)
     await this.modelsService.incrementDownloadCount(id)
-    return res.redirect(model.file_url)
+    return res.redirect(url)
   }
 
   @Post(':id/copy')
@@ -155,5 +135,24 @@ export class ModelsController {
     @Query('v2') v2: string,
   ) {
     return this.modelsService.compareVersions(id, v1, v2)
+  }
+
+  /* ────────────── 压缩接口 ────────────── */
+
+  /**
+   * 异步触发模型压缩
+   * Body 可指定：compressTexture（默认 true）+ versionId（默认 latest）
+   * 返回 { taskId }，前端轮询 GET /models/compression-tasks/:taskId 获取进度
+   */
+  @Post(':id/compress')
+  async compress(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: CreateCompressionDto,
+  ) {
+    const options: CompressionOptions = {
+      algorithm: 'meshopt',
+      compressTexture: body.compressTexture ?? true,
+    }
+    return this.compressionService.startCompression(id, body.versionId, options)
   }
 }
