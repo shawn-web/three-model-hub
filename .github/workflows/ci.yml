@@ -19,7 +19,7 @@ jobs:
     name: Encoding (BOM Check)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Reject UTF-8 BOM in tracked files
         run: python3 scripts/check-bom.py
@@ -29,7 +29,7 @@ jobs:
     name: Docs Sync Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check docs are synced
         run: node scripts/sync-docs.js --check
@@ -40,7 +40,7 @@ jobs:
     name: Backend (lint / typecheck / unit tests)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -70,7 +70,7 @@ jobs:
     name: Frontend (lint / typecheck / unit tests / build)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
