@@ -32,7 +32,7 @@
     "three": "^0.184.0",
     "yet-another-react-lightbox": "^3.32.0",
     "zundo": "^2.3.0",
-    "zustand": "^5.0.13"
+    "zustand": "^5.0.16"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
