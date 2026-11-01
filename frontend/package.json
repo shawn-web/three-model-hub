@@ -18,7 +18,7 @@
     "@iconify-icons/lucide": "^1.2.135",
     "@iconify/react": "^6.0.2",
     "@monaco-editor/react": "^4.7.0",
-    "@react-three/drei": "^10.7.7",
+    "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.6.1",
     "antd": "^6.4.3",
     "axios": "^1.16.1",
