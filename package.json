@@ -3,10 +3,16 @@
   "version": "0.1.0",
   "description": "three-model-hub 是一个全栈 3D 模型管理与场景平台，支持 GLB/GLTF 模型上传、场景组合、标注、测量、剖面、Geo 地理和分享。",
   "private": true,
-    "engines": {
-      "node": ">=20.0.0",
-      "pnpm": ">=9.0.0"
-    },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "sharp",
+      "meshoptimizer"
+    ]
+  },
   "license": "MIT",
   "author": "three-model-hub Contributors",
   "keywords": [
