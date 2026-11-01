@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@ant-design/icons": "^6.2.3",
-    "@iconify-icons/fluent": "^1.2.38",
+    "@iconify-icons/fluent": "^2.0.5",
     "@iconify-icons/lucide": "^1.2.135",
     "@iconify/react": "^6.0.2",
     "@monaco-editor/react": "^4.7.0",
