@@ -98,11 +98,15 @@ docker compose -f docker-compose.prod.yml up -d
 
 打开 `http://<服务器IP>:8080`。镜像为多架构（amd64 / arm64），MySQL、MinIO、后端、前端一次起齐，对外只暴露一个端口。
 
+镜像地址由 `.env` 的 `IMAGE_NAMESPACE` 决定，默认 `ghcr.io/shawn-web`。若该地址上还没有镜像（例如 CI 被账号状态阻塞），用下面方式二从源码构建，或按 [`docs/docker-deploy.md`](docs/docker-deploy.md) 第八节自行发布到阿里云 ACR 等仓库后改回来。
+
 **方式二：从源码构建镜像**
 
 ```bash
 docker compose -f docker-compose.deploy.yml up -d --build
 ```
+
+镜像仓库不限于 ghcr.io，换成阿里云 ACR / 腾讯云 TCR / 华为云 SWR 只需改 `IMAGE_NAMESPACE` 一行。注意 **Gitee 不提供镜像仓库**（制品库是企业版付费功能，社区版无 Registry 端点），具体对比见文档第八节。
 
 > 环境变量、HTTPS、备份升级、常见问题详见 [`docs/docker-deploy.md`](docs/docker-deploy.md)
 

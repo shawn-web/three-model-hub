@@ -6,9 +6,16 @@ name: Docker
 #   - pull_request     → 仅构建 amd64 验证 Dockerfile 可编译，不推送
 #   - 手动触发         → 同 tag 行为
 #
-# 镜像地址（使用内置 GITHUB_TOKEN 推送，无需额外密钥）：
-#   ghcr.io/<owner>/three-model-hub-backend
-#   ghcr.io/<owner>/three-model-hub-frontend
+# 镜像仓库可切换，默认推 ghcr.io。换仓库只需在
+#   Settings → Secrets and variables → Actions 里设置：
+#     变量 REGISTRY            例如 registry.cn-hangzhou.aliyuncs.com
+#     变量 REGISTRY_NAMESPACE  例如 lishuaistart（阿里云 ACR 的命名空间）
+#     变量 IMAGE_PREFIX        默认 three-model-hub
+#     密钥 REGISTRY_USERNAME   仓库账号
+#     密钥 REGISTRY_PASSWORD   仓库口令 / Personal Access Token
+# 不设置任何变量时行为与原来一致（ghcr.io + 内置 GITHUB_TOKEN）。
+#
+# 本地无 CI 也能发镜像：见 scripts/publish-image.sh
 
 on:
   push:
@@ -33,7 +40,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  REGISTRY: ghcr.io
+  REGISTRY: ${{ vars.REGISTRY || 'ghcr.io' }}
+  IMAGE_NAMESPACE: ${{ vars.REGISTRY_NAMESPACE || github.repository_owner }}
+  IMAGE_PREFIX: ${{ vars.IMAGE_PREFIX || 'three-model-hub' }}
 
 jobs:
   build:
@@ -64,19 +73,20 @@ jobs:
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GHCR
+      - name: Log in to registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          # 未配置密钥时回退到 ghcr 的账号 + 内置 token
+          username: ${{ secrets.REGISTRY_USERNAME || github.actor }}
+          password: ${{ secrets.REGISTRY_PASSWORD || secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/three-model-hub-${{ matrix.component }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ env.IMAGE_PREFIX }}-${{ matrix.component }}
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -100,7 +110,7 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.component }}
           cache-to: type=gha,mode=max,scope=${{ matrix.component }}
           build-args: |
-            NPM_REGISTRY=https://registry.npmjs.org
+            NPM_REGISTRY=${{ vars.NPM_REGISTRY || 'https://registry.npmjs.org' }}
 
       - name: Summary
         run: |

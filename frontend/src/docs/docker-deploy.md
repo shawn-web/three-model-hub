@@ -236,16 +236,55 @@ docker build -f backend/Dockerfile \
 
 推送到私有仓库后在 `.env` 里改 `IMAGE_NAMESPACE` 指过去即可。
 
-### 镜像发布
+### 一键发布（不依赖任何 CI）
 
-推送到 `v*.*.*` 标签时，GitHub Actions 会自动构建 `linux/amd64` + `linux/arm64` 双架构镜像并推送到：
+`scripts/publish-image.sh` 在任意一台装了 Docker 的机器上完成构建 + 推送：
 
+```bash
+REGISTRY=registry.cn-hangzhou.aliyuncs.com
+docker login $REGISTRY
+bash scripts/publish-image.sh -r $REGISTRY -n lishuaistart -t 0.1.0
 ```
-ghcr.io/shawn-web/three-model-hub-backend
-ghcr.io/shawn-web/three-model-hub-frontend
+
+脚本结束后会直接打印可贴进 `.env` 的两行。它顺手处理了几个容易踩的坑：关掉 buildx 的 provenance/SBOM 附加 manifest（部分国内仓库不兼容，会导致 `no matching manifest for linux/amd64`）、仓库名自动转小写、多架构与 `--no-push` 冲突时提前报错。
+
+只构建不推送（本地验证 Dockerfile 能否编译）：
+
+```bash
+bash scripts/publish-image.sh -r docker.io -n yourname --no-push --platform linux/amd64
 ```
 
-**首次发布后必须手动把这两个 package 的可见性改为 Public**（GitHub → 个人主页 → Packages → 对应包 → Package settings → Change visibility），否则别人 `docker pull` 会 401。私有仓库则需先 `docker login ghcr.io`。
+服务器是 ARM 时用 `-p linux/arm64`，要同时出双架构用 `-p linux/amd64,linux/arm64`。
+
+### 镜像仓库怎么选
+
+| 仓库 | 免费额度 | 国内拉取 | 备注 |
+|---|---|---|---|
+| 阿里云 ACR 个人版 | 免费，容量不限，3 命名空间 / 300 仓库 | 快 | 需实名认证，无 SLA |
+| 腾讯云 TCR 个人版 | 免费 | 快 | |
+| 华为云 SWR 个人版 | 免费 | 快 | |
+| ghcr.io | 公开镜像不限量 | 一般 | 本仓库默认 |
+| Docker Hub | 公开仓库免费 | 慢 | |
+
+**Gitee 做不了镜像仓库。** 它的制品库（Gitee Repo）是企业级付费产品，社区版没有对外开放的 Registry 端点；网上「在 Gitee 上搭 Docker 仓库」的文章，实际都是让你在自己服务器上跑 `registry:2`，Gitee 只承担代码托管，跟镜像托管无关。此外 Gitee 单文件 50MB、单仓库 5GB 的限制也不适合放镜像 tar。
+
+> 阿里云 ACR 个人版不提供多架构构建服务，但作为标准 OCI Registry 可以存放 buildx 推上去的 manifest list。若个别地域双架构拉取异常，改成用单架构分别发布即可。
+
+### CI 自动发布
+
+推送到 `v*.*.*` 标签时，GitHub Actions 构建 `linux/amd64` + `linux/arm64` 双架构镜像。默认推 ghcr.io，可通过仓库变量整体切换（Settings → Secrets and variables → Actions）：
+
+| 类型 | 名称 | 示例 |
+|---|---|---|
+| 变量 | `REGISTRY` | `registry.cn-hangzhou.aliyuncs.com` |
+| 变量 | `REGISTRY_NAMESPACE` | `lishuaistart` |
+| 变量 | `IMAGE_PREFIX` | 默认 `three-model-hub` |
+| 变量 | `NPM_REGISTRY` | 默认官方源，国内可设 `https://registry.npmmirror.com` |
+| 密钥 | `REGISTRY_USERNAME`、`REGISTRY_PASSWORD` | 不填则回退 ghcr 账号 + 内置 token |
+
+> GitHub Actions 本身可能被账号账单锁住，报 `The job was not started because your account is locked due to a billing issue.`，这与配置无关。这种情况下用上面的 `publish-image.sh` 手动发布即可。
+
+ghcr.io 首次发布后**必须手动把两个 package 的可见性改为 Public**（GitHub → 个人主页 → Packages → 对应包 → Package settings → Change visibility），否则别人 `docker pull` 会 401。私有仓库则需先 `docker login`。
 
 ---
 

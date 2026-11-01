@@ -15,6 +15,12 @@ Docker 镜像化与拉取式部署：
 - **固定 pnpm 行为**：容器内无 TTY，Dockerfile 增加 `ENV CI=true`，否则 pnpm 遇到需重建 `node_modules` 时会直接报错退出
 - **文档**：新增 `docs/docker-deploy.md`（拉取部署、环境变量、HTTPS、备份升级、常见问题），README 与 `docs/deployment.md` 增加入口
 
+镜像仓库可切换：
+
+- **新增 `scripts/publish-image.sh`**：在任意装了 Docker 的机器上一条命令完成构建 + 推送，完全不依赖 CI；内置仓库名小写化、多架构与 `--no-push` 冲突检测、关闭 buildx 的 provenance/SBOM 附加 manifest（部分国内仓库不兼容会导致 `no matching manifest`）
+- **发布流水线仓库参数化**：`docker-publish.yml` 的 `REGISTRY` / `IMAGE_NAMESPACE` / `IMAGE_PREFIX` / `NPM_REGISTRY` 改为读取仓库变量，`REGISTRY_USERNAME` / `REGISTRY_PASSWORD` 走密钥，不配置时行为与原来一致（ghcr.io + 内置 token）
+- **文档补充镜像仓库选型**：阿里云 ACR、腾讯云 TCR、华为云 SWR 个人版均免费可用；说明 Gitee 无法作为镜像仓库（制品库属企业版付费功能，社区版无 Registry 端点），并给出 `.env` 一行切换的方法
+
 ## 2026-11-01
 
 开源前工程化整改：
