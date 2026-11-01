@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="ThreeModelHub logo">
-  <title>ThreeModelHub</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="three-model-hub logo">
+  <title>three-model-hub</title>
   <defs>
     <!-- 中心立方体的渐变：体现 3D 立体感 -->
     <linearGradient id="face-top" x1="0%" y1="0%" x2="0%" y2="100%">

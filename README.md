@@ -1,12 +1,14 @@
-# ThreeModelHub
+# three-model-hub
 
-![ThreeModelHub Logo](.github/assets/logo-256.png)
+![three-model-hub Logo](.github/assets/logo-256.png)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
 [![Self-Hosted](https://img.shields.io/badge/Self--Hosted-Docker--Ready-2496ED.svg)](#docker-快速部署)
 [![Three.js](https://img.shields.io/badge/Three.js-3D-000000.svg)](https://threejs.org/)
 [![NestJS](https://img.shields.io/badge/NestJS-Backend-E0234E.svg)](https://nestjs.com/)
+
+> 主仓库：[Gitee](https://gitee.com/lishuaistart/three-model) ｜ 镜像：[GitHub](https://github.com/shawn-web/three-model-hub)
 
 > 全栈 3D 模型管理与场景平台：上传 GLB/GLTF，组合场景，添加标注和测量，部署 Geo 地理视图，通过 iframe 嵌入到任何系统。
 
@@ -53,8 +55,8 @@
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/three-model-hub/three-model-hub.git
-cd three-model-hub
+git clone https://gitee.com/lishuaistart/three-model.git
+cd three-model
 
 # 2. 安装依赖
 pnpm install
@@ -154,7 +156,7 @@ three-model-hub/
 
 ## 🌐 浏览器兼容性
 
-ThreeModelHub 需要支持 **WebGL 2.0** 的现代浏览器：
+three-model-hub 需要支持 **WebGL 2.0** 的现代浏览器：
 
 - Chrome / Edge 90+
 - Firefox 88+
@@ -168,7 +170,8 @@ ThreeModelHub 需要支持 **WebGL 2.0** 的现代浏览器：
 - [架构文档](docs/architecture.md) — 系统架构、模块划分、核心流程
 - [开发指南](docs/development.md) — 环境搭建、代码规范、添加新功能
 - [部署文档](docs/deployment.md) — 生产环境部署步骤
-- [测试文档](docs/testing.md) — 测试策略与运行方法
+- [测试文档](docs/testing.md) — 测试策略、单元/e2e 运行方法与前置条件
+- [iframe 嵌入集成指南](docs/iframe-integration.md) — 路由、URL 参数、postMessage 协议与安全模型
 - [Geo 改进计划](docs/geo-improvement-plan.md) — Geo 模块迭代记录
 
 ## 🤝 贡献

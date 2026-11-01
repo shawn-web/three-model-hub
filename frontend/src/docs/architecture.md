@@ -82,9 +82,11 @@ src/
 │   ├── annotations.ts      # 批注相关 API
 │   ├── viewpoints.ts       # 视点相关 API
 │   ├── upload.ts           # 分片上传核心 API（MinIO 8MB 分片 + 3 路并发 + 重试 + 断点续传）
+│   ├── download.ts         # 通用分片并发下载工具（Range 探测 + 8MB × 6 路并发）
 │   └── resources.ts        # 资源管理 API
 ├── components/             # 通用组件
 │   ├── Layout.tsx          # 页面布局（导航栏 + 主题切换）
+│   ├── Logo.tsx            # 站点 Logo（三色立方体，与 favicon 同源）
 │   ├── CameraInfo.tsx      # 相机信息面板
 │   ├── ComponentProperties.tsx # 构件属性面板
 │   ├── EditCanvas.tsx      # 编辑器 Canvas
@@ -114,7 +116,7 @@ src/
 │   ├── ScenesPage.tsx      # 场景管理
 │   ├── SceneEditorPage.tsx # 场景编辑
 │   ├── ViewerPage.tsx      # 全屏查看器（无导航栏）
-│   ├── IframePage.tsx      # iframe 嵌入查看器（无导航栏）
+│   ├── IframePage.tsx      # iframe 嵌入查看器（无导航栏，postMessage 安全校验）
 │   ├── MapsPage.tsx        # 地图管理列表
 │   ├── GeoScenePage.tsx    # Geo 地球页面（Cesium 3D 地球，无导航栏）
 │   └── ResourcesPage.tsx   # 资源管理
@@ -142,7 +144,7 @@ src/
 │   ├── xray/               # 透视模式
 │   └── types.ts            # 插件接口定义
 ├── hooks/                  # 自定义 Hook
-│   ├── useMessageBus.ts    # 消息总线 Hook
+│   ├── useMessageBus.tsx   # 消息总线 Hook（MessageBusProvider + useMessageBus + getMessageBus）
 │   ├── usePlugin.ts        # 插件 Hook
 │   └── useViewer.ts        # 查看器 Hook
 ├── utils/                  # 工具函数
@@ -184,6 +186,27 @@ src/
 └── main.tsx                # 入口文件
 ```
 
+### 前端路由表
+
+与 `frontend/src/RouterApp.tsx` 一一对应：
+
+| 路由 | 页面组件 | 导航栏 | 说明 |
+|------|----------|--------|------|
+| `/` | `HomePage` | 有 | 首页 |
+| `/models` | `ModelsPage` | 有 | 模型管理 |
+| `/scenes` | `ScenesPage` | 有 | 场景列表 |
+| `/scenes/:id/edit` | `SceneEditorPage` | 有 | 场景编辑器 |
+| `/maps` | `MapsPage` | 有 | 地图管理列表 |
+| `/resources` | `ResourcesPage` | 有 | 资源管理 |
+| `/docs`、`/docs/:name` | `DocsPage` | 有 | 应用内文档浏览 |
+| `/view/:sceneId` | `ViewerPage` | 无 | 全屏查看器 |
+| `/iframe/:sceneId` | `IframePage` | 无 | iframe 包装页（转发 `media-clicked`） |
+| `/maps/:id` | `GeoScenePage` | 无 | Geo 3D 地球页面（Cesium） |
+
+> `:sceneId` 既可以是场景 ID，也可以是模型 ID：查看器会先按场景加载，失败后回退为单模型加载。
+> 路由参数（`toolbar`、`tree`、`tools`、`camera`、`visibleModelIds` 等）见
+> [`iframe-integration.md`](iframe-integration.md#3-url-参数)。
+
 ### 后端目录结构
 
 ```
@@ -193,7 +216,11 @@ backend/src/
 │   ├── dto/
 │   ├── models.controller.ts
 │   ├── models.service.ts
-│   └── models.module.ts
+│   ├── models.module.ts
+│   ├── model-compression.service.ts   # 异步 Meshopt 模型压缩（MeshoptEncoder.ready + sharp + TTL 清理）
+│   └── dto/
+│       ├── model.dto.ts
+│       └── compression.dto.ts
 ├── scenes/                 # 场景管理模块
 │   ├── entities/           # Scene + SceneModel + SceneImage 实体
 │   ├── dto/                # scene.dto.ts + geo-position.dto.ts
@@ -202,7 +229,7 @@ backend/src/
 │   └── scenes.module.ts
 ├── geo-maps/               # 地理地图模块（独立：模型地理定位 + 底图配置 + 标点）
 │   ├── entities/           # GeoMap + GeoMapModel 实体
-│   ├── dto/                # geo-map.dto.ts
+│   ├── dto/                # geo-map.dto.ts + geo-config.dto.ts（结构化校验）
 │   ├── geo-maps.controller.ts
 │   ├── geo-maps.service.ts
 │   └── geo-maps.module.ts
@@ -238,7 +265,7 @@ backend/src/
 │   ├── upload-cleanup.service.ts # @nestjs/schedule 每日清理 24h+ pending session
 │   └── upload.module.ts
 ├── storage/                # 文件存储服务（基础设施，封装 MinIO）
-│   ├── storage.controller.ts     # GET /api/storage/:bucket（列表）/ :bucket/*（代理下载）
+│   ├── storage.controller.ts     # GET /api/storage/:bucket（列表）/ :bucket/*（代理下载 + Range 206 支持）
 │   ├── storage.service.ts        # generateObjectKey / verifyObject / getPublicUrl / uploadFile / deleteFile
 │   └── storage.module.ts
 ├── minio/                  # MinIO 基础设施模块（@Global()）
@@ -265,11 +292,28 @@ backend/src/
    - **≥ 8MB**：`POST /api/upload/multipart/init` → N 次 `POST /api/upload/multipart/part` → `POST /api/upload/multipart/complete`（分片上传，支持断点续传）
 3. 后端通过 `MinioService` 将文件写入 MinIO
 4. 返回 `{ url: "/api/storage/three-model-hub/labs/...glb", fileKey, fileSize }` 给前端
+
+### 模型压缩异步任务
+
+前端在 `CreateFromUrlDto.compress` / `CreateVersionFromUrlDto.compress = true` 时触发：
+
+1. 业务接口（`POST /api/models/create` 或 `POST /api/models/:id/versions`）同步落库后，立即调用 `ModelCompressionService.startCompression(modelId, undefined)` 入队压缩任务
+2. `startCompression` 同步返回 `{ taskId }`，后端 fire-and-forget 执行：
+   1. 拉 MinIO GLB → 临时文件
+   2. `EXT_meshopt_compression` 启用 + `meshopt({ encoder: MeshoptEncoder, level: 'medium' })` + `dedup() / weld() / prune()`
+   3. 可选：`sharp().webp({ quality: 80 })` 转纹理 + 启用 `EXT_texture_webp`
+   4. 写出新 GLB → 上传 MinIO → 写入新 ModelVersion 记录（`commit_message` 标记 `压缩自版本 N`）
+   5. 失败时 `task.status = failed` + `errorMessage`，任务保留 in-memory Map 1 小时后清理
+3. 前端轮询 `GET /api/models/compression-tasks/:taskId` 拿任务快照（`status/stage/percentage/newVersionId`）
+
+前置依赖：`@gltf-transform/core + functions + extensions` + `meshoptimizer` + `sharp`（已加入 `pnpm.onlyBuiltDependencies` 自动构建 native binding）。
+
+浏览器侧加载压缩后 GLB：three.js 需 `MeshoptDecoder` 或 Drei 的 `<MeshoptDecoder />`；纹理 WebP 由浏览器原生支持。
 5. 前端调 `POST /api/models/create` 传入 `{ file_url, file_key, file_size }` 创建模型记录
 6. 模型预览/加载时，前端通过 `/api/storage/:bucket/*` 代理下载
 
 ### 场景查看流程
-1. 用户访问 `/view/:sceneId` 或 `/iframe`
+1. 用户访问 `/view/:sceneId` 或 `/iframe/:sceneId`
 2. 前端调用 `GET /api/scenes/:id/data` 获取场景数据
 3. 获取场景关联的所有模型和图片信息
 4. 为每个模型加载 GLB 文件
@@ -303,10 +347,12 @@ backend/src/
    - 有模型坐标变更 → `PUT /api/geo-maps/:id/geo`（原子保存坐标 + 底图配置）
    - 纯配置变更（标点/底图/锁定/可见性等）→ `PUT /api/geo-maps/:id`（只更新 config.geo）
 9. 主题：所有确认弹窗（清除定位、从地图移除）通过 `App.useApp().modal` 渲染，绑定 `ConfigProvider` 暗色主题
-10. iframe 嵌入：通过 URL 参数或 postMessage 配置全部参数
-    - URL 参数：`imagery`、`type`、`toolbar`、`panel`、`visibleModelIds`、`hiddenTools`、`showMarkers`、`allowedOrigins`、`camera`（JSON 字符串）
+10. iframe 嵌入：通过 URL 参数或 postMessage 配置全部参数（统一协议）
+    - URL 参数：`imagery`、`type`（geo 用 imageryType 别名）、`toolbar`、`panel`、`visibleModelIds`、`hiddenTools`、`showMarkers`、`allowedOrigins`、`camera`（JSON 字符串，支持 range）
     - postMessage `geo-config`：覆盖底图运行时值（不持久化）、工具栏/面板可见性、隐藏工具、显示标点、视角、可见模型白名单
-    - postMessage origin 校验：URL `?allowedOrigins=` 优先，其次使用 DB 中恢复的白名单
+    - postMessage origin 校验统一走 MessageBus allowlist（null=走 referrer，[]=拒绝，非空=白名单）
+    - MessageBus 按页面生命周期管理：MessageBusProvider 在根部创建实例，unmount 时 destroy()；getMessageBus() 惰性单例供 non-React 代码使用
+    - nginx 配置 frame-ancestors 白名单（`X-Frame-Options: SAMEORIGIN` + CSP），默认 self；外部域名嵌入需手动配置 nginx 或通过部署脚本注入环境变量 IFRAME_FRAME_ANCESTORS；`GET /api/geo-maps/:id/iframe-config` 端点提供后端白名单数据供运维参考
     - 未保存修改时关闭页面会弹出确认提示
 11. 父页面消息：GeoReady / ModelsLoaded / ModelClicked / PositionChanged / Saved / MarkerClicked
     （MarkerClicked 复用 `MarkerClickedPayload` 协议字段）

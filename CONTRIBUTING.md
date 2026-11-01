@@ -1,6 +1,6 @@
 # 贡献指南
 
-感谢你对 ThreeModelHub 项目的关注！本文档将帮助你快速了解如何参与项目开发。
+感谢你对 three-model-hub 项目的关注！本文档将帮助你快速了解如何参与项目开发。
 
 ## 开发环境
 
@@ -111,11 +111,11 @@ cd backend && pnpm test
 | 变更类型 | 需同步更新的文档 |
 |---|---|
 | 新增/修改/删除 API 端点 | `docs/api.md` |
-| 新增/修改后端模块 | `docs/architecture.md` + CLAUDE.md |
-| 新增/修改前端页面/路由 | `docs/architecture.md` + CLAUDE.md |
-| 新增/修改前端 store | `docs/architecture.md` + CLAUDE.md |
-| 新增/修改前端插件 | `docs/architecture.md` + CLAUDE.md |
-| 技术栈版本变更 | CLAUDE.md + `docs/architecture.md` |
+| 新增/修改后端模块 | `docs/architecture.md` + AGENTS.md |
+| 新增/修改前端页面/路由 | `docs/architecture.md` + AGENTS.md |
+| 新增/修改前端 store | `docs/architecture.md` + AGENTS.md |
+| 新增/修改前端插件 | `docs/architecture.md` + AGENTS.md |
+| 技术栈版本变更 | AGENTS.md + `docs/architecture.md` |
 | 环境变量变更 | `docs/deployment.md` + `backend/.env.example` |
 | 部署方式变更 | `docs/deployment.md` |
 

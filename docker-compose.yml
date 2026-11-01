@@ -1,11 +1,11 @@
-# ThreeModelHub MySQL 开发环境
+# three-model-hub MySQL 开发环境
 # 使用: docker-compose up -d
 version: '3.8'
 
 services:
   mysql:
     image: mysql:8.0
-    container_name: three_model_hub_mysql
+    container_name: three-model-hub_mysql
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}

@@ -3,14 +3,14 @@
  * 三 Tab 设计：基础（图标选择+默认图标管理） / 位置 / 行为
  * 参考 MarkerConfigPanel 的 UI 模式
  */
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Modal, Tabs, Input, InputNumber, Select, Button, Space, ColorPicker, Switch, Upload, message, Popconfirm } from 'antd'
 import { PushpinOutlined, EnvironmentOutlined, ThunderboltOutlined, UploadOutlined, UndoOutlined, PictureOutlined } from '@ant-design/icons'
 import { useGeoStore } from '../../store/geo-store'
 import type { GeoMarkerData, GeoMarkerPopup, GeoMarkerPopupStyle, GeoMarkerIframe } from '../../types/geo-marker'
 import { ResourcePicker } from '../ResourcePicker'
 import { uploadFile } from '../../api/upload'
-import { getDefaultMarkerUrl, setDefaultMarkerUrl, resetDefaultMarkerUrl } from '../../utils/marker-defaults'
+import { getDefaultMarkerUrl, migrateLegacyMarkerUrl, setDefaultMarkerUrl, resetDefaultMarkerUrl } from '../../utils/marker-defaults'
 
 /** 生成默认 Canvas pin 图标的 data URL */
 let _defaultPinDataUrl: string | null = null
@@ -61,6 +61,11 @@ export function GeoMarkerConfig({ open, markerId, onClose }: GeoMarkerConfigProp
 
   // 默认图标管理
   const [customDefault, setCustomDefault] = useState<string | null>(getDefaultMarkerUrl())
+  // 旧 key 迁移必须在副作用里跑（render 路径写 localStorage 会破坏 React 纯渲染契约）
+  useEffect(() => {
+    migrateLegacyMarkerUrl()
+    setCustomDefault(getDefaultMarkerUrl())
+  }, [])
 
   // markerId 变化时重置表单
   if (markerId !== lastMarkerId) {

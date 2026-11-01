@@ -73,10 +73,7 @@
 | tags | string[] | 否 | 标签 |
 | commit_message | string | 否 | 初始版本说明 |
 
-### 上传模型文件（整文件，< 8MB）
-`POST /api/models/upload`
-
-**请求：** `multipart/form-data` 字段 `file` + DTO
+| compress | boolean | 否 | 上传完成后自动触发压缩，生成新版本（详见 §模型压缩） |
 
 ### 更新模型
 `PUT /api/models/:id`
@@ -89,8 +86,10 @@
 ### 复制模型
 `POST /api/models/:id/copy`
 
-### 下载模型
+### 下载模型（302 重定向到 MinIO，无 Range 支持）
 `GET /api/models/:id/download`
+
+> 大文件场景下推荐使用文件存储代理（见 `/api/storage/:bucket/*`），配合前端的 `downloadModelWithProgress` 走分片并发下载。
 
 ### 代理获取模型文件
 `GET /api/models/:id/file`
@@ -98,9 +97,29 @@
 Geo 页面预处理 GLB（移除法线贴图）。响应 `application/octet-stream` 二进制流。
 
 ### 版本管理
-- `POST /api/models/:id/versions` — 上传新版本（multipart 整文件）
+- `POST /api/models/:id/versions` — 上传新版本（JSON body，前端先调 `/api/upload/multipart/*` 完成 MinIO 上传，再带 `file_url / file_key / file_size / file_name` 落库）
+  - 可选 `compress: true`：落库后异步触发压缩，写入下一个版本号（v+1）
+  - 响应：`{ ...version, compressionTaskId? }` —— `compressionTaskId` 存在时前端轮询 §模型压缩
 - `GET /api/models/:id/versions` — 获取版本列表
 - `GET /api/models/:id/compare?v1=1&v2=2` — 版本对比
+
+### 模型压缩
+
+> 异步任务，输出作为新版本入库（保留原版）。仅支持 `.glb` / `.gltf`。
+
+- `POST /api/models/:id/compress`
+  - Body（可选）：`{ versionId?: string, compressTexture?: boolean }`
+  - `versionId` 默认压缩最新版本；`compressTexture` 默认 `true`（PNG/JPEG 转 WebP）
+  - 响应：`{ taskId }`
+  - 返回 415 当模型格式不支持
+
+- `GET /api/models/compression-tasks/:taskId`
+  - 任务快照：`{ taskId, modelId, versionId, status, stage, percentage, originalSize?, compressedSize?, compressionRatio?, newVersionId?, errorMessage?, createdAt, updatedAt }`
+  - `status` ∈ `queued | downloading | compressing | uploading | completed | failed`
+  - 完成时 `newVersionId` 为新生成的版本 ID
+  - 任务在 in-memory Map 保留 1 小时后清理
+
+实现：Meshopt 几何压缩（EXT_meshopt_compression，可选 EncoderMethod.QUANTIZE/FILTER）+ sharp 纹理转 WebP（EXT_texture_webp）+ 顶点去重/焊接/剪枝。压缩后的 GLB 浏览器侧需启用 MeshoptDecoder（如 three.js + Drei 的 `<MeshoptDecoder />`）。
 
 ---
 
@@ -169,7 +188,17 @@ Geo 页面预处理 GLB（移除法线贴图）。响应 `application/octet-stre
 ### 下载文件
 `GET /api/storage/:bucket/*`
 
-流式代理 MinIO 对象到浏览器，支持 `Content-Length`、`ETag`、`Last-Modified`、`Accept-Ranges` 头。
+流式代理 MinIO 对象到浏览器，支持 HTTP Range 单段请求（多段暂不支持，会降级到全量流式）。
+
+**响应头：**
+`Content-Length` / `ETag` / `Last-Modified` / `Accept-Ranges: bytes` / `Access-Control-Allow-Origin: *`
+
+**Range 行为：**
+- 单 range（`bytes=start-end`）：`206 Partial Content` + `Content-Range`
+- Range header 格式错误或越界：`416 Request Range Not Satisfiable`
+- 无 Range：`200 OK`，流式 pipe
+
+客户端断开时主动 destroy 上游 MinIO stream，避免 fd/内存泄漏。
 
 **错误码：**
 | 状态码 | 说明 |
@@ -191,6 +220,27 @@ Geo 页面预处理 GLB（移除法线贴图）。响应 `application/octet-stre
 
 ### 获取地图完整数据（含模型列表）
 `GET /api/geo-maps/:id/data`
+`GET /api/geo-maps/:id/iframe-config`
+
+获取 iframe 嵌入配置（frame-ancestors 白名单 + allowedOrigins），供 nginx 和父页面使用。
+
+**响应示例：**
+```json
+{
+  "mapId": "uuid",
+  "mapName": "地图名称",
+  "allowedOrigins": ["https://example.com"],
+  "frameAncestors": ["https://example.com", "self"]
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| mapId | string | 地图 ID |
+| mapName | string | 地图名称 |
+| allowedOrigins | string[] \| null | 允许的 postMessage 来源域名（null=走 referrer，[]=拒绝，非空=白名单）|
+| frameAncestors | string[] | nginx frame-ancestors 白名单（合并环境变量 IFRAME_FRAME_ANCESTORS）|
+
 
 **响应示例：**
 ```json
@@ -252,7 +302,7 @@ Geo 页面预处理 GLB（移除法线贴图）。响应 `application/octet-stre
 | visibleModelIds | string[] \| null | null | 可见模型白名单；null 表示不过滤 |
 | hiddenTools | string[] | [] | 隐藏的工具按钮 ID（focusModel、flyToModel 等） |
 | showMarkers | boolean | true | 是否在地球上显示标点 |
-| allowedOrigins | string[] | [] | 允许的 postMessage 来源域名 |
+| allowedOrigins | string[] \| null | null | 允许的 postMessage 来源域名（null=走 referrer，[]=拒绝全部，非空=白名单）|
 
 ### 创建地图
 `POST /api/geo-maps`
@@ -296,7 +346,7 @@ Geo 页面预处理 GLB（移除法线贴图）。响应 `application/octet-stre
     "visibleModelIds": null,
     "hiddenTools": [],
     "showMarkers": true,
-    "allowedOrigins": [],
+    "allowedOrigins": null,
     "toolbar": true,
     "panel": true
   }
@@ -373,6 +423,29 @@ Geo 页面预处理 GLB（移除法线贴图）。响应 `application/octet-stre
 
 ### 删除场景
 `DELETE /api/scenes/:id`
+
+### 统一保存 Geo 配置
+`PUT /api/scenes/:id/geo`
+
+在单个事务内批量更新场景模型的 `geo_position` / `display_name` / `visible`，并合并场景底图配置。
+
+```json
+{
+  "models": [
+    {
+      "id": "场景模型关联 ID",
+      "geo_position": { "longitude": 116.39, "latitude": 39.9, "altitude": 0 },
+      "display_name": "主楼",
+      "visible": true
+    }
+  ],
+  "geoConfig": { "viewpoint": {} }
+}
+```
+
+- `models`：必填，1–100 条，元素为 `BatchSceneModelItemDto`
+- `geoConfig`：可选，与现有 `scene_config.geo` 浅合并
+- 校验失败或任一模型不属于该场景时整体回滚
 
 ### 场景模型管理
 - `POST /api/scenes/:id/models` — 添加模型到场景

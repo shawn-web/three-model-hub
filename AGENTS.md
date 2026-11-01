@@ -4,7 +4,7 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 ## 项目概述
 
-ThreeModelHub 是一个全栈 3D 模型管理与场景平台，支持 GLB/GLTF 模型上传、场景组合、标注、测量、剖面、Geo 地理和分享。pnpm monorepo 结构，前后端分离。
+three-model-hub 是一个全栈 3D 模型管理与场景平台，支持 GLB/GLTF 模型上传、场景组合、标注、测量、剖面、Geo 地理和分享。pnpm monorepo 结构，前后端分离。
 
 ## 常用命令
 
@@ -27,6 +27,15 @@ pnpm backend:test
 
 # 数据库（MySQL 8.0，docker-compose）
 docker-compose up -d
+
+# MinIO（根目录脚本，替代 docker-compose 中 minio 服务）
+pnpm minio:start                  # 启动 MinIO，控制台 http://localhost:9001（minioadmin/minioadmin123）
+pnpm minio:stop                   # 跨平台杀进程
+pnpm minio:status                 # 检查健康状态
+pnpm minio:reset                  # 清理 .minio-data/ 数据
+
+# 一键全栈
+pnpm dev:full                     # 并发启动 MinIO + MySQL + 前后端
 ```
 
 ## 技术栈
@@ -39,6 +48,8 @@ docker-compose up -d
 | UI | Ant Design 6 + Tailwind CSS |
 | 状态管理 | Zustand（zundo 提供 undo/redo） |
 | 后端框架 | NestJS 11 |
+| 对象存储 | MinIO（S3 兼容，minio Node SDK 8.x） |
+| 定时任务 | @nestjs/schedule 6.x |
 | 数据库 | MySQL 8.0 + TypeORM |
 | 包管理 | pnpm workspaces |
 
@@ -54,7 +65,9 @@ docker-compose.yml  # MySQL 开发环境
 
 ### 前端关键路径
 
-- **路由**: `frontend/src/RouterApp.tsx` — `/`（首页）、`/models`、`/scenes`、`/scenes/:id/edit`（场景编辑器）、`/view/:sceneId`（全屏查看器）、`/maps`（地图管理列表）、`/maps/:id`（Geo 3D 地球页面，Cesium + 暗色主题，无导航栏，支持 iframe 嵌入）、`/resources`、`/iframe`（iframe 嵌入查看器，无导航栏）
+- **路由**: `frontend/src/RouterApp.tsx` — `/`（首页）、`/models`、`/scenes`、`/scenes/:id/edit`（场景编辑器）、`/view/:sceneId`（全屏查看器）、`/maps`（地图管理列表）、`/maps/:id`（Geo 3D 地球页面，Cesium + 暗色主题，无导航栏，支持 iframe 嵌入）、`/resources`、`/docs`、`/docs/:name`（应用内文档）、`/iframe/:sceneId`（iframe 嵌入查看器，无导航栏）
+  - `/maps/:id` iframe 嵌入 URL 参数：`imagery`（底图厂商，如 `tianditu`/`google`）、`type=satellite|vector|terrain`（图层类型）、`toolbar=false`（隐藏工具栏）、`panel=false`（隐藏右侧面板）、`hiddenTools=tool1,tool2`（隐藏指定工具按钮）、`visibleModelIds=id1,id2`（仅显示指定模型；不传=全显示，传空=全隐藏）、`showMarkers=false`（隐藏标点）、`allowedOrigins=https://a.com,https://b.com`（postMessage 白名单）、`camera={"longitude":...,"latitude":...,"altitude":...,"heading":...,"pitch":...}`（初始视角 JSON）
+  - `/maps/:id` 运行时 postMessage：`geo-config`（覆盖底图/工具栏/面板/视角/可见性，不持久化）；iframe 向外发送：`geo-ready`、`geo-models-loaded`、`geo-position-changed`、`geo-saved`、`geo-model-clicked`、`marker-clicked`
 - **状态**: `frontend/src/store/` — `scene-store.ts`（3D 场景核心状态）、`viewer-store.ts`（查看器）、`edit-store.ts`（编辑器+undo/redo）、`geo-store.ts`（Geo 页面：Cesium 地球 / 模型地理定位 / 拖拽交互 / 底图配置）、`theme-store.ts`
 - **API 层**: `frontend/src/api/client.ts`（Axios 实例 + GET 请求 5 分钟缓存）
 - **3D 插件**: `frontend/src/plugins/` — 12 个插件：measurement（测量）、navigation（导航）、picking（拾取）、section（剖面）、grid（网格）、auto-rotate（自动旋转）、camera-info（相机信息）、rotation-mode（旋转模式）、screenshot（截图）、view-cube（视图方块）、transform-controls（变换控制）、xray（透视）
@@ -75,21 +88,36 @@ NestJS 模块化组织，每个业务模块包含 `entities/`、`dto/`、`*.serv
 | Viewpoints | `/api/scenes/:sceneId/viewpoints` | 相机视点保存（嵌套在场景下） |
 | Annotations | `/api/scenes/:sceneId/annotations` | 模型标注（嵌套在场景下） |
 | Sharing | `/api/share` | 场景分享（token 机制） |
-| Upload | `/api/upload` | 文件上传（代理到外部文件服务，地址由 `FILE_SERVICE_URL` 环境变量配置） |
+| Upload | `/api/upload/*` | 分片上传管理（simple/multipart init/part/complete/abort/status 6 端点，依赖 UploadSession 实体） |
 | Resources | `/api/resources` | 通用文件资源（含分组管理 `/groups`、图片代理 `/proxy-image`、文件上传 `/upload`） |
-| Storage | （无独立路由） | 文件存储基础设施服务（被 Upload/Resources/Models 调用） |
+| Storage | `/api/storage/:bucket/*` | 文件存储代理（列表 + 流式下载，封装 MinIO） |
+| MinIO | （无独立路由） | MinIO 基础设施模块（`@Global()`，onModuleInit 自动创建 bucket + 设 download 策略） |
 
-共享目录：`common/`（全局异常过滤器、共享类型）、`types/`（Express 类型增强）
+共享目录：`common/`（全局异常过滤器、共享类型）、`types/`（Express 类型增强）、`migrations/`（TypeORM migration 脚本）。
 
 ### 数据库
 
 - TypeORM `synchronize: true`（开发环境自动同步，生产需 migration）
 - `autoLoadEntities: true`
-- 核心实体关系：Model → ModelVersion（一对多）、Scene → SceneModel（多对多，含 transform/material_overrides JSON 字段）、GeoMap → GeoMapModel（多对多，含 geo_position JSON 字段）
+- 核心实体关系：Model → ModelVersion（一对多）、Scene → SceneModel（多对多，含 transform/material_overrides JSON 字段）、GeoMap → GeoMapModel（多对多，含 geo_position JSON 字段）、UploadSession（status 状态机 pending/completed/aborted）
+- **新结构变更需同步 migration**（即使 synchronize:true 也要写 migration 脚本），详见 `backend/src/migrations/`
 
 ### 前端代理配置
 
-`vite.config.ts` 中 `/api` 代理到 `localhost:3000`。所有文件上传走自带 MinIO + 后端分片上传，不依赖任何外部文件服务。
+`vite.config.ts` 中 `/api` 代理到 `localhost:3000`。文件上传走后端代理，浏览器不直连 MinIO。
+
+### MinIO 启动方式
+
+根目录 `package.json` 提供以下脚本（不依赖 docker-compose）：
+
+```bash
+pnpm minio:start   # 启动 MinIO（数据存 .minio-data/，控制台 http://localhost:9001）
+pnpm minio:stop    # 跨平台杀 MinIO 进程
+pnpm minio:status  # 检查 MinIO 状态
+pnpm minio:reset   # 清理 .minio-data/ 数据
+pnpm dev:infra     # 同时启动 MinIO + MySQL
+pnpm dev:full      # 同时启动 MinIO + MySQL + 前后端
+```
 
 ## 开发注意事项
 
@@ -117,6 +145,9 @@ NestJS 模块化组织，每个业务模块包含 `entities/`、`dto/`、`*.serv
 | 变更类型 | 需同步修改的配置文件 |
 |---|---|
 | 场景状态/属性 | `frontend/src/store/scene-store.ts`、`frontend/src/store/edit-store.ts`、`frontend/src/store/viewer-store.ts` |
+| Geo 状态/标点/底图配置 | `frontend/src/store/geo-store.ts`、`frontend/src/types/geo-marker.ts`、`backend/src/geo-maps/entities/`、`backend/src/geo-maps/dto/geo-map.dto.ts`、`config.geo.*` 字段说明（`docs/api.md`） |
+| 场景中模型的 geo_position 字段 | `backend/src/scenes/entities/scene-model.entity.ts`、`backend/src/scenes/dto/scene.dto.ts`、`backend/src/scenes/dto/geo-position.dto.ts` |
+| iframe 通信协议 | `frontend/src/communication/protocol.ts`、`frontend/src/communication/message-bus.ts`、`frontend/src/communication/url-params.ts`、`frontend/tests/message-bus.test.ts`、`docs/api.md` 的 postMessage 段落（如有） |
 | 前端路由/页面 | `frontend/src/RouterApp.tsx` |
 | 后端实体字段 | `backend/src/<module>/entities/` 目录下对应实体文件 |
 | 后端 DTO | `backend/src/<module>/dto/` 目录下对应 DTO 文件 |
@@ -134,9 +165,15 @@ NestJS 模块化组织，每个业务模块包含 `entities/`、`dto/`、`*.serv
 | 新增/修改前端页面/路由 | `docs/architecture.md` 前端目录结构 + AGENTS.md 路由表 |
 | 新增/修改前端 store | `docs/architecture.md` 前端目录结构 + AGENTS.md 状态说明 |
 | 新增/修改前端插件 | `docs/architecture.md` 前端目录结构 + AGENTS.md 插件说明 |
+| 新增/修改 Geo 标点/弹窗字段 | `frontend/src/types/geo-marker.ts` + `frontend/src/communication/protocol.ts` 的 `MarkerClickedPayload`/`GeoConfigPayload` + `docs/api.md` config.geo 字段表 |
+| 修改 AGENTS.md 时 | 无需改 `CLAUDE.md`（它只是指向本文件的指针） |
 | 技术栈版本变更 | AGENTS.md 技术栈表 + `docs/architecture.md` 技术栈表 |
 | 环境变量变更 | `docs/deployment.md` + `backend/.env.example` |
 | 部署方式变更 | `docs/deployment.md` |
+
+### 设计 / 规划文档
+
+- `docs/geo-improvement-plan.md` — Geo 模块迭代计划（标点、底图、iframe 嵌入相关需求与决策记录）
 
 ---
 

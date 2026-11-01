@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640" preserveAspectRatio="xMidYMid meet" role="img" aria-label="ThreeModelHub social preview">
-  <title>ThreeModelHub - 3D 模型管理与场景平台</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640" preserveAspectRatio="xMidYMid meet" role="img" aria-label="three-model-hub social preview">
+  <title>three-model-hub - 3D 模型管理与场景平台</title>
   <defs>
     <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#0F172A"/>
@@ -93,7 +93,7 @@
 
   <!-- 右侧：项目文字（位置往左挪，确保完整显示） -->
   <g>
-    <text x="600" y="260" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="68" font-weight="800" fill="#F8FAFC" letter-spacing="-1">ThreeModelHub</text>
+    <text x="600" y="260" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="68" font-weight="800" fill="#F8FAFC" letter-spacing="-1">three-model-hub</text>
     <text x="600" y="320" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="26" font-weight="500" fill="#7DD3FC" letter-spacing="0.5">3D 模型管理 · 场景编辑 · Geo 地理</text>
     <text x="600" y="365" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#94A3B8">GLB/GLTF · Three.js · Cesium · NestJS · MySQL · MinIO</text>
 

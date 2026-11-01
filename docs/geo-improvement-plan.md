@@ -1148,12 +1148,12 @@ cd backend && pnpm exec tsc --noEmit
 
 ### 文档同步
 
-按 CLAUDE.md 要求，修改完成后同步更新：
+按 AGENTS.md 要求，修改完成后同步更新：
 
 | 变更类型 | 需同步更新的文件 |
 |---------|----------------|
 | 新增 API 端点 `PUT /scenes/:id/geo` | `docs/api.md` |
 | 新增前端 hook / utils | `docs/architecture.md` 前端目录结构 |
 | 新增后端 DTO | `docs/architecture.md` 后端目录结构 |
-| GeoConfigPayload 扩展 | `docs/api.md`、`CLAUDE.md` |
+| GeoConfigPayload 扩展 | `docs/api.md`、`AGENTS.md` |
 | 新增组件 GeoMarkerLayer | `docs/architecture.md` 前端目录结构 |

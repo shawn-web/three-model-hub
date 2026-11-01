@@ -8,8 +8,14 @@
  */
 
 const CACHE_DB_NAME = 'threeModelHub_glb_cache'
+// 旧 DB 名（项目重命名前），用于清理孤儿缓存以释放浏览器存储
+const LEGACY_CACHE_DB_NAME = 'threeMode_glb_cache'
 const CACHE_STORE_NAME = 'processed_glbs'
 const CACHE_DB_VERSION = 2
+
+// 旧 DB 清理守卫：openCacheDB 在每次 getCachedBlob/setCachedBlob 都会调，
+// deleteDatabase 走一次就够了，否则每个缓存操作都会触发一个多余的 IDBOpenDBRequest。
+let legacyDbCleanupDone = false
 
 /** 打开 IndexedDB 缓存数据库 */
 function openCacheDB(): Promise<IDBDatabase> {
@@ -23,7 +29,18 @@ function openCacheDB(): Promise<IDBDatabase> {
       }
       db.createObjectStore(CACHE_STORE_NAME)
     }
-    request.onsuccess = () => resolve(request.result)
+    request.onsuccess = () => {
+      // 一次性清理旧 DB（fire-and-forget，不影响当前流程）
+      if (!legacyDbCleanupDone && typeof indexedDB.deleteDatabase === 'function') {
+        legacyDbCleanupDone = true
+        try {
+          indexedDB.deleteDatabase(LEGACY_CACHE_DB_NAME)
+        } catch {
+          // 旧 DB 不存在或浏览器拒绝删除，忽略
+        }
+      }
+      resolve(request.result)
+    }
     request.onerror = () => reject(request.error)
   })
 }
