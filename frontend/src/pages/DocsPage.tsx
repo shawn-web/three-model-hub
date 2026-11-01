@@ -11,6 +11,7 @@ import {
   BugOutlined,
   ToolOutlined,
   HistoryOutlined,
+  ContainerOutlined,
 } from '@ant-design/icons'
 
 // import.meta.glob 在编译时将 ../docs/*.md 以原始文本内联到 bundle
@@ -30,6 +31,7 @@ const docs = [
   { key: 'development', label: '开发指南', icon: <ToolOutlined />, file: 'development.md' },
   { key: 'testing', label: '测试指南', icon: <BugOutlined />, file: 'testing.md' },
   { key: 'deployment', label: '部署文档', icon: <RocketOutlined />, file: 'deployment.md' },
+  { key: 'docker-deploy', label: 'Docker 部署', icon: <ContainerOutlined />, file: 'docker-deploy.md' },
   { key: 'contributing', label: '贡献指南', icon: <CodeOutlined />, file: 'contributing.md' },
 ] as const
 

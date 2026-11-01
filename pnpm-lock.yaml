@@ -196,6 +196,9 @@ importers:
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.4.0(jiti@1.21.7))
+      '@iconify/types':
+        specifier: ^2.0.0
+        version: 2.0.0
       '@testing-library/jest-dom':
         specifier: ^6.9.1
         version: 6.9.1
@@ -241,6 +244,9 @@ importers:
       tailwindcss:
         specifier: ^3.4.19
         version: 3.4.19
+      three-stdlib:
+        specifier: ^2.36.1
+        version: 2.36.1(three@0.184.0)
       typescript:
         specifier: ~6.0.2
         version: 6.0.3

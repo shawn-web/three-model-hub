@@ -1,0 +1,91 @@
+# three-model-hub 前端容器 nginx 配置模板
+#
+# 该文件会被 nginx 官方镜像的 entrypoint 用 envsubst 渲染为
+# /etc/nginx/conf.d/default.conf，只有“已定义为环境变量”的占位符会被替换，
+# nginx 自身的 $uri / $host / $remote_addr 等变量不受影响。
+#
+# 可注入变量：
+#   BACKEND_UPSTREAM  后端地址，默认 backend:3000（compose 服务名）
+#   FRAME_ANCESTORS   iframe 嵌入白名单，CSP 语法，默认 'self'
+
+server {
+    listen 80;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # ── 安全响应头 ──────────────────────────────────────────────
+    # 注意：nginx 的 add_header 一旦在 location 内出现，就不再继承 server 级配置。
+    # 因此下面各 location 一律用 expires 控制缓存，不写 add_header，保证这些头始终生效。
+    #
+    # frame-ancestors 是本项目的核心能力（iframe 嵌入到其他系统），
+    # 需要放开时通过环境变量 FRAME_ANCESTORS 传入，例如：
+    #   FRAME_ANCESTORS='self' https://partner.example.com
+    #
+    # 刻意不设置 X-Frame-Options：它无法表达多域名白名单，且现代浏览器以 CSP 为准，
+    # 两者并存时旧浏览器会被 XFO 拦截，反而与白名单配置冲突。
+    add_header Content-Security-Policy "frame-ancestors ${FRAME_ANCESTORS}" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # ── 压缩 ────────────────────────────────────────────────────
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml
+               application/xml application/xml+rss text/javascript image/svg+xml;
+    gzip_min_length 256;
+    gzip_vary on;
+
+    # ── 容器健康检查 ────────────────────────────────────────────
+    location = /healthz {
+        access_log off;
+        return 200 "ok\n";
+    }
+
+    # ── 静态资源 ────────────────────────────────────────────────
+    # Vite 产物带内容哈希，可长期强缓存
+    location /assets/ {
+        expires 1y;
+        access_log off;
+        try_files $uri =404;
+    }
+
+    # ── SPA 路由回退 ────────────────────────────────────────────
+    location / {
+        expires -1;
+        try_files $uri $uri/ /index.html;
+    }
+
+    # ── API / 文件代理 ──────────────────────────────────────────
+    # 前端统一走相对路径 /api，由这里转发到后端容器；
+    # 模型文件同样经后端 /api/storage 代理读取，MinIO 不对公网暴露。
+    location /api/ {
+        proxy_pass http://${BACKEND_UPSTREAM}/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 600s;
+        proxy_read_timeout 600s;
+
+        # 与后端 MAX_UPLOAD_SIZE_MB 默认值 1024 对齐
+        client_max_body_size 1024m;
+
+        # 大文件分片上传直接透传，避免 nginx 落盘缓冲
+        proxy_buffering off;
+        proxy_request_buffering off;
+    }
+
+    # ── 其他 ────────────────────────────────────────────────────
+    location ~ /\. {
+        deny all;
+        access_log off;
+        log_not_found off;
+    }
+}

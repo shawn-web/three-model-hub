@@ -1,0 +1,147 @@
+# three-model-hub —— 镜像拉取式部署
+#
+# 本文件只引用已发布的镜像，不需要任何源码，也不需要 docker build。
+#
+# 使用步骤：
+#   1) cp .env.docker.example .env  并填写数据库/MinIO 口令
+#   2) docker compose -f docker-compose.prod.yml pull
+#   3) docker compose -f docker-compose.prod.yml up -d
+#   4) 浏览器访问 http://<服务器IP>:8080
+#
+# 常用：
+#   docker compose -f docker-compose.prod.yml logs -f backend
+#   docker compose -f docker-compose.prod.yml down          # 停止（保留数据）
+#   docker compose -f docker-compose.prod.yml down -v        # 连数据一起删除
+#
+# 说明：
+#   - MySQL 与 MinIO 默认不对外暴露端口，只有 frontend 的 80 端口对外；
+#     MinIO 控制台仅绑定到宿主机回环地址，需通过 SSH 隧道访问。
+#   - 模型文件由后端 /api/storage 代理读取，浏览器不直连 MinIO。
+
+name: three-model-hub
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # ─────────────────────────── 数据库 ───────────────────────────
+  mysql:
+    image: ${MYSQL_IMAGE:-mysql:8.0}
+    container_name: tmh-mysql
+    restart: unless-stopped
+    environment:
+      # 应用连接用的普通账号（不要用 root 跑应用）
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-three_model_hub}
+      MYSQL_USER: ${DB_USERNAME:-tmh}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?请在 .env 中设置 DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在 .env 中设置 MYSQL_ROOT_PASSWORD}
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      # 用 root 走 unix socket，避免因 host 权限导致的误判
+      test: ["CMD-SHELL", "mysqladmin ping -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    networks:
+      - tmh-net
+    logging: *default-logging
+
+  # ─────────────────────────── 对象存储 ───────────────────────────
+  minio:
+    image: ${MINIO_IMAGE:-minio/minio:latest}
+    container_name: tmh-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:?请在 .env 中设置 MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?请在 .env 中设置 MINIO_SECRET_KEY}
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - minio-data:/data
+    ports:
+      # 仅绑定回环地址：本机/SSH 隧道可访问控制台，公网不可达
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
+    healthcheck:
+      test: ["CMD-SHELL", "mc ready local || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - tmh-net
+    logging: *default-logging
+
+  # ─────────────────────────── 后端 API ───────────────────────────
+  backend:
+    image: ${IMAGE_NAMESPACE:-ghcr.io/shawn-web}/three-model-hub-backend:${IMAGE_TAG:-latest}
+    container_name: tmh-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      TZ: ${TZ:-Asia/Shanghai}
+
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USERNAME: ${DB_USERNAME:-tmh}
+      DB_PASSWORD: ${DB_PASSWORD:?请在 .env 中设置 DB_PASSWORD}
+      DB_DATABASE: ${MYSQL_DATABASE:-three_model_hub}
+      DB_LOGGING: "false"
+      # 空库首次启动时按实体定义自动建表，之后按 migration 增量升级
+      DB_AUTO_BOOTSTRAP: ${DB_AUTO_BOOTSTRAP:-true}
+
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_USE_SSL: "false"
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?请在 .env 中设置 MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?请在 .env 中设置 MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET:-three-model-hub}
+
+      MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-1024}
+      UPLOAD_CLEANUP_THRESHOLD_HOURS: ${UPLOAD_CLEANUP_THRESHOLD_HOURS:-24}
+
+      # iframe 嵌入白名单（逗号分隔，供 /api/geo-maps/:id/iframe-config 使用）
+      IFRAME_FRAME_ANCESTORS: ${IFRAME_FRAME_ANCESTORS:-self}
+      # 前后端同源部署时无需 CORS；留空会反射任意 Origin，公网部署建议显式设置
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    networks:
+      - tmh-net
+    logging: *default-logging
+
+  # ─────────────────────────── 前端 ───────────────────────────
+  frontend:
+    image: ${IMAGE_NAMESPACE:-ghcr.io/shawn-web}/three-model-hub-frontend:${IMAGE_TAG:-latest}
+    container_name: tmh-frontend
+    restart: unless-stopped
+    environment:
+      BACKEND_UPSTREAM: backend:3000
+      # CSP 语法（空格分隔），需与 IFRAME_FRAME_ANCESTORS 表达同一组域名
+      FRAME_ANCESTORS: ${FRAME_ANCESTORS:-'self'}
+      TZ: ${TZ:-Asia/Shanghai}
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    depends_on:
+      backend:
+        condition: service_started
+    networks:
+      - tmh-net
+    logging: *default-logging
+
+networks:
+  tmh-net:
+    driver: bridge
+
+volumes:
+  mysql-data:
+  minio-data:

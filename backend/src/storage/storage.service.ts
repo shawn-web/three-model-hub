@@ -52,7 +52,7 @@ const MIME_BY_EXT: Record<string, string> = {
  * 新增能力：
  *   - generateObjectKey: 按 bizType + 文件名生成 labs/{bizPath}/{yyyy}/{MM}/{uuid}.{ext}
  *   - verifyObject: 用 MinIO statObject 校验文件是否存在
- *   - getPublicUrl: 拼 ${MINIO_PUBLIC_URL}/${bucket}/${key}
+ *   - getPublicUrl: 返回相对地址 /api/storage/{bucket}/{key}，由后端代理读取
  */
 @Injectable()
 export class StorageService {

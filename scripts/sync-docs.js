@@ -22,6 +22,7 @@ const MAP = [
   ['docs/development.md', 'development.md'],
   ['docs/testing.md', 'testing.md'],
   ['docs/deployment.md', 'deployment.md'],
+  ['docs/docker-deploy.md', 'docker-deploy.md'],
 ]
 
 const checkOnly = process.argv.includes('--check')

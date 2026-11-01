@@ -71,6 +71,9 @@ pnpm dev:full
 
 ## 生产环境部署
 
+> **推荐先看 [`docker-deploy.md`](docker-deploy.md)**：拉取已发布镜像一条命令起全栈，无需在服务器上装 Node、MySQL、Nginx。
+> 本章节保留给需要在裸机上以 PM2 + 系统 Nginx 方式部署、或需要深度定制运行环境的场景。
+
 ### 一、服务器环境安装
 
 ```bash
@@ -175,7 +178,6 @@ MINIO_USE_SSL=false
 MINIO_ACCESS_KEY=minioadmin
 MINIO_SECRET_KEY=你的MinIO密码
 MINIO_BUCKET=three-model-hub
-MINIO_PUBLIC_URL=https://cdn.your-domain.com
 MINIO_DATA_DIR=./.minio-data            # 仅本地 minio:start 脚本使用
 
 # 上传限制

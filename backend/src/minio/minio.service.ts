@@ -7,7 +7,7 @@ import { Client } from 'minio'
  *
  * 职责：
  *   1. 构造并管理 minio.Client 单例
- *   2. onModuleInit 自动检测 bucket，不存在则创建 + 设置 download 匿名策略
+ *   2. onModuleInit 自动检测 bucket，不存在则创建（保持私有，访问统一走后端代理）
  *   3. 封装常用的对象操作（put/multipart/remove/stat）
  *
  * 错误处理：

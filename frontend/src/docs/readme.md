@@ -85,13 +85,26 @@ pnpm dev:full
 - 后端 API：http://localhost:3000/api
 - MinIO 控制台：http://localhost:9001（默认 `minioadmin / minioadmin123`）
 
-### 一行命令的 Docker 部署（生产模式）
+### Docker 部署（生产模式）
 
-> 完整 Docker Compose 部署方案见 [`docs/deployment.md`](docs/deployment.md)
+**方式一：拉取镜像直接部署（不需要源码）**
 
 ```bash
-docker-compose -f docker-compose.deploy.yml up -d
+curl -O https://gitee.com/lishuaistart/three-model/raw/master/docker-compose.prod.yml
+curl -o .env https://gitee.com/lishuaistart/three-model/raw/master/.env.docker.example
+# 编辑 .env，填好 DB_PASSWORD / MYSQL_ROOT_PASSWORD / MINIO_ACCESS_KEY / MINIO_SECRET_KEY
+docker compose -f docker-compose.prod.yml up -d
 ```
+
+打开 `http://<服务器IP>:8080`。镜像为多架构（amd64 / arm64），MySQL、MinIO、后端、前端一次起齐，对外只暴露一个端口。
+
+**方式二：从源码构建镜像**
+
+```bash
+docker compose -f docker-compose.deploy.yml up -d --build
+```
+
+> 环境变量、HTTPS、备份升级、常见问题详见 [`docs/docker-deploy.md`](docs/docker-deploy.md)
 
 ## 📁 项目结构
 
@@ -170,7 +183,8 @@ three-model-hub 需要支持 **WebGL 2.0** 的现代浏览器：
 - [API 文档](docs/api.md) — 后端 API 接口详情
 - [架构文档](docs/architecture.md) — 系统架构、模块划分、核心流程
 - [开发指南](docs/development.md) — 环境搭建、代码规范、添加新功能
-- [部署文档](docs/deployment.md) — 生产环境部署步骤
+- [部署文档](docs/deployment.md) — 裸机 + PM2 的传统部署步骤
+- [Docker 部署](docs/docker-deploy.md) — 拉取镜像直接部署、环境变量、HTTPS、备份升级
 - [测试文档](docs/testing.md) — 测试策略、单元/e2e 运行方法与前置条件
 - [iframe 嵌入集成指南](docs/iframe-integration.md) — 路由、URL 参数、postMessage 协议与安全模型
 - [Geo 改进计划](docs/geo-improvement-plan.md) — Geo 模块迭代记录

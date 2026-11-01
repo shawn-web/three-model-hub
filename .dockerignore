@@ -1,11 +1,43 @@
-node_modules
-dist-ssr
+# Docker 构建上下文过滤
+#
+# 目标：只把“构建真正需要的东西”送进 daemon。
+# 注意：frontend/src/docs/*.md 是前端运行时依赖（DocsPage 用 import.meta.glob 内联），
+# 因此这里不能粗暴地排除所有 *.md——旧版本正是这么写的，会导致镜像内文档页空白。
+
+# 依赖与构建产物：镜像内会重新安装 / 构建
+**/node_modules
+**/dist
+**/dist-ssr
+**/*.tsbuildinfo
+
+# 版本控制与 CI
 .git
-*.log
+.github
+.gitignore
+
+# 本地运行时数据与日志
+.minio-data
+**/*.log
+
+# 环境变量：容器内由编排注入，绝不打进镜像
+**/.env
+**/.env.local
+**/.env.production
+
+# 编辑器 / AI 工具
+.vscode
+.idea
 .claude
+.claude-flow
+.serena
+.agents
+
+# 与镜像构建无关的仓库内容
 docs
-*.md
-!frontend/package.json
-!backend/package.json
-!frontend/dist
-!backend/dist
+nginx
+scripts
+docker-compose.yml
+docker-compose.deploy.yml
+docker-compose.prod.yml
+ecosystem.config.js
+.env.docker.example

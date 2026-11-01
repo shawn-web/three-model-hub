@@ -1,0 +1,113 @@
+name: Docker
+
+# 发布策略
+#   - push tag v*.*.*  → 构建 amd64 + arm64，推送语义化版本标签与 latest
+#   - push master      → 构建 amd64，推送 edge 与 sha-xxxxxxx（不覆盖 latest）
+#   - pull_request     → 仅构建 amd64 验证 Dockerfile 可编译，不推送
+#   - 手动触发         → 同 tag 行为
+#
+# 镜像地址（使用内置 GITHUB_TOKEN 推送，无需额外密钥）：
+#   ghcr.io/<owner>/three-model-hub-backend
+#   ghcr.io/<owner>/three-model-hub-frontend
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*.*.*']
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'package.json'
+      - '.dockerignore'
+      - 'backend/Dockerfile'
+      - 'frontend/Dockerfile'
+      - 'frontend/nginx.conf.template'
+      - '.github/workflows/docker-publish.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build:
+    name: ${{ matrix.component }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: backend
+            dockerfile: backend/Dockerfile
+          - component: frontend
+            dockerfile: frontend/Dockerfile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # arm64 镜像通过 QEMU 模拟构建，仅发布 tag 时启用
+      - name: Set up QEMU
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/three-model-hub-${{ matrix.component }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=ref,event=branch,prefix=edge-
+            type=sha,format=short
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') }}
+          labels: |
+            org.opencontainers.image.title=three-model-hub ${{ matrix.component }}
+            org.opencontainers.image.description=全栈 3D 模型管理与场景编排平台
+            org.opencontainers.image.licenses=MIT
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: ${{ startsWith(github.ref, 'refs/tags/') && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.component }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.component }}
+          build-args: |
+            NPM_REGISTRY=https://registry.npmjs.org
+
+      - name: Summary
+        run: |
+          {
+            echo "### ${{ matrix.component }}"
+            echo ""
+            echo '```'
+            echo "${{ steps.meta.outputs.tags }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

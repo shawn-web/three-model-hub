@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-11-02
+
+Docker 镜像化与拉取式部署：
+
+- **镜像自包含**：重写 `backend/Dockerfile` 与 `frontend/Dockerfile` 为多阶段构建。旧版本依赖本地预构建的 `dist`（`COPY backend/dist`），既无法从干净源码构建，也无法由 CI 产出可分发的镜像
+- **新增 `docker-compose.prod.yml`**：纯 `image:` 编排，用户只需下载编排文件 + `.env` 即可 `docker compose up -d`，不需源码、不需构建
+- **新增 `.github/workflows/docker-publish.yml`**：打 `v*.*.*` 标签时构建 `linux/amd64` + `linux/arm64` 双架构镜像并推送 ghcr.io；PR 仅做 amd64 编译验证不推送
+- **修复空库无法首次部署**：仓库内 migration 全是增量 ALTER，没有基础建表那一版，而生产 `synchronize=false`，旧流程在全新数据库上必然失败并进入重启循环。`migrate-prod.js` 现在会在检测到空库时按实体定义自举建表，并把历史 migration 登记为已应用（`DB_AUTO_BOOTSTRAP` 可关闭）
+- **修复 nginx 模板化与安全头失效**：`/api` 反代地址与 iframe 白名单改为运行时 envsubst 注入，同一份镜像可用于任意环境；原配置在 `location` 内写 `add_header` 导致 server 级 CSP 不再继承，改用 `expires` 控制缓存以保持安全头始终生效；同时去掉 `X-Frame-Options`，避免与 CSP 多域名白名单冲突
+- **修复幽灵依赖**：`frontend/src` 直接 `import type` 了 `three-stdlib` 与 `@iconify/types` 但未声明，本地靠 pnpm 提升侥幸可用，任何过滤安装（含镜像构建）都会失败。已补进 `devDependencies`
+- **修复 `.dockerignore` 误伤**：原规则 `*.md` 会把 `frontend/src/docs/*.md` 一并排除，导致镜像内文档页空白；改为按目录精确排除，并补上 `**/node_modules`（原写法只排除根目录那一份）
+- **清理死配置** `MINIO_PUBLIC_URL`：`getPublicUrl` 早已改为返回相对地址 `/api/storage/{bucket}/{key}`，该变量不再被任何代码读取，仅在示例与编排里误导使用者
+- **固定 pnpm 行为**：容器内无 TTY，Dockerfile 增加 `ENV CI=true`，否则 pnpm 遇到需重建 `node_modules` 时会直接报错退出
+- **文档**：新增 `docs/docker-deploy.md`（拉取部署、环境变量、HTTPS、备份升级、常见问题），README 与 `docs/deployment.md` 增加入口
+
 ## 2026-11-01
 
 开源前工程化整改：
