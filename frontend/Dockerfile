@@ -42,6 +42,12 @@ ENV BACKEND_UPSTREAM=backend:3000 \
 # nginx 官方镜像会自动扫描 /etc/nginx/templates/*.template 并用 envsubst 渲染
 COPY frontend/nginx.conf.template /etc/nginx/templates/default.conf.template
 
+# 补齐 CSP 关键字的引号：compose 会剥掉 .env 里的外层引号，
+# 导致 "frame-ancestors self" 成为非法语法、白名单静默失效。
+# .envsh 会被 docker-entrypoint.sh source，编号 10 保证先于 20-envsubst 执行。
+COPY frontend/docker-entrypoint.d/10-csp-normalize.envsh /docker-entrypoint.d/10-csp-normalize.envsh
+RUN chmod +x /docker-entrypoint.d/10-csp-normalize.envsh
+
 COPY --from=builder /app/frontend/dist /usr/share/nginx/html
 
 EXPOSE 80

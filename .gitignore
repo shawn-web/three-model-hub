@@ -44,6 +44,10 @@ yarn.lock
 # 环境变量与密钥（**绝不可提交**）
 # ====================================
 .env
+.env.*
+# 模板文件必须保留在仓库里，否则新用户无从复制
+!.env.example
+!.env.docker.example
 .env.local
 .env.*.local
 .env.development

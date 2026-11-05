@@ -50,13 +50,20 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY backend/package.json ./backend/
 COPY frontend/package.json ./frontend/
 
-RUN pnpm install --frozen-lockfile --prod --filter three-model-hub-backend...
+# 复用 builder 已下载的 pnpm store，有两个作用：
+#   1. 生产依赖不必再走一遍网络；
+#   2. 本阶段因此显式依赖 builder。BuildKit 默认把无依赖关系的阶段并行调度，
+#      两个 pnpm install 同时跑会耗尽构建内存，实测报 `rpc error: ... EOF` 中断构建。
+COPY --from=builder /root/.local/share/pnpm/store /app/pnpm-store
+
+RUN pnpm config set store-dir /app/pnpm-store \
+ && pnpm install --frozen-lockfile --prod --filter three-model-hub-backend...
+
+# store 仅用于安装，留着会白白撑大镜像层
+RUN rm -rf /app/pnpm-store
 
 # ─────────────────────────── 阶段 3：运行时 ───────────────────────────
 FROM node:22-alpine AS runtime
-
-# tini 负责 PID 1 信号转发，保证 docker stop 能优雅退出
-RUN apk add --no-cache tini
 
 ENV NODE_ENV=production \
     PORT=3000
@@ -71,7 +78,12 @@ COPY --from=builder --chown=node:node /app/backend/dist ./backend/dist
 
 COPY --chown=node:node backend/scripts/migrate-prod.js ./backend/scripts/migrate-prod.js
 COPY --chown=node:node backend/entrypoint.sh ./backend/entrypoint.sh
-RUN chmod +x ./backend/entrypoint.sh
+
+# tini 负责 PID 1 信号转发，保证 docker stop 能优雅退出。
+# 必须放在所有 COPY 之后：本阶段不依赖前置阶段时会与 builder 的 pnpm install 并行调度，
+# 两个网络密集任务抢带宽会导致 apk 直接失败（实测 exit 1，单独跑却成功）。
+RUN apk add --no-cache tini \
+ && chmod +x ./backend/entrypoint.sh
 
 # node:22-alpine 内置 uid/gid 1000 的 node 用户，无需额外建号
 USER node

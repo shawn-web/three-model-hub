@@ -331,7 +331,8 @@ describe('GeoMapsService', () => {
 
       expect(result.mapId).toBe('g1')
       expect(result.allowedOrigins).toBeNull()
-      expect(result.frameAncestors).toEqual(['self'])
+      // self 必须带引号才是合法的 CSP 源表达式
+      expect(result.frameAncestors).toEqual(["'self'"])
     })
 
     it('allowedOrigins 有值时合并环境变量', async () => {
@@ -346,6 +347,17 @@ describe('GeoMapsService', () => {
       expect(result.allowedOrigins).toEqual(['https://c.com'])
       expect(result.frameAncestors).toContain('https://c.com')
       expect(result.frameAncestors).toContain('https://a.com')
+
+      delete process.env.IFRAME_FRAME_ANCESTORS
+    })
+
+    it('环境变量里的裸 self 会被补齐为 CSP 合法形式', async () => {
+      process.env.IFRAME_FRAME_ANCESTORS = 'self,https://a.com'
+      mockGeoMapRepo.findOne.mockResolvedValue({ id: 'g1', name: 'm', config: {} })
+
+      const result = await service.getIframeConfig('g1')
+
+      expect(result.frameAncestors).toEqual(["'self'", 'https://a.com'])
 
       delete process.env.IFRAME_FRAME_ANCESTORS
     })

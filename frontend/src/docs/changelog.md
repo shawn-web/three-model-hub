@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-11-05
+
+镜像构建实测与端到端部署验证：
+
+- **修复 CSP 白名单静默失效**：CSP 要求 `self`/`none` 必须带引号，但 Docker Compose 解析 `.env` 会剥掉外层引号，`FRAME_ANCESTORS='self'` 到容器里变成 `self`，渲染出 `frame-ancestors self` 属非法语法，浏览器忽略该关键字——白名单看起来配了实际没生效。新增 `frontend/docker-entrypoint.d/10-csp-normalize.envsh`（`.envsh` 会被官方入口脚本 source，编号 10 保证先于 20-envsubst 执行）自动补引号
+- **修复 nginx 启动即退出 / 后端换 IP 后永久 502**：nginx 默认启动时解析上游主机名，解析不到直接 `[emerg] host not found in upstream` 退出。改用 Docker 内置 DNS 做运行时解析（`resolver 127.0.0.11 valid=10s` + 变量形式 `proxy_pass`）。现在后端不可用时前端照常启动、`/api` 返回 502；后端恢复或换 IP 后 10 秒内自动接上，无需重启前端
+- **修复 BuildKit 并行调度导致构建中断**：`builder` 与 `proddeps` 两个阶段无依赖关系会被并行执行，两个 `pnpm install` 同时下载会耗尽内存并报 `rpc error: ... EOF`。改为从 builder 复用 pnpm store，既建立阶段依赖又省掉重复下载
+- **修复 runtime 阶段 apk 与 install 争抢网络**：`apk add tini` 与 `pnpm install` 并行时偶发失败，移到所有 COPY 之后
+- **实测结论**：两镜像本机构建通过（后端 437MB / 前端 129MB），四容器全部 healthy；空库自举建表、文件上传→MinIO→代理回读字节一致、模型增删查、`/api` 反代、iframe 路由、Cesium 静态资源、数据卷持久化与增量 migration 分支全部验证通过
+
 ## 2026-11-02
 
 Docker 镜像化与拉取式部署：

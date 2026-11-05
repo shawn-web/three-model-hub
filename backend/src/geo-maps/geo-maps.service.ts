@@ -248,9 +248,13 @@ export class GeoMapsService {
       ? geoConfig.allowedOrigins
       : null
     const envAncestors = process.env.IFRAME_FRAME_ANCESTORS?.trim()
-    const frameAncestors = allowedOrigins && allowedOrigins.length > 0
+    const raw = allowedOrigins && allowedOrigins.length > 0
       ? [...allowedOrigins, ...(envAncestors ? envAncestors.split(',').map((s: string) => s.trim()).filter(Boolean) : [])]
       : (envAncestors ? envAncestors.split(',').map((s: string) => s.trim()).filter(Boolean) : ['self'])
+    // 该字段的用途是直接写进 CSP 的 frame-ancestors，而 CSP 要求 self/none 这类
+    // 关键字必须带引号，裸写会被浏览器当作非法源表达式忽略（白名单静默失效）。
+    // 环境变量里通常会写成 self，这里统一补成 'self'。
+    const frameAncestors = raw.map((t: string) => (/^(self|none)$/i.test(t) ? `'${t.toLowerCase()}'` : t))
     return {
       mapId: geoMap.id,
       mapName: geoMap.name,

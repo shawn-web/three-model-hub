@@ -15,6 +15,13 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
+    # Docker 内置 DNS。配合下面 proxy_pass 使用变量，让上游地址在请求时解析而不是
+    # 启动时解析：
+    #   1) 后端容器还没起来时，nginx 不会因 "host not found in upstream" 直接退出；
+    #   2) 后端容器重建换了 IP 后，nginx 能在 10s 内自动跟上，不需要重启前端。
+    resolver 127.0.0.11 valid=10s ipv6=off;
+    set $backend_upstream "http://${BACKEND_UPSTREAM}";
+
     # ── 安全响应头 ──────────────────────────────────────────────
     # 注意：nginx 的 add_header 一旦在 location 内出现，就不再继承 server 级配置。
     # 因此下面各 location 一律用 expires 控制缓存，不写 add_header，保证这些头始终生效。
@@ -60,7 +67,9 @@ server {
     # 前端统一走相对路径 /api，由这里转发到后端容器；
     # 模型文件同样经后端 /api/storage 代理读取，MinIO 不对公网暴露。
     location /api/ {
-        proxy_pass http://${BACKEND_UPSTREAM}/api/;
+        # proxy_pass 带变量时必须自己拼完整路径（$request_uri 已含查询串），
+        # 否则 nginx 不会做 location 前缀替换。
+        proxy_pass $backend_upstream$request_uri;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';

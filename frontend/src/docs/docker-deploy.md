@@ -117,7 +117,7 @@ ssh -L 9001:127.0.0.1:9001 user@your-server
 | `DB_USERNAME` | `tmh` | 应用数据库账号，**不要用 root** |
 | `DB_AUTO_BOOTSTRAP` | `true` | 空库首次启动时自动建表，见下文 |
 | `IFRAME_FRAME_ANCESTORS` | `self` | 嵌入白名单，逗号分隔，给后端用 |
-| `FRAME_ANCESTORS` | `'self'` | 嵌入白名单，CSP 语法（空格分隔、带引号），给 nginx 用 |
+| `FRAME_ANCESTORS` | `self` | 嵌入白名单，空格分隔，给 nginx 用；裸关键字会自动补引号 |
 | `CORS_ORIGINS` | 空 | 留空时后端会反射任意 Origin，公网部署建议显式填写 |
 
 ### 关于 `DB_AUTO_BOOTSTRAP`
@@ -135,11 +135,35 @@ ssh -L 9001:127.0.0.1:9001 user@your-server
 ```env
 # 后端：告诉集成方哪些域名可以嵌入（供 /api/geo-maps/:id/iframe-config）
 IFRAME_FRAME_ANCESTORS=self,https://partner.example.com
-# 前端：真正写进 CSP 响应头，语法不同
-FRAME_ANCESTORS='self' https://partner.example.com
+# 前端：真正写进 CSP 响应头，语法不同（空格分隔）
+FRAME_ANCESTORS=self https://partner.example.com
 ```
 
 两处表达的是同一组域名，改的时候要一起改。nginx 刻意没有下发 `X-Frame-Options`——它无法表达多域名白名单，与 CSP 同时存在时旧浏览器会按更严格的 XFO 拦截，反而会让白名单配置失效。
+
+**关于引号**：CSP 规范要求 `self`、`none` 这类关键字必须带引号（`'self'`）。但 Docker Compose 解析 `.env` 时会剥掉外层引号，用户写 `FRAME_ANCESTORS='self'`，容器里拿到的其实是 `self`，直接拼进响应头就变成非法语法——浏览器会忽略这个关键字，白名单**静默失效**（看起来配了，实际没生效）。
+
+镜像里的 `10-csp-normalize.envsh` 会在 nginx 渲染配置前自动给裸关键字补上引号，因此上面两种写法都等价、都安全。有多个域名时建议整体加双引号，内层单引号才会被保留：
+
+```env
+FRAME_ANCESTORS="'self' https://partner.example.com"
+```
+
+排查时可看前端容器启动日志，会打印实际生效的值：
+
+```bash
+docker logs tmh-frontend 2>&1 | grep csp-normalize
+# csp-normalize: frame-ancestors -> 'self' https://partner.example.com
+```
+
+### 关于后端地址与容器重启
+
+nginx 默认在**启动时**解析上游主机名，解析失败会直接 `[emerg] host not found in upstream` 退出。这在容器编排里会带来两个连锁问题：后端还没起来时前端跟着起不来；后端重建换 IP 后前端一直 502 直到手动重启。
+
+前端镜像改用 Docker 内置 DNS 做运行时解析（`resolver 127.0.0.11 valid=10s`，`proxy_pass` 使用变量），因此：
+
+- 后端不可用时前端照常启动，静态页面可正常访问，`/api` 返回 502；
+- 后端恢复或换 IP 后，最多 10 秒内自动接上，**不需要重启前端容器**。
 
 ---
 
@@ -331,7 +355,7 @@ docker compose -f docker-compose.prod.yml up -d
 
 **iframe 嵌入报 X-Frame-Options / frame-ancestors 错误**
 
-检查 `.env` 的 `FRAME_ANCESTORS` 是否包含父页面域名（注意是 CSP 语法，每项带单引号、空格分隔），改完要重启 frontend 容器才生效。
+检查 `.env` 的 `FRAME_ANCESTORS` 是否包含父页面域名（空格分隔，裸关键字会自动补引号），改完要重启 frontend 容器才生效。用 `docker logs tmh-frontend | grep csp-normalize` 可确认实际生效的值。
 
 **arm64 服务器（如树莓派、华为鲲鹏）**
 

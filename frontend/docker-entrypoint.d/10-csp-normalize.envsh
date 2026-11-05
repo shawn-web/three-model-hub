@@ -1,0 +1,39 @@
+#!/bin/sh
+#
+# 规范化 FRAME_ANCESTORS，保证渲染出的 CSP 语法合法。
+#
+# 背景：
+#   CSP 的 frame-ancestors 里，self / none 这类关键字必须以引号形式出现
+#   （'self'、'none'）。但 Docker Compose 解析 .env 时会剥掉外层引号，
+#   用户在 .env 里写 FRAME_ANCESTORS='self'，容器里拿到的是 self，
+#   渲染成 "frame-ancestors self" —— 浏览器会把它当作非法源表达式忽略，
+#   结果是 iframe 白名单静默失效（看起来配了，实际没生效）。
+#
+# 本脚本在 20-envsubst-on-templates.sh 之前执行（.envsh 会被 source，
+# export 的变量能传递给后续脚本），把裸关键字补齐引号。
+#
+# 输入示例 → 输出示例：
+#   self                            -> 'self'
+#   self https://a.com              -> 'self' https://a.com
+#   'self' https://a.com            -> 'self' https://a.com   （保持原样）
+#   https://*.example.com *         -> https://*.example.com *（保持原样）
+
+set -e
+
+if [ -n "${FRAME_ANCESTORS:-}" ]; then
+  normalized=""
+  for token in $FRAME_ANCESTORS; do
+    case "$token" in
+      self)  token="'self'" ;;
+      none)  token="'none'" ;;
+      Self)  token="'self'" ;;
+      None)  token="'none'" ;;
+      SELF)  token="'self'" ;;
+      NONE)  token="'none'" ;;
+    esac
+    normalized="${normalized}${normalized:+ }${token}"
+  done
+  FRAME_ANCESTORS="$normalized"
+  export FRAME_ANCESTORS
+  echo "csp-normalize: frame-ancestors -> ${FRAME_ANCESTORS}"
+fi

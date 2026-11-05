@@ -224,13 +224,19 @@ Geo 页面预处理 GLB（移除法线贴图）。响应 `application/octet-stre
 
 获取 iframe 嵌入配置（frame-ancestors 白名单 + allowedOrigins），供 nginx 和父页面使用。
 
+`frameAncestors` 中的每一项都是**可直接使用的 CSP 源表达式**：`self`、`none` 这类关键字已补上引号（`'self'`），其余按原样返回。可直接拼进响应头：
+
+```nginx
+add_header Content-Security-Policy "frame-ancestors 'self' https://example.com" always;
+```
+
 **响应示例：**
 ```json
 {
   "mapId": "uuid",
   "mapName": "地图名称",
   "allowedOrigins": ["https://example.com"],
-  "frameAncestors": ["https://example.com", "self"]
+  "frameAncestors": ["https://example.com", "'self'"]
 }
 ```
 
