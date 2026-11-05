@@ -31,14 +31,30 @@ docker compose version
 
 ### 2. 获取编排文件
 
-```bash
-# 方式一：只下载这两个文件，不用 clone 整个仓库
-curl -O https://gitee.com/lishuaistart/three-model/raw/master/docker-compose.prod.yml
-curl -o .env https://gitee.com/lishuaistart/three-model/raw/master/.env.docker.example
+两个代码仓库内容一致，任选其一。
 
-# 方式二：已经有仓库
+只下载这两个文件，不用 clone 整个仓库（推荐）：
+
+```bash
+curl -O https://raw.githubusercontent.com/shawn-web/three-model-hub/master/docker-compose.prod.yml
+curl -o .env https://raw.githubusercontent.com/shawn-web/three-model-hub/master/.env.docker.example
+```
+
+已经 clone 了仓库的话，直接复制：
+
+```bash
 cp .env.docker.example .env
 ```
+
+国内访问 GitHub 不畅时，可从 Gitee 仓库取同一份文件：
+
+```bash
+git clone --depth 1 https://gitee.com/lishuaistart/three-model.git tmh-deploy
+cp tmh-deploy/docker-compose.prod.yml . && cp tmh-deploy/.env.docker.example .env
+```
+
+> Gitee 的 `raw` 域名对部分服务器 IP 会返回 403（WAF 拦截），用 `git clone` 更稳。
+> 以上只是获取编排文件；**容器镜像本身从 `ghcr.io`（或 `.env` 里 `IMAGE_NAMESPACE` 指定的仓库）拉取，与代码托管平台无关**。
 
 ### 3. 填写口令
 

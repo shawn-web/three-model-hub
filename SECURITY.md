@@ -11,13 +11,13 @@
 
 ## 报告漏洞
 
-**请不要**通过公开的 GitHub Issue 报告安全漏洞。
+**请不要**通过公开 Issue（GitHub / Gitee 都一样）报告安全漏洞。
 
 请通过以下方式私下报告：
 
-1. 在 [Gitee Issues](https://gitee.com/lishuaistart/three-model/issues) 提交 **私密** Issue（标题标注 `[SECURITY]`）
-2. 或在 GitHub 镜像仓库发起 Private Security Advisory
-3. 或发送邮件到维护者邮箱（见 [README.md](README.md) 中的联系方式）
+1. 在 GitHub 发起 [Private Security Advisory](https://github.com/shawn-web/three-model-hub/security/advisories/new)（推荐）
+2. 或在 [Gitee Issues](https://gitee.com/lishuaistart/three-model/issues) 提交 **私密** Issue（标题标注 `[SECURITY]`）
+3. 或发送邮件到 `lishuaistart@163.com`
 
 报告内容请包含：
 

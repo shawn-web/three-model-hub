@@ -9,7 +9,7 @@
 [![Three.js](https://img.shields.io/badge/Three.js-3D-000000.svg)](https://threejs.org/)
 [![NestJS](https://img.shields.io/badge/NestJS-Backend-E0234E.svg)](https://nestjs.com/)
 
-> 主仓库：[Gitee](https://gitee.com/lishuaistart/three-model) ｜ 镜像：[GitHub](https://github.com/shawn-web/three-model-hub)
+> 代码仓库：[GitHub](https://github.com/shawn-web/three-model-hub) ｜ [Gitee](https://gitee.com/lishuaistart/three-model)（双端同步，内容一致，任选其一）
 
 > 全栈 3D 模型管理与场景平台：上传 GLB/GLTF，组合场景，添加标注和测量，部署 Geo 地理视图，通过 iframe 嵌入到任何系统。
 
@@ -55,9 +55,11 @@
 ### 5 分钟快速启动（开发模式）
 
 ```bash
-# 1. 克隆仓库
-git clone https://gitee.com/lishuaistart/three-model.git
-cd three-model
+# 1. 克隆仓库（GitHub / Gitee 内容一致，任选其一）
+git clone https://github.com/shawn-web/three-model-hub.git three-model-hub
+# 国内访问 GitHub 不畅时改用：
+# git clone https://gitee.com/lishuaistart/three-model.git three-model-hub
+cd three-model-hub
 
 # 2. 安装依赖
 pnpm install
@@ -90,11 +92,23 @@ pnpm dev:full
 **方式一：拉取镜像直接部署（不需要源码）**
 
 ```bash
-curl -O https://gitee.com/lishuaistart/three-model/raw/master/docker-compose.prod.yml
-curl -o .env https://gitee.com/lishuaistart/three-model/raw/master/.env.docker.example
+# 从 GitHub 下载编排文件（默认）
+curl -O https://raw.githubusercontent.com/shawn-web/three-model-hub/master/docker-compose.prod.yml
+curl -o .env https://raw.githubusercontent.com/shawn-web/three-model-hub/master/.env.docker.example
+
 # 编辑 .env，填好 DB_PASSWORD / MYSQL_ROOT_PASSWORD / MINIO_ACCESS_KEY / MINIO_SECRET_KEY
 docker compose -f docker-compose.prod.yml up -d
 ```
+
+国内访问 GitHub 不畅时，可从 Gitee 仓库取同一份文件：
+
+```bash
+git clone --depth 1 https://gitee.com/lishuaistart/three-model.git tmh-deploy
+cp tmh-deploy/docker-compose.prod.yml . && cp tmh-deploy/.env.docker.example .env
+```
+
+> Gitee 的 `raw` 域名对部分服务器 IP 会返回 403，用 `git clone` 更稳。
+> 这里获取的只是编排文件；**容器镜像由 `docker compose` 从 `ghcr.io`（或 `.env` 里 `IMAGE_NAMESPACE` 指定的仓库）拉取，与代码托管平台无关**。
 
 打开 `http://<服务器IP>:8080`。镜像为多架构（amd64 / arm64），MySQL、MinIO、后端、前端一次起齐，对外只暴露一个端口。
 

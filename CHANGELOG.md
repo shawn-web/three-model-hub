@@ -9,6 +9,8 @@
 - **修复 BuildKit 并行调度导致构建中断**：`builder` 与 `proddeps` 两个阶段无依赖关系会被并行执行，两个 `pnpm install` 同时下载会耗尽内存并报 `rpc error: ... EOF`。改为从 builder 复用 pnpm store，既建立阶段依赖又省掉重复下载
 - **修复 runtime 阶段 apk 与 install 争抢网络**：`apk add tini` 与 `pnpm install` 并行时偶发失败，移到所有 COPY 之后
 - **实测结论**：两镜像本机构建通过（后端 437MB / 前端 129MB），四容器全部 healthy；空库自举建表、文件上传→MinIO→代理回读字节一致、模型增删查、`/api` 反代、iframe 路由、Cesium 静态资源、数据卷持久化与增量 migration 分支全部验证通过
+- **文档地址平台中立**：README 与 `docs/docker-deploy.md` 的 clone / 编排文件下载命令改为 GitHub 默认 + Gitee 备选双链，`SECURITY.md` 的漏洞报告入口改为 GitHub Advisory 优先。两个仓库共用同一份 README，无法按平台渲染不同内容，因此不用单平台硬编码；容器镜像仍从 `ghcr.io` 拉取，与代码托管平台无关
+- **修复部署文档中的坏链接**：实测 Gitee 的 `raw` 域名对服务器直连返回 403（WAF 拦截，换 UA 无效），匿名 `git clone` 正常、GitHub `raw.githubusercontent.com` 返回 200。原「服务器 curl Gitee raw 下载编排文件」的路径不可靠，改为 GitHub raw 默认、Gitee 用 `git clone --depth 1` 取文件；GitHub 仓库简介与 homepage 也去掉单平台指向
 
 ## 2026-11-02
 
