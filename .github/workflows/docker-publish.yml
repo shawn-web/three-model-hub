@@ -68,7 +68,7 @@ jobs:
       # arm64 镜像通过 QEMU 模拟构建，仅发布 tag 时启用
       - name: Set up QEMU
         if: startsWith(github.ref, 'refs/tags/')
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
