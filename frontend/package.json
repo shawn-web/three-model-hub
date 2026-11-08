@@ -13,7 +13,7 @@
     "postinstall": "node -e \"const fs=require('fs'),path=require('path');const src='node_modules/cesium/Build/Cesium',dst='public/cesium';if(!fs.existsSync(dst)){fs.mkdirSync(dst,{recursive:true});}fs.cpSync(src,dst,{recursive:true,dereference:true});\""
   },
   "dependencies": {
-    "@ant-design/icons": "^6.2.3",
+    "@ant-design/icons": "^6.3.4",
     "@iconify-icons/fluent": "^1.2.38",
     "@iconify-icons/lucide": "^1.2.135",
     "@iconify/react": "^6.0.2",
